@@ -7,7 +7,7 @@ Design source of truth: `DESIGN.md` (copy of mentaris2.md from branch Prisms-of-
 3. [x] Aiming: click-to-target missiles that arc to the clicked asteroid. Laser stays a later option (undecided in the design).
 4. [x] Free roam: larger scrolling world, scattered untimed asteroids. Approaching one shows its difficulty without revealing the answer; player picks easy or hard.
 5. [x] Free-roaming missions: operation-locked missions, asteroid question quota, locked wormhole that unlocks when the quota is met.
-6. Rewards, fabrication and ship HP: materials, upgrades, HP, dropped materials fade after a limited time.
+6. [x] Rewards, fabrication and ship HP: materials, upgrades, HP, dropped materials fade after a limited time.
 7. Clusters, layers and wormholes: seeded worlds, stacked 2D layers with a transition animation, wormhole travel that costs material.
 8. Multiplayer: live shared worlds on a seed, then bases and aliens.
 

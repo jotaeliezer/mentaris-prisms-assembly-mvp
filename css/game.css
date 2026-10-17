@@ -109,7 +109,7 @@ button, input {
   pointer-events: auto;
 }
 
-#speed-readout, #solved-readout {
+#speed-readout, #solved-readout, #hull-readout, #cargo-readout, #bank-readout {
   min-width: 92px;
   padding: 10px 12px;
   background: var(--panel);
@@ -119,7 +119,7 @@ button, input {
   letter-spacing: 0.04em;
 }
 
-#speed-readout span, #solved-readout span {
+#speed-readout span, #solved-readout span, #hull-readout span, #cargo-readout span, #bank-readout span {
   display: block;
   color: var(--muted);
   font-size: 11px;
@@ -192,7 +192,7 @@ button:hover, button:focus-visible {
   line-height: 1.35;
 }
 
-#mission-add, #mission-sub, #next-mission {
+#mission-add, #mission-sub, #next-mission, #bank-ore, #fab-drive, #fab-hull, #fab-hint {
   background: #dff7ff;
   color: #06202c;
   border: none;
@@ -271,6 +271,11 @@ kbd {
   font-size: 13px;
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 @media (max-width: 800px) {
   .hud { padding: 10px; }
   .brand-sub { font-size: 13px; }
@@ -278,4 +283,6 @@ kbd {
   h1 { font-size: 34px; }
   .buffer { flex: 1 1 100%; order: 3; }
   .buffer strong { font-size: 26px; }
+  .hud-stats { flex-wrap: wrap; justify-content: flex-end; }
+  #speed-readout, #solved-readout, #hull-readout, #cargo-readout, #bank-readout { min-width: 72px; padding: 8px; }
 }

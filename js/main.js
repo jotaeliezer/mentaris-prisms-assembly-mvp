@@ -13,6 +13,7 @@ const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
 const titleEl = document.getElementById("title");
 const pauseEl = document.getElementById("pause");
+const fabEl = document.getElementById("fab");
 const clearEl = document.getElementById("clear");
 const clearTitle = document.getElementById("clear-title");
 const missionReadout = document.getElementById("mission-readout");
@@ -20,6 +21,9 @@ const hudEl = document.getElementById("hud");
 const loadNote = document.getElementById("load-note");
 const speedValue = document.getElementById("speed-value");
 const solvedValue = document.getElementById("solved-value");
+const hullValue = document.getElementById("hull-value");
+const cargoValue = document.getElementById("cargo-value");
+const bankValue = document.getElementById("bank-value");
 const questionReadout = document.getElementById("question-readout");
 const bufferValue = document.getElementById("buffer-value");
 const bufferEl = document.getElementById("buffer");
@@ -48,6 +52,11 @@ document.getElementById("replay-mission").addEventListener("click", () => {
   startMission(state.mission ? state.mission.id : "add");
 });
 document.getElementById("resume").addEventListener("click", () => setPaused(false));
+document.getElementById("close-fab").addEventListener("click", () => setFab(false));
+document.getElementById("bank-ore").addEventListener("click", () => bankCargo());
+document.getElementById("fab-drive").addEventListener("click", () => fabricateDrive());
+document.getElementById("fab-hull").addEventListener("click", () => fabricateHull());
+document.getElementById("fab-hint").addEventListener("click", () => fabricateHint());
 muteBtn.addEventListener("click", () => {
   const muted = audio.toggle();
   muteBtn.textContent = muted ? "Sound off" : "Sound on";
@@ -56,8 +65,23 @@ muteBtn.addEventListener("click", () => {
 window.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   if (event.code === "Enter" && (state.mode === "title" || state.mode === "clear")) startMission("add");
-  if (event.code === "KeyP" && state.mode === "fly") setPaused(true);
-  if (event.code === "KeyP" && state.mode === "paused") setPaused(false);
+  if (event.code === "KeyP" && state.mode === "fly") {
+    setPaused(true);
+    return;
+  }
+  if (event.code === "KeyP" && state.mode === "paused") {
+    setPaused(false);
+    return;
+  }
+  if (event.code === "KeyF" && state.mode === "fly") {
+    setFab(true);
+    return;
+  }
+  if (event.code === "KeyF" && state.mode === "fab") {
+    setFab(false);
+    return;
+  }
+  if (event.code === "Escape" && state.mode === "fab") setFab(false);
   if (event.code === "KeyM") {
     const muted = audio.toggle();
     muteBtn.textContent = muted ? "Sound off" : "Sound on";
@@ -132,10 +156,23 @@ function createState() {
       sprite: "AM3 Scout.png",
       thrusting: false,
       thrust: 0,
+      hp: 100,
+      maxHp: 100,
+      maxSpeed: 430,
     },
     camera: { x: WORLD.w / 2, y: WORLD.h / 2 },
     mission: null,
     wormhole: null,
+    cargo: 0,
+    bank: 0,
+    drops: [],
+    bumpCooldown: 0,
+    hurt: 0,
+    driveTier: 0,
+    hullTier: 0,
+    hint: "",
+    status: "",
+    statusTime: 0,
     clock: 0,
   };
   spawnAsteroid(state, "add", "easy", "near");
@@ -276,7 +313,10 @@ function startMission(id) {
   state.targetId = 0;
   state.missiles = [];
   state.particles = [];
+  state.drops = [];
   state.asteroids = [];
+  state.hint = "";
+  state.ship.hp = state.ship.maxHp;
   state.ship.x = WORLD.w / 2;
   state.ship.y = WORLD.h / 2;
   state.ship.vx = 0;
@@ -314,6 +354,7 @@ function startMission(id) {
   titleEl.hidden = true;
   pauseEl.hidden = true;
   clearEl.hidden = true;
+  fabEl.hidden = true;
   hudEl.hidden = false;
 }
 
@@ -331,6 +372,81 @@ function setPaused(paused) {
   }
 }
 
+function setFab(open) {
+  if (open) {
+    state.mode = "fab";
+    fabEl.hidden = false;
+    refreshFab();
+  } else {
+    state.mode = "fly";
+    fabEl.hidden = true;
+  }
+}
+
+function bankCargo() {
+  if (state.cargo <= 0) return;
+  state.bank += state.cargo;
+  state.cargo = 0;
+  audio.pickup();
+  refreshFab();
+}
+
+function fabricateDrive() {
+  if (state.driveTier >= 3 || state.bank < 4) return;
+  state.bank -= 4;
+  state.driveTier += 1;
+  state.ship.maxSpeed = 430 + state.driveTier * 50;
+  audio.correct();
+  refreshFab();
+}
+
+function fabricateHull() {
+  if (state.hullTier >= 3 || state.bank < 4) return;
+  state.bank -= 4;
+  state.hullTier += 1;
+  state.ship.maxHp = 100 + state.hullTier * 30;
+  state.ship.hp = Math.min(state.ship.maxHp, state.ship.hp + 30);
+  audio.correct();
+  refreshFab();
+}
+
+function fabricateHint() {
+  const rock = activeAsteroid();
+  if (!rock || state.bank < 2) return;
+  state.bank -= 2;
+  const text = rock.question.answerText;
+  const value = Number(text);
+  state.hint = text.length <= 1
+    ? "Hint: the answer is " + (value % 2 ? "odd" : "even") + "."
+    : "Hint: the answer starts with " + text[0] + ".";
+  audio.lock();
+  refreshFab();
+}
+
+function refreshFab() {
+  const driveBtn = document.getElementById("fab-drive");
+  const hullBtn = document.getElementById("fab-hull");
+  const hintBtn = document.getElementById("fab-hint");
+  const bankBtn = document.getElementById("bank-ore");
+  bankBtn.disabled = state.cargo <= 0;
+  bankBtn.querySelector("span").textContent = state.cargo
+    ? "Move " + state.cargo + " carried ore into the bay."
+    : "The hold is empty.";
+  driveBtn.disabled = state.driveTier >= 3 || state.bank < 4;
+  driveBtn.querySelector("span").textContent = state.driveTier >= 3
+    ? "Drive is at the top tier."
+    : "Spend 4 banked ore. Tier " + state.driveTier + " of 3. Top speed " + state.ship.maxSpeed + ".";
+  hullBtn.disabled = state.hullTier >= 3 || state.bank < 4;
+  hullBtn.querySelector("span").textContent = state.hullTier >= 3
+    ? "Hull is at the top tier."
+    : "Spend 4 banked ore. Tier " + state.hullTier + " of 3. Hull " + state.ship.maxHp + ".";
+  const rock = activeAsteroid();
+  hintBtn.disabled = !rock || state.bank < 2;
+  hintBtn.querySelector("span").textContent = rock
+    ? "Spend 2 banked ore for a nudge on the targeted rock."
+    : "Target a rock first, then spend 2 banked ore.";
+}
+
 function frame(now) {
   const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
@@ -341,6 +457,9 @@ function frame(now) {
   speedValue.textContent = String(speed);
   const quota = state.mission && state.mission.quota ? state.mission.quota : 0;
   solvedValue.textContent = quota ? Math.min(state.solved, quota) + "/" + quota : String(state.solved);
+  hullValue.textContent = Math.round(state.ship.hp) + "/" + state.ship.maxHp;
+  cargoValue.textContent = String(state.cargo);
+  bankValue.textContent = String(state.bank);
   if (missionReadout) {
     let label = state.mission
       ? state.mission.name + (quota ? " · " + Math.min(state.solved, quota) + "/" + quota : "")
@@ -353,9 +472,14 @@ function frame(now) {
   }
   const active = activeAsteroid();
   const near = state.asteroids.some((rock) => rock.near);
-  if (active) {
+  if (state.hint && active) {
+    const stars = active.difficulty === "hard" ? "★★★  " : "★  ";
+    questionReadout.textContent = stars + active.question.prompt + "  " + state.hint;
+  } else if (active) {
     const stars = active.difficulty === "hard" ? "★★★  " : "★  ";
     questionReadout.textContent = stars + active.question.prompt;
+  } else if (state.statusTime > 0) {
+    questionReadout.textContent = state.status;
   } else if (state.wormhole && Math.hypot(state.ship.x - state.wormhole.x, state.ship.y - state.wormhole.y) < 280) {
     questionReadout.textContent = state.wormhole.locked
       ? "Wormhole locked. " + state.solved + "/" + quota + " rocks answered."
@@ -409,7 +533,7 @@ function update(dt) {
   ship.vx -= ship.vx * drag * dt;
   ship.vy -= ship.vy * drag * dt;
   const speed = len(ship.vx, ship.vy);
-  const maxSpeed = 430;
+  const maxSpeed = ship.maxSpeed || 430;
   if (speed > maxSpeed) {
     ship.vx = (ship.vx / speed) * maxSpeed;
     ship.vy = (ship.vy / speed) * maxSpeed;
@@ -446,7 +570,11 @@ function update(dt) {
   }
   updateMissiles(dt);
   updateParticles(dt);
+  updateDrops(dt);
   updateWormhole(dt);
+  if (state.bumpCooldown > 0) state.bumpCooldown -= dt;
+  if (state.hurt > 0) state.hurt -= dt;
+  if (state.statusTime > 0) state.statusTime -= dt;
   if (state.wrong > 0) state.wrong -= dt;
   state.clock += dt;
   easeCamera(dt);
@@ -475,7 +603,10 @@ function handleClicks() {
     const world = screenToWorld(click.x, click.y);
     const hit = asteroidAt(world.x, world.y);
     if (!hit) continue;
-    if (hit.id !== state.targetId) state.buffer = "";
+    if (hit.id !== state.targetId) {
+      state.buffer = "";
+      state.hint = "";
+    }
     state.targetId = hit.id;
     audio.lock();
   }
@@ -548,6 +679,13 @@ function destroyAsteroid(rock) {
       color: i % 3 === 0 ? "#ffb15a" : "#d7f6ff",
     });
   }
+  state.drops.push({
+    x: rock.x,
+    y: rock.y,
+    amount: rock.difficulty === "hard" ? 3 : 1,
+    life: 16,
+    maxLife: 16,
+  });
   state.asteroids = state.asteroids.filter((item) => item.alive);
   const operation = state.mission && state.mission.operation
     ? state.mission.operation
@@ -574,6 +712,58 @@ function updateWormhole(dt) {
     clearEl.hidden = false;
     audio.correct();
   }
+}
+
+function updateDrops(dt) {
+  const ship = state.ship;
+  for (const drop of state.drops) {
+    drop.life -= dt;
+    if (drop.life <= 0) continue;
+    if (Math.hypot(drop.x - ship.x, drop.y - ship.y) < 56) {
+      state.cargo += drop.amount;
+      drop.life = 0;
+      audio.pickup();
+    }
+  }
+  state.drops = state.drops.filter((drop) => drop.life > 0);
+}
+
+function breachHull() {
+  const ship = state.ship;
+  if (state.cargo > 0) {
+    state.drops.push({
+      x: ship.x,
+      y: ship.y,
+      amount: state.cargo,
+      life: 18,
+      maxLife: 18,
+    });
+    state.cargo = 0;
+  }
+  ship.hp = ship.maxHp;
+  ship.vx = 0;
+  ship.vy = 0;
+  let placed = false;
+  for (let guard = 0; guard < 24; guard++) {
+    const x = 400 + state.rng() * (WORLD.w - 800);
+    const y = 400 + state.rng() * (WORLD.h - 800);
+    const clear = state.asteroids.every((rock) => Math.hypot(rock.x - x, rock.y - y) > 280);
+    if (clear) {
+      ship.x = x;
+      ship.y = y;
+      placed = true;
+      break;
+    }
+  }
+  if (!placed) {
+    ship.x = WORLD.w / 2;
+    ship.y = WORLD.h / 2;
+  }
+  state.camera.x = ship.x;
+  state.camera.y = ship.y;
+  state.status = "Hull breached. Carried ore was dropped on the spot.";
+  state.statusTime = 4.5;
+  audio.hit();
 }
 
 function updateParticles(dt) {
@@ -620,6 +810,13 @@ function separateFromRocks() {
       if (vn < 0) {
         ship.vx -= vn * nx * 1.2;
         ship.vy -= vn * ny * 1.2;
+      }
+      if (state.bumpCooldown <= 0 && state.mode === "fly") {
+        ship.hp = Math.max(0, ship.hp - 14);
+        state.bumpCooldown = 1.1;
+        state.hurt = 0.4;
+        audio.hit();
+        if (ship.hp <= 0) breachHull();
       }
     }
   }

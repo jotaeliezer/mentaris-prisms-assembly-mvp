@@ -56,5 +56,12 @@ export function createAudio() {
     wrong() {
       tone(128, 0.16, "square", 0.03);
     },
+    pickup() {
+      tone(880, 0.06, "sine", 0.04);
+      tone(1174, 0.08, "triangle", 0.03);
+    },
+    hit() {
+      tone(90, 0.12, "sawtooth", 0.03);
+    },
   };
 }

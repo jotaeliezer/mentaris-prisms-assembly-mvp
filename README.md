@@ -24,6 +24,8 @@ The page uses ES modules, so open it through that local server. Do not open `ind
 - The belt is a large scrolling field and nothing is timed. Fly close to an asteroid to see its difficulty: one green star is easier, three amber stars are harder. The question stays hidden until you click that rock.
 - Click to aim. A dashed arc shows the path. Type the answer. A correct number fires a missile that arcs into the rock.
 - Open belt is practice with both operations and no wormhole. `Enter` on the title starts Addition Drift.
+- A solved rock drops ore. Hard rocks drop more. Fly over the ore before it fades. Cargo is lost if the hull hits zero; banking it in fabrication keeps it.
+- Bumping an asteroid costs hull. `F` opens fabrication: bank cargo, a faster drive, a sturdier hull, or a math hint. Ore stays in this browser session only.
 - `Backspace` erases a digit. `Esc` clears the number and the aim.
 - `P` pauses. `M` mutes. `Enter` launches from the title.
 

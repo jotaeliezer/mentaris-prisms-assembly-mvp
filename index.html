@@ -21,11 +21,14 @@
       </div>
       <div class="hud-stats">
         <div id="solved-readout"><span>Rocks</span><strong id="solved-value">0</strong></div>
+        <div id="hull-readout"><span>Hull</span><strong id="hull-value">100</strong></div>
+        <div id="cargo-readout"><span>Cargo</span><strong id="cargo-value">0</strong></div>
+        <div id="bank-readout"><span>Bank</span><strong id="bank-value">0</strong></div>
         <div id="speed-readout"><span>Speed</span><strong id="speed-value">0</strong></div>
         <button id="mute" type="button">Sound on</button>
       </div>
     </div>
-    <p id="hint" class="hint">Answer the mission quota. The wormhole unlocks after that. Green is easier, amber is harder.</p>
+    <p id="hint" class="hint">Hard rocks drop more ore. Bank it before a hull breach. F opens fabrication.</p>
   </div>
   <div id="title" class="overlay">
     <div class="panel">
@@ -45,6 +48,7 @@
         <li>Click an asteroid to target</li>
         <li>Digits type the answer</li>
         <li><kbd>⌫</kbd> erase</li>
+        <li><kbd>F</kbd> fabrication</li>
         <li><kbd>P</kbd> pause</li>
         <li><kbd>M</kbd> mute</li>
       </ul>
@@ -58,6 +62,20 @@
       <div class="missions">
         <button id="next-mission" type="button">Next mission</button>
         <button id="replay-mission" type="button">Fly this mission again</button>
+      </div>
+    </div>
+  </div>
+  <div id="fab" class="overlay" hidden>
+    <div class="panel">
+      <p class="eyebrow">Fabrication bay</p>
+      <h2>Spend banked ore</h2>
+      <p class="lede" id="fab-copy">Ore in the cargo hold is lost if the hull fails. Banking it keeps it. Nothing here is saved to an account.</p>
+      <div class="missions">
+        <button id="bank-ore" type="button">Bank cargo<span>Move carried ore into the bay. Banked ore stays if the hull fails.</span></button>
+        <button id="fab-drive" type="button">Faster drive<span>Spend 4 banked ore. Raises top speed.</span></button>
+        <button id="fab-hull" type="button">Sturdier hull<span>Spend 4 banked ore. Raises hull points.</span></button>
+        <button id="fab-hint" type="button">Math hint<span>Spend 2 banked ore. A nudge for the rock you have targeted.</span></button>
+        <button id="close-fab" type="button">Resume flight</button>
       </div>
     </div>
   </div>

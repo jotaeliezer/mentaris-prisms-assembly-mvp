@@ -27,6 +27,7 @@ export function drawFrame(ctx, view, state, sprites) {
   if (state.wormhole) drawWormhole(ctx, state);
   drawAimArc(ctx, state);
   for (const missile of state.missiles) drawMissile(ctx, missile);
+  drawDrops(ctx, state.drops, sprites);
   drawParticles(ctx, state.particles);
   drawShip(ctx, state, sprites);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -185,6 +186,34 @@ function drawMissile(ctx, missile) {
   ctx.restore();
 }
 
+function drawDrops(ctx, drops, sprites) {
+  if (!drops) return;
+  const img = sprites && sprites.mineral;
+  for (const drop of drops) {
+    const fade = Math.max(0, drop.life / drop.maxLife);
+    const blink = drop.life < 4 ? 0.45 + 0.55 * Math.abs(Math.sin(drop.life * 8)) : 1;
+    ctx.save();
+    ctx.globalAlpha = fade * blink;
+    ctx.translate(drop.x, drop.y);
+    if (img) {
+      const size = 28 + Math.min(drop.amount, 8) * 3;
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = "#ffd27a";
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#ffe7b0";
+    ctx.font = "700 13px Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(String(drop.amount), 0, -22);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawParticles(ctx, particles) {
   for (const bit of particles) {
     ctx.globalAlpha = Math.max(0, bit.life);
@@ -225,6 +254,16 @@ function drawShip(ctx, state, sprites) {
     ctx.closePath();
     ctx.fill();
   }
+  ctx.restore();
+
+  const hpRatio = ship.maxHp ? ship.hp / ship.maxHp : 1;
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+  ctx.strokeStyle = state.hurt > 0 ? "rgba(255, 120, 96, 0.95)" : "rgba(141, 255, 176, 0.7)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, 40, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hpRatio);
+  ctx.stroke();
   ctx.restore();
 
   const speed = len(ship.vx, ship.vy);
