@@ -24,6 +24,7 @@ export function drawFrame(ctx, view, state, sprites) {
   drawNebula(ctx, state.nebula);
   drawBoundary(ctx, state.world);
   for (const rock of state.asteroids) drawAsteroid(ctx, rock, sprites);
+  drawAimArc(ctx, state);
   for (const missile of state.missiles) drawMissile(ctx, missile);
   drawParticles(ctx, state.particles);
   drawShip(ctx, state, sprites);
@@ -88,11 +89,11 @@ function drawAsteroid(ctx, rock, sprites) {
   const height = width * (img.height / img.width);
   ctx.save();
   ctx.translate(rock.x, rock.y);
-  if (rock.active) {
-    ctx.strokeStyle = "rgba(126, 231, 255, 0.85)";
-    ctx.lineWidth = 2;
+  if (rock.active || rock.near) {
+    ctx.strokeStyle = rock.active ? "rgba(126, 231, 255, 0.95)" : "rgba(126, 231, 255, 0.35)";
+    ctx.lineWidth = rock.active ? 2.5 : 1.5;
     ctx.beginPath();
-    ctx.arc(0, 0, rock.radius + 16, 0, Math.PI * 2);
+    ctx.arc(0, 0, rock.radius + (rock.active ? 18 : 12), 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.rotate(rock.rot);
@@ -117,6 +118,33 @@ function drawQuestionPlate(ctx, rock) {
   ctx.stroke();
   ctx.fillStyle = "#e7f6ff";
   ctx.fillText(label, 0, 1);
+  ctx.restore();
+}
+
+function drawAimArc(ctx, state) {
+  const rock = state.asteroids.find((item) => item.alive && item.id === state.targetId);
+  if (!rock) return;
+  const ship = state.ship;
+  const x0 = ship.x;
+  const y0 = ship.y;
+  const x1 = rock.x;
+  const y1 = rock.y;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const dist = Math.hypot(dx, dy) || 1;
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  const facing = nx * Math.cos(ship.aim) + ny * Math.sin(ship.aim);
+  const side = facing >= 0 ? 1 : -1;
+  const cx = (x0 + x1) / 2 + nx * dist * 0.28 * side;
+  const cy = (y0 + y1) / 2 + ny * dist * 0.28 * side;
+  ctx.save();
+  ctx.strokeStyle = "rgba(126, 231, 255, 0.45)";
+  ctx.setLineDash([5, 8]);
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.quadraticCurveTo(cx, cy, x1, y1);
+  ctx.stroke();
   ctx.restore();
 }
 

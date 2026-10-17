@@ -20,7 +20,7 @@ The page uses ES modules, so open it through that local server. Do not open `ind
 
 - Mouse aims the nose. On a touch screen, hold a finger where you want the nose to point and the scout thrusts that way.
 - `W` or `Up` thrusts. `A` / `D` or `Left` / `Right` strafe. `S` or `Down` brakes.
-- Fly close to an asteroid. The nearest sum or difference lights up. Type that answer with the number keys. A correct number fires a missile and breaks the asteroid.
+- Fly close to an asteroid and click it to aim. A dashed arc shows the path. Type that asteroid's answer. A correct number fires a missile that arcs into the rock.
 - `Backspace` erases a digit. `Esc` clears the whole number.
 - `P` pauses. `M` mutes. `Enter` launches from the title.
 

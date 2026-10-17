@@ -107,7 +107,7 @@ function createState() {
     buffer: "",
     solved: 0,
     wrong: 0,
-    activeId: 0,
+    targetId: 0,
     ship: {
       x: WORLD.w / 2,
       y: WORLD.h / 2,
@@ -176,22 +176,41 @@ function typeChar(ch) {
 }
 
 function activeAsteroid() {
-  return state.asteroids.find((rock) => rock.alive && rock.id === state.activeId) || null;
+  return state.asteroids.find((rock) => rock.alive && rock.id === state.targetId) || null;
+}
+
+function asteroidAt(x, y) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const rock of state.asteroids) {
+    if (!rock.alive) continue;
+    const dist = Math.hypot(rock.x - x, rock.y - y);
+    if (dist < rock.radius + 18 && dist < bestDist) {
+      best = rock;
+      bestDist = dist;
+    }
+  }
+  return best;
 }
 
 function launchMissile(rock) {
   const ship = state.ship;
-  const dx = rock.x - ship.x;
-  const dy = rock.y - ship.y;
+  const x = ship.x + Math.cos(ship.aim) * 40;
+  const y = ship.y + Math.sin(ship.aim) * 40;
+  const dx = rock.x - x;
+  const dy = rock.y - y;
   const dist = Math.hypot(dx, dy) || 1;
-  const speed = 760;
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  const facing = nx * Math.cos(ship.aim) + ny * Math.sin(ship.aim);
   state.missiles.push({
-    x: ship.x + Math.cos(ship.aim) * 40,
-    y: ship.y + Math.sin(ship.aim) * 40,
-    vx: (dx / dist) * speed,
-    vy: (dy / dist) * speed,
+    x,
+    y,
+    vx: Math.cos(ship.aim) * 80,
+    vy: Math.sin(ship.aim) * 80,
+    bend: facing >= 0 ? 1 : -1,
     targetId: rock.id,
-    life: 2.4,
+    life: 3.2,
   });
   audio.shot();
 }
@@ -226,7 +245,9 @@ function frame(now) {
   speedValue.textContent = String(speed);
   solvedValue.textContent = String(state.solved);
   const active = activeAsteroid();
-  questionReadout.textContent = active ? active.question.prompt : "Fly closer to an asteroid";
+  questionReadout.textContent = active ? active.question.prompt : "Click an asteroid to aim";
+  const hover = screenToWorld(input.mouse.x, input.mouse.y);
+  canvas.style.cursor = asteroidAt(hover.x, hover.y) ? "pointer" : "crosshair";
   bufferValue.textContent = state.buffer;
   bufferEl.classList.toggle("bad", state.wrong > 0);
   requestAnimationFrame(frame);
@@ -278,11 +299,18 @@ function update(dt) {
   for (const rock of state.asteroids) {
     rock.rot += rock.spin * dt;
     rock.active = false;
+    rock.near = false;
   }
   const nearest = nearestAsteroid(APPROACH);
-  if (!nearest || nearest.id !== state.activeId) state.buffer = "";
-  state.activeId = nearest ? nearest.id : 0;
-  if (nearest) nearest.active = true;
+  if (nearest) nearest.near = true;
+  const target = activeAsteroid();
+  if (!target) {
+    state.targetId = 0;
+    state.buffer = "";
+  } else {
+    target.active = true;
+  }
+  handleClicks();
   updateMissiles(dt);
   updateParticles(dt);
   if (state.wrong > 0) state.wrong -= dt;
@@ -304,17 +332,53 @@ function nearestAsteroid(maxDist) {
   return best;
 }
 
+function handleClicks() {
+  if (state.mode !== "fly") {
+    input.takeClicks();
+    return;
+  }
+  for (const click of input.takeClicks()) {
+    const world = screenToWorld(click.x, click.y);
+    const hit = asteroidAt(world.x, world.y);
+    state.buffer = "";
+    if (hit) {
+      state.targetId = hit.id;
+      audio.lock();
+    } else {
+      state.targetId = 0;
+    }
+  }
+}
+
 function updateMissiles(dt) {
+  const speed = 700;
   for (const missile of state.missiles) {
-    missile.x += missile.vx * dt;
-    missile.y += missile.vy * dt;
     missile.life -= dt;
     const rock = state.asteroids.find((item) => item.id === missile.targetId && item.alive);
     if (!rock) {
       missile.life = 0;
       continue;
     }
-    if (Math.hypot(missile.x - rock.x, missile.y - rock.y) < rock.radius + 8) {
+    const dx = rock.x - missile.x;
+    const dy = rock.y - missile.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const desired = Math.atan2(dy, dx);
+    const bias = missile.bend * Math.min(1.15, dist / 380);
+    const heading = desired + bias;
+    missile.vx = Math.cos(heading) * speed;
+    missile.vy = Math.sin(heading) * speed;
+    missile.x += missile.vx * dt;
+    missile.y += missile.vy * dt;
+    state.particles.push({
+      x: missile.x,
+      y: missile.y,
+      vx: 0,
+      vy: 0,
+      life: 0.28,
+      size: 3,
+      color: "#b9f3ff",
+    });
+    if (dist < rock.radius + 10) {
       missile.life = 0;
       destroyAsteroid(rock);
     }
@@ -325,6 +389,7 @@ function updateMissiles(dt) {
 function destroyAsteroid(rock) {
   if (!rock.alive) return;
   rock.alive = false;
+  if (state.targetId === rock.id) state.targetId = 0;
   state.solved += 1;
   audio.correct();
   for (let i = 0; i < 18; i++) {
