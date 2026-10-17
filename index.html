@@ -13,7 +13,7 @@
     <div class="hud-top">
       <div class="brand">
         <span class="brand-mark">Mentaris</span>
-        <span class="brand-sub">Prisms of Assembly</span>
+        <span class="brand-sub" id="mission-readout">Prisms of Assembly</span>
       </div>
       <div id="buffer" class="buffer">
         <span id="question-readout">Fly closer to an asteroid</span>
@@ -25,14 +25,18 @@
         <button id="mute" type="button">Sound on</button>
       </div>
     </div>
-    <p id="hint" class="hint">Fly close to see difficulty. One green star is easier. Three amber stars are harder. The question stays hidden until you click.</p>
+    <p id="hint" class="hint">Answer the mission quota. The wormhole unlocks after that. Green is easier, amber is harder.</p>
   </div>
   <div id="title" class="overlay">
     <div class="panel">
       <p class="eyebrow">Open sector</p>
       <h1>Mentaris: Prisms of Assembly</h1>
-      <p class="lede">The belt is a large field and nothing is timed. Fly close to an asteroid to see how hard it is, then click it and type the answer. No name, no account.</p>
-      <button id="launch" type="button">Launch scout</button>
+      <p class="lede">Pick a mission. The belt is not timed. Answer that mission's rocks, then fly into the wormhole once it unlocks. No name, no account.</p>
+      <div class="missions">
+        <button id="mission-add" type="button">Addition Drift<span>Five addition rocks. The wormhole stays locked until the quota is met.</span></button>
+        <button id="mission-sub" type="button">Subtraction Rift<span>Five subtraction rocks, then the same locked wormhole.</span></button>
+        <button id="launch" type="button">Open belt<span>Practice with both operations. No quota and no wormhole.</span></button>
+      </div>
       <ul class="keys">
         <li><kbd>W</kbd> thrust</li>
         <li><kbd>A</kbd><kbd>D</kbd> strafe</li>
@@ -44,6 +48,17 @@
         <li><kbd>P</kbd> pause</li>
         <li><kbd>M</kbd> mute</li>
       </ul>
+    </div>
+  </div>
+  <div id="clear" class="overlay" hidden>
+    <div class="panel">
+      <p class="eyebrow">Wormhole reached</p>
+      <h2 id="clear-title">Mission clear</h2>
+      <p class="lede" id="clear-copy">The quota is met and the scout flew into the wormhole. What the wormhole leads to is still an open design question, so this arrival clears the mission.</p>
+      <div class="missions">
+        <button id="next-mission" type="button">Next mission</button>
+        <button id="replay-mission" type="button">Fly this mission again</button>
+      </div>
     </div>
   </div>
   <div id="pause" class="overlay" hidden>

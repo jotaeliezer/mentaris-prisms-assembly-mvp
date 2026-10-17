@@ -13,6 +13,9 @@ const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
 const titleEl = document.getElementById("title");
 const pauseEl = document.getElementById("pause");
+const clearEl = document.getElementById("clear");
+const clearTitle = document.getElementById("clear-title");
+const missionReadout = document.getElementById("mission-readout");
 const hudEl = document.getElementById("hud");
 const loadNote = document.getElementById("load-note");
 const speedValue = document.getElementById("speed-value");
@@ -34,7 +37,16 @@ window.addEventListener("resize", () => {
   view = resizeCanvas(canvas);
 });
 
-document.getElementById("launch").addEventListener("click", () => launch());
+document.getElementById("launch").addEventListener("click", () => startMission("roam"));
+document.getElementById("mission-add").addEventListener("click", () => startMission("add"));
+document.getElementById("mission-sub").addEventListener("click", () => startMission("sub"));
+document.getElementById("next-mission").addEventListener("click", () => {
+  const next = state.mission && state.mission.next;
+  startMission(next || "add");
+});
+document.getElementById("replay-mission").addEventListener("click", () => {
+  startMission(state.mission ? state.mission.id : "add");
+});
 document.getElementById("resume").addEventListener("click", () => setPaused(false));
 muteBtn.addEventListener("click", () => {
   const muted = audio.toggle();
@@ -43,7 +55,7 @@ muteBtn.addEventListener("click", () => {
 
 window.addEventListener("keydown", (event) => {
   if (event.repeat) return;
-  if (event.code === "Enter" && state.mode === "title") launch();
+  if (event.code === "Enter" && (state.mode === "title" || state.mode === "clear")) startMission("add");
   if (event.code === "KeyP" && state.mode === "fly") setPaused(true);
   if (event.code === "KeyP" && state.mode === "paused") setPaused(false);
   if (event.code === "KeyM") {
@@ -122,6 +134,8 @@ function createState() {
       thrust: 0,
     },
     camera: { x: WORLD.w / 2, y: WORLD.h / 2 },
+    mission: null,
+    wormhole: null,
     clock: 0,
   };
   spawnAsteroid(state, "add", "easy", "near");
@@ -244,10 +258,18 @@ function launchMissile(rock) {
   audio.shot();
 }
 
-function launch() {
+const MISSIONS = {
+  add: { id: "add", name: "Addition Drift", operation: "add", quota: 5, next: "sub" },
+  sub: { id: "sub", name: "Subtraction Rift", operation: "sub", quota: 5, next: "add" },
+  roam: { id: "roam", name: "Open belt", operation: null, quota: 0, next: "add" },
+};
+
+function startMission(id) {
   if (!sprites) return;
+  const mission = MISSIONS[id] || MISSIONS.roam;
   audio.unlock();
   audio.launch();
+  state.mission = { ...mission, cleared: false };
   state.solved = 0;
   state.buffer = "";
   state.wrong = 0;
@@ -262,17 +284,41 @@ function launch() {
   state.ship.aim = -Math.PI / 2;
   state.camera.x = state.ship.x;
   state.camera.y = state.ship.y;
-  spawnAsteroid(state, "add", "easy", "near");
-  spawnAsteroid(state, "sub", "easy", "near");
-  spawnAsteroid(state, "add", "hard", "near");
-  spawnAsteroid(state, "sub", "hard", "near");
-  for (let i = 0; i < 22; i++) {
-    spawnAsteroid(state, i % 2 ? "sub" : "add", i % 3 === 0 ? "hard" : "easy", "roam");
+  if (mission.operation) {
+    spawnAsteroid(state, mission.operation, "easy", "near");
+    spawnAsteroid(state, mission.operation, "easy", "near");
+    spawnAsteroid(state, mission.operation, "easy", "near");
+    spawnAsteroid(state, mission.operation, "hard", "near");
+    spawnAsteroid(state, mission.operation, "hard", "near");
+    for (let i = 0; i < 6; i++) {
+      spawnAsteroid(state, mission.operation, i % 2 ? "hard" : "easy", "mid");
+    }
+    for (let i = 0; i < 10; i++) {
+      spawnAsteroid(state, mission.operation, i % 3 === 0 ? "hard" : "easy", "roam");
+    }
+    state.wormhole = {
+      x: clamp(state.ship.x + 1900, 500, WORLD.w - 500),
+      y: clamp(state.ship.y - 1400, 500, WORLD.h - 500),
+      locked: true,
+    };
+  } else {
+    spawnAsteroid(state, "add", "easy", "near");
+    spawnAsteroid(state, "sub", "easy", "near");
+    spawnAsteroid(state, "add", "hard", "near");
+    for (let i = 0; i < 18; i++) {
+      spawnAsteroid(state, i % 2 ? "sub" : "add", i % 3 === 0 ? "hard" : "easy", "roam");
+    }
+    state.wormhole = null;
   }
   state.mode = "fly";
   titleEl.hidden = true;
   pauseEl.hidden = true;
+  clearEl.hidden = true;
   hudEl.hidden = false;
+}
+
+function launch() {
+  startMission("roam");
 }
 
 function setPaused(paused) {
@@ -293,14 +339,33 @@ function frame(now) {
   drawFrame(ctx, view, state, sprites);
   const speed = Math.round(len(state.ship.vx, state.ship.vy));
   speedValue.textContent = String(speed);
-  solvedValue.textContent = String(state.solved);
+  const quota = state.mission && state.mission.quota ? state.mission.quota : 0;
+  solvedValue.textContent = quota ? Math.min(state.solved, quota) + "/" + quota : String(state.solved);
+  if (missionReadout) {
+    let label = state.mission
+      ? state.mission.name + (quota ? " · " + Math.min(state.solved, quota) + "/" + quota : "")
+      : "Prisms of Assembly";
+    if (state.wormhole && quota) {
+      const range = Math.round(Math.hypot(state.ship.x - state.wormhole.x, state.ship.y - state.wormhole.y));
+      label += state.wormhole.locked ? " · gate locked" : " · gate " + range;
+    }
+    missionReadout.textContent = label;
+  }
   const active = activeAsteroid();
   const near = state.asteroids.some((rock) => rock.near);
   if (active) {
     const stars = active.difficulty === "hard" ? "★★★  " : "★  ";
     questionReadout.textContent = stars + active.question.prompt;
+  } else if (state.wormhole && Math.hypot(state.ship.x - state.wormhole.x, state.ship.y - state.wormhole.y) < 280) {
+    questionReadout.textContent = state.wormhole.locked
+      ? "Wormhole locked. " + state.solved + "/" + quota + " rocks answered."
+      : "The wormhole is open. Fly into it.";
   } else if (near) {
     questionReadout.textContent = "One star is easier. Three stars are harder. Click to see the question.";
+  } else if (state.wormhole) {
+    questionReadout.textContent = state.wormhole.locked
+      ? "Answer " + quota + " rocks to unlock the wormhole."
+      : "The wormhole is unlocked, " + Math.round(Math.hypot(state.ship.x - state.wormhole.x, state.ship.y - state.wormhole.y)) + " away. Follow the marker.";
   } else {
     questionReadout.textContent = "Roam the belt. Nothing is timed.";
   }
@@ -381,6 +446,7 @@ function update(dt) {
   }
   updateMissiles(dt);
   updateParticles(dt);
+  updateWormhole(dt);
   if (state.wrong > 0) state.wrong -= dt;
   state.clock += dt;
   easeCamera(dt);
@@ -483,9 +549,31 @@ function destroyAsteroid(rock) {
     });
   }
   state.asteroids = state.asteroids.filter((item) => item.alive);
-  const operation = state.rng() < 0.5 ? "add" : "sub";
-  const difficulty = state.rng() < 0.65 ? "easy" : "hard";
+  const operation = state.mission && state.mission.operation
+    ? state.mission.operation
+    : (state.rng() < 0.5 ? "add" : "sub");
+  const difficulty = state.mission && state.mission.operation
+    ? (state.rng() < 0.7 ? "easy" : "hard")
+    : (state.rng() < 0.65 ? "easy" : "hard");
   spawnAsteroid(state, operation, difficulty, "far");
+}
+
+function updateWormhole(dt) {
+  const hole = state.wormhole;
+  const mission = state.mission;
+  if (!hole || !mission || !mission.quota) return;
+  hole.locked = state.solved < mission.quota;
+  if (hole.locked || mission.cleared || state.mode !== "fly") return;
+  const dist = Math.hypot(state.ship.x - hole.x, state.ship.y - hole.y);
+  if (dist < 150) {
+    mission.cleared = true;
+    state.mode = "clear";
+    state.ship.vx = 0;
+    state.ship.vy = 0;
+    clearTitle.textContent = mission.name + " is clear";
+    clearEl.hidden = false;
+    audio.correct();
+  }
 }
 
 function updateParticles(dt) {

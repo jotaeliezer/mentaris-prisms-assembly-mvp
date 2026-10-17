@@ -24,12 +24,14 @@ export function drawFrame(ctx, view, state, sprites) {
   drawNebula(ctx, state.nebula);
   drawBoundary(ctx, state.world);
   for (const rock of state.asteroids) drawAsteroid(ctx, rock, sprites);
+  if (state.wormhole) drawWormhole(ctx, state);
   drawAimArc(ctx, state);
   for (const missile of state.missiles) drawMissile(ctx, missile);
   drawParticles(ctx, state.particles);
   drawShip(ctx, state, sprites);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawVignette(ctx, w, h);
+  drawBeacon(ctx, state, w, h);
   drawMinimap(ctx, state, w, h);
 }
 
@@ -260,6 +262,52 @@ function drawVignette(ctx, w, h) {
   ctx.fillRect(0, 0, w, h);
 }
 
+function drawWormhole(ctx, state) {
+  const hole = state.wormhole;
+  const locked = hole.locked;
+  ctx.save();
+  ctx.translate(hole.x, hole.y);
+  ctx.rotate(state.clock * (locked ? 0.35 : 1.1));
+  ctx.strokeStyle = locked ? "rgba(168, 176, 186, 0.75)" : "rgba(188, 140, 255, 0.95)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 28 + i * 16, 12 + i * 7, i * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.translate(hole.x, hole.y - 78);
+  ctx.font = "700 14px Segoe UI, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = locked ? "#c5ced6" : "#e6d4ff";
+  ctx.fillText(locked ? "LOCKED" : "WORMHOLE", 0, 0);
+  ctx.restore();
+}
+
+function drawBeacon(ctx, state, w, h) {
+  const hole = state.wormhole;
+  if (!hole || state.mode === "title") return;
+  const dx = hole.x - state.camera.x;
+  const dy = hole.y - state.camera.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < Math.min(w, h) * 0.42) return;
+  const ang = Math.atan2(dy, dx);
+  const cx = clamp(w / 2 + Math.cos(ang) * (w * 0.42), 36, w - 36);
+  const cy = clamp(h / 2 + Math.sin(ang) * (h * 0.36), 80, h - 80);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(ang);
+  ctx.fillStyle = hole.locked ? "rgba(200, 206, 214, 0.85)" : "rgba(188, 140, 255, 0.95)";
+  ctx.beginPath();
+  ctx.moveTo(14, 0);
+  ctx.lineTo(-8, 7);
+  ctx.lineTo(-8, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawMinimap(ctx, state, w, h) {
   const mw = 176;
   const mh = 120;
@@ -278,6 +326,14 @@ function drawMinimap(ctx, state, w, h) {
     const py = y + (rock.y / state.world.h) * mh;
     ctx.fillStyle = rock.difficulty === "hard" ? "#ffb15a" : "#8dffb0";
     ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+  }
+  if (state.wormhole) {
+    const hx = x + (state.wormhole.x / state.world.w) * mw;
+    const hy = y + (state.wormhole.y / state.world.h) * mh;
+    ctx.fillStyle = state.wormhole.locked ? "#c5ced6" : "#d2b4ff";
+    ctx.beginPath();
+    ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+    ctx.fill();
   }
   const sx = x + (state.ship.x / state.world.w) * mw;
   const sy = y + (state.ship.y / state.world.h) * mh;
