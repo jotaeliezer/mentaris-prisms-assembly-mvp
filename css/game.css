@@ -50,6 +50,35 @@ button, input {
   align-items: flex-start;
 }
 
+.buffer {
+  min-width: 220px;
+  padding: 8px 16px 10px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+}
+
+.buffer span {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.buffer strong {
+  display: block;
+  min-height: 36px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 30px;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+
+.buffer.bad {
+  border-color: #ff8d7a;
+}
+
 .brand {
   display: flex;
   flex-direction: column;
@@ -80,7 +109,7 @@ button, input {
   pointer-events: auto;
 }
 
-#speed-readout {
+#speed-readout, #solved-readout {
   min-width: 92px;
   padding: 10px 12px;
   background: var(--panel);
@@ -90,7 +119,7 @@ button, input {
   letter-spacing: 0.04em;
 }
 
-#speed-readout span {
+#speed-readout span, #solved-readout span {
   display: block;
   color: var(--muted);
   font-size: 11px;
@@ -209,9 +238,11 @@ kbd {
   font-size: 13px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 800px) {
   .hud { padding: 10px; }
   .brand-sub { font-size: 13px; }
   .panel { padding: 22px 18px; }
   h1 { font-size: 34px; }
+  .buffer { flex: 1 1 100%; order: 3; }
+  .buffer strong { font-size: 26px; }
 }

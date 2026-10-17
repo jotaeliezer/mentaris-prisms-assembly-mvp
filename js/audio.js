@@ -42,9 +42,16 @@ export function createAudio() {
       tone(440, 0.12, "triangle", 0.05);
       tone(660, 0.18, "sine", 0.04);
     },
-    thrust(on) {
-      if (!on) return;
-      tone(90, 0.05, "sawtooth", 0.012);
+    shot() {
+      tone(280, 0.09, "triangle", 0.05);
+      tone(520, 0.06, "sine", 0.03);
+    },
+    correct() {
+      tone(523, 0.08, "sine", 0.05);
+      tone(784, 0.14, "triangle", 0.04);
+    },
+    wrong() {
+      tone(128, 0.16, "square", 0.03);
     },
   };
 }

@@ -24,6 +24,8 @@ export function drawFrame(ctx, view, state, sprites) {
   drawNebula(ctx, state.nebula);
   drawBoundary(ctx, state.world);
   for (const rock of state.asteroids) drawAsteroid(ctx, rock, sprites);
+  for (const missile of state.missiles) drawMissile(ctx, missile);
+  drawParticles(ctx, state.particles);
   drawShip(ctx, state, sprites);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawVignette(ctx, w, h);
@@ -81,14 +83,80 @@ function drawBoundary(ctx, world) {
 
 function drawAsteroid(ctx, rock, sprites) {
   const img = sprites.asteroids[rock.sprite];
-  if (!img) return;
+  if (!img || rock.alive === false) return;
   const width = rock.size;
   const height = width * (img.height / img.width);
   ctx.save();
   ctx.translate(rock.x, rock.y);
+  if (rock.active) {
+    ctx.strokeStyle = "rgba(126, 231, 255, 0.85)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, rock.radius + 16, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.rotate(rock.rot);
   ctx.drawImage(img, -width / 2, -height / 2, width, height);
   ctx.restore();
+  if (rock.active && rock.question) drawQuestionPlate(ctx, rock);
+}
+
+function drawQuestionPlate(ctx, rock) {
+  const label = rock.question.prompt;
+  ctx.save();
+  ctx.translate(rock.x, rock.y - rock.radius - 36);
+  ctx.font = "700 22px Segoe UI, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const width = ctx.measureText(label).width + 28;
+  ctx.fillStyle = "rgba(5, 14, 24, 0.9)";
+  ctx.strokeStyle = rock.question.operation === "sub" ? "rgba(255, 177, 90, 0.8)" : "rgba(126, 231, 255, 0.85)";
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, -width / 2, -18, width, 36, 10);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#e7f6ff";
+  ctx.fillText(label, 0, 1);
+  ctx.restore();
+}
+
+function drawMissile(ctx, missile) {
+  ctx.save();
+  ctx.translate(missile.x, missile.y);
+  ctx.rotate(Math.atan2(missile.vy, missile.vx));
+  ctx.fillStyle = "#f4fbff";
+  ctx.beginPath();
+  ctx.moveTo(14, 0);
+  ctx.lineTo(-8, 5);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-8, -5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(126, 231, 255, 0.45)";
+  ctx.beginPath();
+  ctx.moveTo(-6, 0);
+  ctx.lineTo(-22, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawParticles(ctx, particles) {
+  for (const bit of particles) {
+    ctx.globalAlpha = Math.max(0, bit.life);
+    ctx.fillStyle = bit.color;
+    ctx.fillRect(bit.x, bit.y, bit.size, bit.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 function drawShip(ctx, state, sprites) {
