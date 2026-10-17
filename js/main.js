@@ -16,6 +16,7 @@ const pauseEl = document.getElementById("pause");
 const fabEl = document.getElementById("fab");
 const clearEl = document.getElementById("clear");
 const clearTitle = document.getElementById("clear-title");
+const clearCopy = document.getElementById("clear-copy");
 const missionReadout = document.getElementById("mission-readout");
 const hudEl = document.getElementById("hud");
 const loadNote = document.getElementById("load-note");
@@ -73,6 +74,8 @@ window.addEventListener("keydown", (event) => {
     setPaused(false);
     return;
   }
+  if (event.code === "KeyQ" && state.mode === "fly") changeLayer(-1);
+  if (event.code === "KeyE" && state.mode === "fly") changeLayer(1);
   if (event.code === "KeyF" && state.mode === "fly") {
     setFab(true);
     return;
@@ -163,6 +166,14 @@ function createState() {
     camera: { x: WORLD.w / 2, y: WORLD.h / 2 },
     mission: null,
     wormhole: null,
+    seed: "belt-7",
+    cluster: 1,
+    layer: 0,
+    layerBanks: [null, null, null],
+    clusterCache: {},
+    returnHole: null,
+    home: { x: WORLD.w / 2, y: WORLD.h / 2 },
+    transition: null,
     cargo: 0,
     bank: 0,
     drops: [],
@@ -301,6 +312,210 @@ const MISSIONS = {
   roam: { id: "roam", name: "Open belt", operation: null, quota: 0, next: "add" },
 };
 
+function readSeed() {
+  const input = document.getElementById("seed");
+  const raw = input && input.value ? input.value.toLowerCase() : "belt-7";
+  const clean = raw.replace(/[^a-z0-9-]/g, "").slice(0, 24);
+  if (input && clean) input.value = clean;
+  return clean || "belt-7";
+}
+
+function clusterName(n) {
+  return ["", "Assembly Belt", "Prism Drift", "Outer Prism"][n] || "Cluster " + n;
+}
+
+function layerRng() {
+  const missionId = state.mission ? state.mission.id : "roam";
+  return makeRng(state.seed + "|c" + state.cluster + "|l" + state.layer + "|" + missionId);
+}
+
+function populateField() {
+  const mission = state.mission;
+  if (mission && mission.operation) {
+    spawnAsteroid(state, mission.operation, "easy", "near");
+    spawnAsteroid(state, mission.operation, "easy", "near");
+    spawnAsteroid(state, mission.operation, "easy", "near");
+    spawnAsteroid(state, mission.operation, "hard", "near");
+    spawnAsteroid(state, mission.operation, "hard", "near");
+    for (let i = 0; i < 6; i++) {
+      spawnAsteroid(state, mission.operation, i % 2 ? "hard" : "easy", "mid");
+    }
+    for (let i = 0; i < 10; i++) {
+      spawnAsteroid(state, mission.operation, i % 3 === 0 ? "hard" : "easy", "roam");
+    }
+  } else {
+    spawnAsteroid(state, "add", "easy", "near");
+    spawnAsteroid(state, "sub", "easy", "near");
+    spawnAsteroid(state, "add", "hard", "near");
+    for (let i = 0; i < 18; i++) {
+      spawnAsteroid(state, i % 2 ? "sub" : "add", i % 3 === 0 ? "hard" : "easy", "roam");
+    }
+  }
+}
+
+function placeWormhole() {
+  const mission = state.mission;
+  if (!mission || !mission.operation) {
+    state.wormhole = null;
+    return;
+  }
+  const angle = state.rng() * Math.PI * 2;
+  const dist = 1600 + state.rng() * 900;
+  state.wormhole = {
+    x: clamp(state.home.x + Math.cos(angle) * dist, 500, WORLD.w - 500),
+    y: clamp(state.home.y + Math.sin(angle) * dist, 500, WORLD.h - 500),
+    locked: true,
+  };
+}
+
+function oreOnHand() {
+  return state.cargo + state.bank;
+}
+
+function travelCost() {
+  if (!state.wormhole || !state.home) return 2;
+  const dist = Math.hypot(state.wormhole.x - state.home.x, state.wormhole.y - state.home.y);
+  return 2 + Math.round(dist / 800);
+}
+
+function spendOre(cost) {
+  let left = cost;
+  const fromCargo = Math.min(state.cargo, left);
+  state.cargo -= fromCargo;
+  left -= fromCargo;
+  state.bank -= left;
+}
+
+function rememberCluster() {
+  state.layerBanks[state.layer] = { asteroids: state.asteroids, drops: state.drops };
+  let shipX = state.ship.x;
+  let shipY = state.ship.y;
+  [shipX, shipY] = clearOfGate(shipX, shipY, state.wormhole, 220, 280);
+  [shipX, shipY] = clearOfGate(shipX, shipY, state.returnHole, 200, 260);
+  state.clusterCache[state.cluster] = {
+    layerBanks: state.layerBanks,
+    layer: state.layer,
+    wormhole: state.wormhole,
+    returnHole: state.returnHole,
+    solved: state.solved,
+    home: { x: state.home.x, y: state.home.y },
+    shipX,
+    shipY,
+    aim: state.ship.aim,
+  };
+}
+
+function clearOfGate(x, y, hole, inner, outer) {
+  if (!hole) return [x, y];
+  const dx = x - hole.x;
+  const dy = y - hole.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  if (dist >= inner) return [x, y];
+  return [
+    clamp(hole.x + (dx / dist) * outer, 80, WORLD.w - 80),
+    clamp(hole.y + (dy / dist) * outer, 80, WORLD.h - 80),
+  ];
+}
+
+function beginShift(dir, after) {
+  state.transition = { t: 0, dur: 0.95, dir, after, fired: false };
+  state.mode = "transition";
+  audio.launch();
+}
+
+function changeLayer(dir) {
+  const next = state.layer + dir;
+  if (next < 0 || next > 2 || state.transition) return;
+  state.layerBanks[state.layer] = { asteroids: state.asteroids, drops: state.drops };
+  beginShift(dir, () => {
+    state.layer = next;
+    state.missiles = [];
+    state.particles = [];
+    state.targetId = 0;
+    state.buffer = "";
+    state.hint = "";
+    const saved = state.layerBanks[next];
+    if (saved) {
+      state.asteroids = saved.asteroids;
+      state.drops = saved.drops;
+    } else {
+      state.rng = layerRng();
+      state.asteroids = [];
+      state.drops = [];
+      populateField();
+      state.layerBanks[next] = { asteroids: state.asteroids, drops: state.drops };
+    }
+    state.status = dir > 0 ? "Rose to layer " + (next + 1) + "." : "Dropped to layer " + (next + 1) + ".";
+    state.statusTime = 2.4;
+  });
+}
+
+function arriveInCluster(cluster, returning) {
+  state.cluster = cluster;
+  state.ship.vx = 0;
+  state.ship.vy = 0;
+  state.missiles = [];
+  state.particles = [];
+  state.targetId = 0;
+  state.buffer = "";
+  state.hint = "";
+  const saved = state.clusterCache[cluster];
+  if (saved) {
+    state.layerBanks = saved.layerBanks;
+    state.layer = saved.layer;
+    state.wormhole = saved.wormhole;
+    state.returnHole = saved.returnHole;
+    state.solved = saved.solved;
+    state.home = saved.home;
+    state.ship.x = saved.shipX;
+    state.ship.y = saved.shipY;
+    state.ship.aim = saved.aim;
+    const slot = state.layerBanks[state.layer];
+    state.asteroids = slot ? slot.asteroids : [];
+    state.drops = slot ? slot.drops : [];
+  } else {
+    state.layer = 0;
+    state.layerBanks = [null, null, null];
+    state.solved = 0;
+    state.ship.x = WORLD.w / 2;
+    state.ship.y = WORLD.h / 2;
+    state.ship.aim = -Math.PI / 2;
+    state.home = { x: state.ship.x, y: state.ship.y };
+    state.returnHole = cluster > 1
+      ? { x: clamp(state.ship.x - 420, 220, WORLD.w - 220), y: clamp(state.ship.y + 80, 220, WORLD.h - 220), locked: false }
+      : null;
+    state.rng = layerRng();
+    state.asteroids = [];
+    state.drops = [];
+    populateField();
+    placeWormhole();
+    state.layerBanks[0] = { asteroids: state.asteroids, drops: state.drops };
+  }
+  state.camera.x = state.ship.x;
+  state.camera.y = state.ship.y;
+  state.status = returning
+    ? "Back in " + clusterName(cluster) + "."
+    : "Arrived in " + clusterName(cluster) + ". The return wormhole is free.";
+  state.statusTime = 4;
+}
+
+function jumpCluster() {
+  if (!state.wormhole || state.transition) return;
+  const cost = travelCost();
+  if (oreOnHand() < cost) return;
+  rememberCluster();
+  spendOre(cost);
+  const dest = state.cluster + 1;
+  beginShift(1, () => arriveInCluster(dest, false));
+}
+
+function returnCluster() {
+  if (state.cluster <= 1 || state.transition) return;
+  rememberCluster();
+  const dest = state.cluster - 1;
+  beginShift(-1, () => arriveInCluster(dest, true));
+}
+
 function startMission(id) {
   if (!sprites) return;
   const mission = MISSIONS[id] || MISSIONS.roam;
@@ -324,32 +539,18 @@ function startMission(id) {
   state.ship.aim = -Math.PI / 2;
   state.camera.x = state.ship.x;
   state.camera.y = state.ship.y;
-  if (mission.operation) {
-    spawnAsteroid(state, mission.operation, "easy", "near");
-    spawnAsteroid(state, mission.operation, "easy", "near");
-    spawnAsteroid(state, mission.operation, "easy", "near");
-    spawnAsteroid(state, mission.operation, "hard", "near");
-    spawnAsteroid(state, mission.operation, "hard", "near");
-    for (let i = 0; i < 6; i++) {
-      spawnAsteroid(state, mission.operation, i % 2 ? "hard" : "easy", "mid");
-    }
-    for (let i = 0; i < 10; i++) {
-      spawnAsteroid(state, mission.operation, i % 3 === 0 ? "hard" : "easy", "roam");
-    }
-    state.wormhole = {
-      x: clamp(state.ship.x + 1900, 500, WORLD.w - 500),
-      y: clamp(state.ship.y - 1400, 500, WORLD.h - 500),
-      locked: true,
-    };
-  } else {
-    spawnAsteroid(state, "add", "easy", "near");
-    spawnAsteroid(state, "sub", "easy", "near");
-    spawnAsteroid(state, "add", "hard", "near");
-    for (let i = 0; i < 18; i++) {
-      spawnAsteroid(state, i % 2 ? "sub" : "add", i % 3 === 0 ? "hard" : "easy", "roam");
-    }
-    state.wormhole = null;
-  }
+  state.seed = readSeed();
+  state.cluster = 1;
+  state.layer = 0;
+  state.layerBanks = [null, null, null];
+  state.clusterCache = {};
+  state.returnHole = null;
+  state.transition = null;
+  state.home = { x: state.ship.x, y: state.ship.y };
+  state.rng = layerRng();
+  populateField();
+  placeWormhole();
+  state.layerBanks[0] = { asteroids: state.asteroids, drops: state.drops };
   state.mode = "fly";
   titleEl.hidden = true;
   pauseEl.hidden = true;
@@ -451,6 +652,7 @@ function frame(now) {
   const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
   if (state.mode === "fly") update(dt);
+  else if (state.mode === "transition") updateTransition(dt);
   else idle(dt);
   drawFrame(ctx, view, state, sprites);
   const speed = Math.round(len(state.ship.vx, state.ship.vy));
@@ -462,7 +664,8 @@ function frame(now) {
   bankValue.textContent = String(state.bank);
   if (missionReadout) {
     let label = state.mission
-      ? state.mission.name + (quota ? " · " + Math.min(state.solved, quota) + "/" + quota : "")
+      ? state.mission.name + " · " + clusterName(state.cluster) + " · L" + (state.layer + 1) + "/3"
+        + (quota ? " · " + Math.min(state.solved, quota) + "/" + quota : "")
       : "Prisms of Assembly";
     if (state.wormhole && quota) {
       const range = Math.round(Math.hypot(state.ship.x - state.wormhole.x, state.ship.y - state.wormhole.y));
@@ -480,10 +683,12 @@ function frame(now) {
     questionReadout.textContent = stars + active.question.prompt;
   } else if (state.statusTime > 0) {
     questionReadout.textContent = state.status;
+  } else if (state.returnHole && Math.hypot(state.ship.x - state.returnHole.x, state.ship.y - state.returnHole.y) < 280) {
+    questionReadout.textContent = "Return wormhole. Flying in goes back, and this jump is free.";
   } else if (state.wormhole && Math.hypot(state.ship.x - state.wormhole.x, state.ship.y - state.wormhole.y) < 280) {
     questionReadout.textContent = state.wormhole.locked
       ? "Wormhole locked. " + state.solved + "/" + quota + " rocks answered."
-      : "The wormhole is open. Fly into it.";
+      : "Wormhole open. The jump costs " + travelCost() + " ore. You have " + oreOnHand() + ".";
   } else if (near) {
     questionReadout.textContent = "One star is easier. Three stars are harder. Click to see the question.";
   } else if (state.wormhole) {
@@ -571,7 +776,8 @@ function update(dt) {
   updateMissiles(dt);
   updateParticles(dt);
   updateDrops(dt);
-  updateWormhole(dt);
+  updateReturnHole();
+  updateWormhole();
   if (state.bumpCooldown > 0) state.bumpCooldown -= dt;
   if (state.hurt > 0) state.hurt -= dt;
   if (state.statusTime > 0) state.statusTime -= dt;
@@ -696,19 +902,48 @@ function destroyAsteroid(rock) {
   spawnAsteroid(state, operation, difficulty, "far");
 }
 
-function updateWormhole(dt) {
+function updateTransition(dt) {
+  const shift = state.transition;
+  if (!shift) return;
+  shift.t += dt;
+  state.clock += dt;
+  if (!shift.fired && shift.t >= shift.dur * 0.45) {
+    shift.fired = true;
+    shift.after();
+  }
+  if (shift.t >= shift.dur) {
+    state.transition = null;
+    if (state.mode === "transition") state.mode = "fly";
+  }
+}
+
+function updateReturnHole() {
+  const hole = state.returnHole;
+  if (!hole || state.mode !== "fly" || state.transition) return;
+  const dist = Math.hypot(state.ship.x - hole.x, state.ship.y - hole.y);
+  if (dist < 140) returnCluster();
+}
+
+function updateWormhole() {
   const hole = state.wormhole;
   const mission = state.mission;
   if (!hole || !mission || !mission.quota) return;
   hole.locked = state.solved < mission.quota;
-  if (hole.locked || mission.cleared || state.mode !== "fly") return;
+  if (hole.locked || mission.cleared || state.mode !== "fly" || state.transition) return;
   const dist = Math.hypot(state.ship.x - hole.x, state.ship.y - hole.y);
   if (dist < 150) {
+    const cost = travelCost();
+    if (oreOnHand() >= cost) {
+      jumpCluster();
+      return;
+    }
     mission.cleared = true;
     state.mode = "clear";
     state.ship.vx = 0;
     state.ship.vy = 0;
     clearTitle.textContent = mission.name + " is clear";
+    clearCopy.textContent = "The quota is met. A jump to the next cluster costs " + cost
+      + " ore and you have " + oreOnHand() + ". Fly the mission again and bring ore to the gate, or pick another mission.";
     clearEl.hidden = false;
     audio.correct();
   }

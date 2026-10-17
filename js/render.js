@@ -20,11 +20,12 @@ export function drawFrame(ctx, view, state, sprites) {
   ctx.fillRect(0, 0, w, h);
 
   drawStars(ctx, state.stars, state.camera, w, h);
-  beginWorld(ctx, state.camera, dpr, w, h);
+  beginWorld(ctx, state, dpr, w, h);
   drawNebula(ctx, state.nebula);
   drawBoundary(ctx, state.world);
   for (const rock of state.asteroids) drawAsteroid(ctx, rock, sprites);
-  if (state.wormhole) drawWormhole(ctx, state);
+  if (state.returnHole) drawGate(ctx, state, state.returnHole, "RETURN", false);
+  if (state.wormhole) drawGate(ctx, state, state.wormhole, state.wormhole.locked ? "LOCKED" : "WORMHOLE", state.wormhole.locked);
   drawAimArc(ctx, state);
   for (const missile of state.missiles) drawMissile(ctx, missile);
   drawDrops(ctx, state.drops, sprites);
@@ -32,13 +33,29 @@ export function drawFrame(ctx, view, state, sprites) {
   drawShip(ctx, state, sprites);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawVignette(ctx, w, h);
-  drawBeacon(ctx, state, w, h);
+  drawBeacon(ctx, state, w, h, state.wormhole, state.wormhole && state.wormhole.locked ? "rgba(200, 206, 214, 0.85)" : "rgba(188, 140, 255, 0.95)");
+  if (state.returnHole) drawBeacon(ctx, state, w, h, state.returnHole, "rgba(126, 231, 255, 0.95)");
+  drawTransition(ctx, state, w, h);
   drawMinimap(ctx, state, w, h);
 }
 
-function beginWorld(ctx, camera, dpr, w, h) {
+function beginWorld(ctx, state, dpr, w, h) {
+  const camera = state.camera;
+  let scaleX = 1;
+  let scaleY = 1;
+  let shift = 0;
+  if (state.transition) {
+    const p = state.transition.t / state.transition.dur;
+    const bend = Math.sin(Math.PI * Math.min(1, p));
+    const dir = state.transition.dir || 1;
+    scaleX = 1 - bend * 0.14;
+    scaleY = 1 - bend * 0.46;
+    shift = bend * 80 * dir;
+  }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.translate(w / 2 - camera.x, h / 2 - camera.y);
+  ctx.translate(w / 2, h / 2 + shift);
+  ctx.scale(scaleX, scaleY);
+  ctx.translate(-camera.x, -camera.y);
 }
 
 function drawStars(ctx, stars, camera, w, h) {
@@ -301,13 +318,11 @@ function drawVignette(ctx, w, h) {
   ctx.fillRect(0, 0, w, h);
 }
 
-function drawWormhole(ctx, state) {
-  const hole = state.wormhole;
-  const locked = hole.locked;
+function drawGate(ctx, state, hole, label, locked) {
   ctx.save();
   ctx.translate(hole.x, hole.y);
   ctx.rotate(state.clock * (locked ? 0.35 : 1.1));
-  ctx.strokeStyle = locked ? "rgba(168, 176, 186, 0.75)" : "rgba(188, 140, 255, 0.95)";
+  ctx.strokeStyle = locked ? "rgba(168, 176, 186, 0.75)" : label === "RETURN" ? "rgba(126, 231, 255, 0.95)" : "rgba(188, 140, 255, 0.95)";
   ctx.lineWidth = 3;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
@@ -319,13 +334,12 @@ function drawWormhole(ctx, state) {
   ctx.translate(hole.x, hole.y - 78);
   ctx.font = "700 14px Segoe UI, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillStyle = locked ? "#c5ced6" : "#e6d4ff";
-  ctx.fillText(locked ? "LOCKED" : "WORMHOLE", 0, 0);
+  ctx.fillStyle = locked ? "#c5ced6" : label === "RETURN" ? "#d7f6ff" : "#e6d4ff";
+  ctx.fillText(label, 0, 0);
   ctx.restore();
 }
 
-function drawBeacon(ctx, state, w, h) {
-  const hole = state.wormhole;
+function drawBeacon(ctx, state, w, h, hole, color) {
   if (!hole || state.mode === "title") return;
   const dx = hole.x - state.camera.x;
   const dy = hole.y - state.camera.y;
@@ -337,13 +351,35 @@ function drawBeacon(ctx, state, w, h) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(ang);
-  ctx.fillStyle = hole.locked ? "rgba(200, 206, 214, 0.85)" : "rgba(188, 140, 255, 0.95)";
+  ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(14, 0);
   ctx.lineTo(-8, 7);
   ctx.lineTo(-8, -7);
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
+}
+
+function drawTransition(ctx, state, w, h) {
+  if (!state.transition) return;
+  const p = Math.min(1, state.transition.t / state.transition.dur);
+  const band = Math.sin(Math.PI * p);
+  const dir = state.transition.dir || 1;
+  ctx.save();
+  ctx.fillStyle = dir > 0
+    ? "rgba(126, 231, 255, " + (0.28 * band) + ")"
+    : "rgba(255, 177, 90, " + (0.28 * band) + ")";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(244, 251, 255, " + (0.35 * band) + ")";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 9; i++) {
+    const y = ((i / 9 + p * dir) % 1 + 1) % 1 * h;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y - dir * 36);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -373,6 +409,12 @@ function drawMinimap(ctx, state, w, h) {
     ctx.beginPath();
     ctx.arc(hx, hy, 4, 0, Math.PI * 2);
     ctx.fill();
+  }
+  if (state.returnHole) {
+    const rx = x + (state.returnHole.x / state.world.w) * mw;
+    const ry = y + (state.returnHole.y / state.world.h) * mh;
+    ctx.fillStyle = "#7ee7ff";
+    ctx.fillRect(rx - 2, ry - 2, 4, 4);
   }
   const sx = x + (state.ship.x / state.world.w) * mw;
   const sy = y + (state.ship.y / state.world.h) * mh;

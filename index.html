@@ -34,7 +34,10 @@
     <div class="panel">
       <p class="eyebrow">Open sector</p>
       <h1>Mentaris: Prisms of Assembly</h1>
-      <p class="lede">Pick a mission. The belt is not timed. Answer that mission's rocks, then fly into the wormhole once it unlocks. No name, no account.</p>
+      <p class="lede">Pick a mission and a world seed. The same seed builds the same belt. Answer the quota, then spend ore to jump. No name, no account.</p>
+      <label class="seed-field">World seed
+        <input id="seed" value="belt-7" maxlength="24" autocomplete="off" spellcheck="false" aria-label="World seed">
+      </label>
       <div class="missions">
         <button id="mission-add" type="button">Addition Drift<span>Five addition rocks. The wormhole stays locked until the quota is met.</span></button>
         <button id="mission-sub" type="button">Subtraction Rift<span>Five subtraction rocks, then the same locked wormhole.</span></button>
@@ -45,6 +48,8 @@
         <li><kbd>A</kbd><kbd>D</kbd> strafe</li>
         <li><kbd>S</kbd> brake</li>
         <li>Mouse aims the nose</li>
+        <li><kbd>Q</kbd> lower layer</li>
+        <li><kbd>E</kbd> higher layer</li>
         <li>Click an asteroid to target</li>
         <li>Digits type the answer</li>
         <li><kbd>⌫</kbd> erase</li>
@@ -58,7 +63,7 @@
     <div class="panel">
       <p class="eyebrow">Wormhole reached</p>
       <h2 id="clear-title">Mission clear</h2>
-      <p class="lede" id="clear-copy">The quota is met and the scout flew into the wormhole. What the wormhole leads to is still an open design question, so this arrival clears the mission.</p>
+      <p class="lede" id="clear-copy">The quota is met. A jump needs ore. Without it, this arrival clears the mission.</p>
       <div class="missions">
         <button id="next-mission" type="button">Next mission</button>
         <button id="replay-mission" type="button">Fly this mission again</button>
