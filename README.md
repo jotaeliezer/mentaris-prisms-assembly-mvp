@@ -20,8 +20,9 @@ The page uses ES modules, so open it through that local server. Do not open `ind
 
 - Mouse aims the nose. On a touch screen, hold a finger where you want the nose to point and the scout thrusts that way.
 - `W` or `Up` thrusts. `A` / `D` or `Left` / `Right` strafe. `S` or `Down` brakes.
-- Fly close to an asteroid and click it to aim. A dashed arc shows the path. Type that asteroid's answer. A correct number fires a missile that arcs into the rock.
-- `Backspace` erases a digit. `Esc` clears the whole number.
+- The belt is a large scrolling field and nothing is timed. Fly close to an asteroid to see its difficulty: one green star is easier, three amber stars are harder. The question stays hidden until you click that rock.
+- Click to aim. A dashed arc shows the path. Type the answer. A correct number fires a missile that arcs into the rock.
+- `Backspace` erases a digit. `Esc` clears the number and the aim.
 - `P` pauses. `M` mutes. `Enter` launches from the title.
 
 ## Privacy

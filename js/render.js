@@ -1,4 +1,4 @@
-import { len } from "./util.js";
+import { clamp, len } from "./util.js";
 
 export function resizeCanvas(canvas) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -30,6 +30,7 @@ export function drawFrame(ctx, view, state, sprites) {
   drawShip(ctx, state, sprites);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawVignette(ctx, w, h);
+  drawMinimap(ctx, state, w, h);
 }
 
 function beginWorld(ctx, camera, dpr, w, h) {
@@ -90,7 +91,8 @@ function drawAsteroid(ctx, rock, sprites) {
   ctx.save();
   ctx.translate(rock.x, rock.y);
   if (rock.active || rock.near) {
-    ctx.strokeStyle = rock.active ? "rgba(126, 231, 255, 0.95)" : "rgba(126, 231, 255, 0.35)";
+    const hard = rock.difficulty === "hard";
+    ctx.strokeStyle = hard ? "rgba(255, 177, 90, 0.9)" : "rgba(141, 255, 176, 0.88)";
     ctx.lineWidth = rock.active ? 2.5 : 1.5;
     ctx.beginPath();
     ctx.arc(0, 0, rock.radius + (rock.active ? 18 : 12), 0, Math.PI * 2);
@@ -99,7 +101,20 @@ function drawAsteroid(ctx, rock, sprites) {
   ctx.rotate(rock.rot);
   ctx.drawImage(img, -width / 2, -height / 2, width, height);
   ctx.restore();
+  if ((rock.near || rock.active) && rock.question) drawDifficulty(ctx, rock);
   if (rock.active && rock.question) drawQuestionPlate(ctx, rock);
+}
+
+function drawDifficulty(ctx, rock) {
+  const hard = rock.difficulty === "hard";
+  const stars = hard ? "★★★" : "★";
+  ctx.save();
+  ctx.font = "700 18px Segoe UI, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = hard ? "#ffb15a" : "#8dffb0";
+  ctx.fillText(stars, rock.x, rock.y - rock.radius - (rock.active ? 62 : 28));
+  ctx.restore();
 }
 
 function drawQuestionPlate(ctx, rock) {
@@ -243,6 +258,33 @@ function drawVignette(ctx, w, h) {
   g.addColorStop(1, "rgba(0,0,0,0.45)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
+}
+
+function drawMinimap(ctx, state, w, h) {
+  const mw = 176;
+  const mh = 120;
+  const x = w - mw - 16;
+  const y = h - mh - 58;
+  ctx.fillStyle = "rgba(5, 14, 24, 0.78)";
+  ctx.strokeStyle = "rgba(126, 231, 255, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.rect(x, y, mw, mh);
+  ctx.fill();
+  ctx.stroke();
+  for (const rock of state.asteroids) {
+    if (!rock.alive) continue;
+    const px = x + (rock.x / state.world.w) * mw;
+    const py = y + (rock.y / state.world.h) * mh;
+    ctx.fillStyle = rock.difficulty === "hard" ? "#ffb15a" : "#8dffb0";
+    ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+  }
+  const sx = x + (state.ship.x / state.world.w) * mw;
+  const sy = y + (state.ship.y / state.world.h) * mh;
+  ctx.fillStyle = "#f4fbff";
+  ctx.beginPath();
+  ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function mod(n, m) {

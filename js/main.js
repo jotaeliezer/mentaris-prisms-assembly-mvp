@@ -5,7 +5,7 @@ import { nextProblem, problemSpec } from "./questions.js";
 import { drawFrame, resizeCanvas } from "./render.js";
 import { clamp, len, makeRng, rand, wrapAngle } from "./util.js";
 
-const WORLD = { w: 2400, h: 1600 };
+const WORLD = { w: 7200, h: 5200 };
 const SHIP_RADIUS = 28;
 const APPROACH = 340;
 
@@ -34,7 +34,7 @@ window.addEventListener("resize", () => {
   view = resizeCanvas(canvas);
 });
 
-document.getElementById("launch").addEventListener("click", launch);
+document.getElementById("launch").addEventListener("click", () => launch());
 document.getElementById("resume").addEventListener("click", () => setPaused(false));
 muteBtn.addEventListener("click", () => {
   const muted = audio.toggle();
@@ -44,7 +44,8 @@ muteBtn.addEventListener("click", () => {
 window.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   if (event.code === "Enter" && state.mode === "title") launch();
-  if (event.code === "KeyP" && state.mode !== "title") setPaused(state.mode !== "paused");
+  if (event.code === "KeyP" && state.mode === "fly") setPaused(true);
+  if (event.code === "KeyP" && state.mode === "paused") setPaused(false);
   if (event.code === "KeyM") {
     const muted = audio.toggle();
     muteBtn.textContent = muted ? "Sound off" : "Sound on";
@@ -57,6 +58,7 @@ window.addEventListener("keydown", (event) => {
   }
   if (event.code === "Escape") {
     state.buffer = "";
+    state.targetId = 0;
     return;
   }
   const digit = digitFromEvent(event);
@@ -78,7 +80,7 @@ loadFoundationSprites()
   });
 
 function createState() {
-  const rng = makeRng("phase2-sector");
+  const rng = makeRng("phase4-belt");
   const stars = [];
   for (let i = 0; i < 140; i++) {
     const layer = i % 3;
@@ -98,8 +100,9 @@ function createState() {
     nextId: 1,
     stars,
     nebula: [
-      { x: 700, y: 500, r: 340, color: "rgba(92, 70, 160, 0.22)" },
-      { x: 1680, y: 980, r: 420, color: "rgba(30, 110, 140, 0.18)" },
+      { x: 1600, y: 1400, r: 640, color: "rgba(92, 70, 160, 0.2)" },
+      { x: 5200, y: 3600, r: 780, color: "rgba(30, 110, 140, 0.16)" },
+      { x: 3800, y: 900, r: 520, color: "rgba(140, 70, 90, 0.12)" },
     ],
     asteroids: [],
     missiles: [],
@@ -119,23 +122,44 @@ function createState() {
       thrust: 0,
     },
     camera: { x: WORLD.w / 2, y: WORLD.h / 2 },
+    clock: 0,
   };
-  for (let i = 0; i < 7; i++) spawnAsteroid(state, i % 2 === 0 ? "add" : "sub");
+  spawnAsteroid(state, "add", "easy", "near");
+  spawnAsteroid(state, "sub", "easy", "near");
+  spawnAsteroid(state, "add", "hard", "near");
+  spawnAsteroid(state, "sub", "hard", "near");
+  for (let i = 0; i < 22; i++) {
+    spawnAsteroid(state, i % 2 ? "sub" : "add", i % 3 === 0 ? "hard" : "easy", "roam");
+  }
   return state;
 }
 
-function spawnAsteroid(state, operation) {
-  const question = nextProblem(problemSpec(operation, "easy"), state.rng);
-  let x = 0;
-  let y = 0;
-  for (let guard = 0; guard < 24; guard++) {
-    x = 180 + state.rng() * (WORLD.w - 360);
-    y = 180 + state.rng() * (WORLD.h - 360);
-    const clearOfShip = Math.hypot(x - state.ship.x, y - state.ship.y) > 260;
-    const clearOfRocks = state.asteroids.every((rock) => Math.hypot(x - rock.x, y - rock.y) > 220);
+function spawnAsteroid(state, operation, difficulty, place) {
+  const question = nextProblem(problemSpec(operation, difficulty || "easy"), state.rng);
+  let x = state.ship.x;
+  let y = state.ship.y;
+  const minShip = place === "far" ? 1100 : 420;
+  for (let guard = 0; guard < 40; guard++) {
+    if (place === "near" || place === "mid") {
+      const angle = state.rng() * Math.PI * 2;
+      const dist = place === "near" ? 160 + state.rng() * 90 : 520 + state.rng() * 480;
+      x = clamp(state.ship.x + Math.cos(angle) * dist, 160, WORLD.w - 160);
+      y = clamp(state.ship.y + Math.sin(angle) * dist, 160, WORLD.h - 160);
+    } else {
+      x = 180 + state.rng() * (WORLD.w - 360);
+      y = 180 + state.rng() * (WORLD.h - 360);
+    }
+    const shipDist = Math.hypot(x - state.ship.x, y - state.ship.y);
+    const clearOfShip = place === "near"
+      ? shipDist > 150 && shipDist < 270
+      : place === "mid"
+        ? shipDist > 500 && shipDist < 1100
+        : shipDist > minShip;
+    const gap = place === "near" ? 130 : 260;
+    const clearOfRocks = state.asteroids.every((rock) => Math.hypot(x - rock.x, y - rock.y) > gap);
     if (clearOfShip && clearOfRocks) break;
   }
-  const size = 120 + state.rng() * 60;
+  const size = 120 + state.rng() * 70;
   state.asteroids.push({
     id: state.nextId++,
     x,
@@ -144,11 +168,14 @@ function spawnAsteroid(state, operation) {
     size,
     radius: size * 0.34,
     rot: state.rng() * Math.PI * 2,
-    spin: (state.rng() - 0.5) * 0.35,
+    spin: (state.rng() - 0.5) * 0.28,
+    drift: state.rng() * Math.PI * 2,
     alive: true,
     active: false,
+    near: false,
     question,
     operation,
+    difficulty: question.difficulty,
   });
 }
 
@@ -164,7 +191,7 @@ function typeChar(ch) {
   state.buffer += ch;
   const answer = rock.question.answerText;
   if (state.buffer === answer) {
-    launchMissile(rock);
+    acceptAnswer(rock);
     state.buffer = "";
     return;
   }
@@ -185,7 +212,8 @@ function asteroidAt(x, y) {
   for (const rock of state.asteroids) {
     if (!rock.alive) continue;
     const dist = Math.hypot(rock.x - x, rock.y - y);
-    if (dist < rock.radius + 18 && dist < bestDist) {
+    const reach = Math.max(rock.radius + 18, rock.size * 0.46);
+    if (dist < reach && dist < bestDist) {
       best = rock;
       bestDist = dist;
     }
@@ -210,15 +238,37 @@ function launchMissile(rock) {
     vy: Math.sin(ship.aim) * 80,
     bend: facing >= 0 ? 1 : -1,
     targetId: rock.id,
-    life: 3.2,
+    life: 6,
+    age: 0,
   });
   audio.shot();
 }
 
 function launch() {
-  if (!sprites || state.mode === "fly") return;
+  if (!sprites) return;
   audio.unlock();
   audio.launch();
+  state.solved = 0;
+  state.buffer = "";
+  state.wrong = 0;
+  state.targetId = 0;
+  state.missiles = [];
+  state.particles = [];
+  state.asteroids = [];
+  state.ship.x = WORLD.w / 2;
+  state.ship.y = WORLD.h / 2;
+  state.ship.vx = 0;
+  state.ship.vy = 0;
+  state.ship.aim = -Math.PI / 2;
+  state.camera.x = state.ship.x;
+  state.camera.y = state.ship.y;
+  spawnAsteroid(state, "add", "easy", "near");
+  spawnAsteroid(state, "sub", "easy", "near");
+  spawnAsteroid(state, "add", "hard", "near");
+  spawnAsteroid(state, "sub", "hard", "near");
+  for (let i = 0; i < 22; i++) {
+    spawnAsteroid(state, i % 2 ? "sub" : "add", i % 3 === 0 ? "hard" : "easy", "roam");
+  }
   state.mode = "fly";
   titleEl.hidden = true;
   pauseEl.hidden = true;
@@ -245,7 +295,15 @@ function frame(now) {
   speedValue.textContent = String(speed);
   solvedValue.textContent = String(state.solved);
   const active = activeAsteroid();
-  questionReadout.textContent = active ? active.question.prompt : "Click an asteroid to aim";
+  const near = state.asteroids.some((rock) => rock.near);
+  if (active) {
+    const stars = active.difficulty === "hard" ? "★★★  " : "★  ";
+    questionReadout.textContent = stars + active.question.prompt;
+  } else if (near) {
+    questionReadout.textContent = "One star is easier. Three stars are harder. Click to see the question.";
+  } else {
+    questionReadout.textContent = "Roam the belt. Nothing is timed.";
+  }
   const hover = screenToWorld(input.mouse.x, input.mouse.y);
   canvas.style.cursor = asteroidAt(hover.x, hover.y) ? "pointer" : "crosshair";
   bufferValue.textContent = state.buffer;
@@ -254,6 +312,7 @@ function frame(now) {
 }
 
 function idle(dt) {
+  state.clock += dt;
   state.ship.aim += dt * 0.15;
   for (const rock of state.asteroids) rock.rot += rock.spin * dt;
   easeCamera(dt);
@@ -298,6 +357,10 @@ function update(dt) {
 
   for (const rock of state.asteroids) {
     rock.rot += rock.spin * dt;
+    rock.x += Math.cos(rock.drift) * 12 * dt;
+    rock.y += Math.sin(rock.drift) * 12 * dt;
+    if (rock.x < 100 || rock.x > WORLD.w - 100) rock.drift = Math.PI - rock.drift;
+    if (rock.y < 100 || rock.y > WORLD.h - 100) rock.drift = -rock.drift;
     rock.active = false;
     rock.near = false;
   }
@@ -311,11 +374,16 @@ function update(dt) {
     target.active = true;
   }
   handleClicks();
+  for (const rock of state.asteroids) {
+    if (rock.dying == null) continue;
+    rock.dying -= dt;
+    if (rock.dying <= 0) destroyAsteroid(rock);
+  }
   updateMissiles(dt);
   updateParticles(dt);
   if (state.wrong > 0) state.wrong -= dt;
+  state.clock += dt;
   easeCamera(dt);
-  input.takeClicks();
 }
 
 function nearestAsteroid(maxDist) {
@@ -340,13 +408,10 @@ function handleClicks() {
   for (const click of input.takeClicks()) {
     const world = screenToWorld(click.x, click.y);
     const hit = asteroidAt(world.x, world.y);
-    state.buffer = "";
-    if (hit) {
-      state.targetId = hit.id;
-      audio.lock();
-    } else {
-      state.targetId = 0;
-    }
+    if (!hit) continue;
+    if (hit.id !== state.targetId) state.buffer = "";
+    state.targetId = hit.id;
+    audio.lock();
   }
 }
 
@@ -354,6 +419,7 @@ function updateMissiles(dt) {
   const speed = 700;
   for (const missile of state.missiles) {
     missile.life -= dt;
+    missile.age += dt;
     const rock = state.asteroids.find((item) => item.id === missile.targetId && item.alive);
     if (!rock) {
       missile.life = 0;
@@ -363,7 +429,7 @@ function updateMissiles(dt) {
     const dy = rock.y - missile.y;
     const dist = Math.hypot(dx, dy) || 1;
     const desired = Math.atan2(dy, dx);
-    const bias = missile.bend * Math.min(1.15, dist / 380);
+    const bias = missile.age > 0.45 || dist < 140 ? 0 : missile.bend * Math.min(0.9, dist / 480);
     const heading = desired + bias;
     missile.vx = Math.cos(heading) * speed;
     missile.vy = Math.sin(heading) * speed;
@@ -378,7 +444,11 @@ function updateMissiles(dt) {
       size: 3,
       color: "#b9f3ff",
     });
-    if (dist < rock.radius + 10) {
+    if (missile.age > 2.2) {
+      missile.x = rock.x;
+      missile.y = rock.y;
+    }
+    if (dist < rock.radius + 28 || missile.age > 2.2) {
       missile.life = 0;
       destroyAsteroid(rock);
     }
@@ -386,12 +456,19 @@ function updateMissiles(dt) {
   state.missiles = state.missiles.filter((missile) => missile.life > 0);
 }
 
-function destroyAsteroid(rock) {
-  if (!rock.alive) return;
-  rock.alive = false;
+function acceptAnswer(rock) {
+  if (!rock || !rock.alive || rock.dying != null) return;
+  rock.dying = 0.7;
   if (state.targetId === rock.id) state.targetId = 0;
   state.solved += 1;
   audio.correct();
+  launchMissile(rock);
+}
+
+function destroyAsteroid(rock) {
+  if (!rock.alive) return;
+  if (rock.dying == null) acceptAnswer(rock);
+  rock.alive = false;
   for (let i = 0; i < 18; i++) {
     const angle = state.rng() * Math.PI * 2;
     const speed = 40 + state.rng() * 180;
@@ -406,7 +483,9 @@ function destroyAsteroid(rock) {
     });
   }
   state.asteroids = state.asteroids.filter((item) => item.alive);
-  spawnAsteroid(state, state.rng() < 0.5 ? "add" : "sub");
+  const operation = state.rng() < 0.5 ? "add" : "sub";
+  const difficulty = state.rng() < 0.65 ? "easy" : "hard";
+  spawnAsteroid(state, operation, difficulty, "far");
 }
 
 function updateParticles(dt) {
