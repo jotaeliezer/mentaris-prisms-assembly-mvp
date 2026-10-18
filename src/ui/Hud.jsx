@@ -1,4 +1,6 @@
-export default function Hud({ bridge, snapshot }) {
+import { GearIcon } from './SettingsPanel.jsx';
+
+export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOpen, onFlightGear }) {
   const hud = snapshot.hud || {};
   const hullPct = Number.isFinite(hud.hullPct) ? hud.hullPct : 100;
   const hullLow = hullPct <= 35;
@@ -25,6 +27,19 @@ export default function Hud({ bridge, snapshot }) {
             <div className="hull-meter-fill" style={{ width: `${hullPct}%` }} />
           </div>
         </div>
+        {showFlightGear ? (
+          <button
+            type="button"
+            className="flight-gear"
+            aria-label="Settings"
+            aria-haspopup="dialog"
+            aria-expanded={flightSettingsOpen ? 'true' : 'false'}
+            aria-controls="flight-settings"
+            onClick={onFlightGear}
+          >
+            <GearIcon />
+          </button>
+        ) : null}
       </div>
       <p id="hint" className={`hint${snapshot.mapUnlocked ? ' hint-beside-map' : ''}`}>
         {hud.hint || ''}

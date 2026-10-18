@@ -13,6 +13,8 @@ const INITIAL_HUD = {
 
 const INITIAL_SNAPSHOT = {
   mode: 'title',
+  seed: 'belt-7',
+  missionId: '',
   muted: false,
   clearTitle: 'Mission clear',
   clearCopy:
