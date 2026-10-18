@@ -15,6 +15,7 @@ import {
   syncTransitionWash,
 } from '../display.js';
 import { createInput } from '../input.js';
+import { multiplayer } from '../../multiplayer/session.js';
 import { createState, WORLD } from '../state.js';
 import {
   bankCargo,
@@ -67,6 +68,7 @@ export default class PlayScene extends Phaser.Scene {
     this.washGfx = null;
     this.minimapGfx = null;
     this.snapshotAcc = 0;
+    this.remoteViews = new Map();
     this.ready = false;
   }
 
@@ -163,12 +165,12 @@ export default class PlayScene extends Phaser.Scene {
             : payload && payload.missionId
               ? payload.missionId
               : 'add';
-        const seed =
+        const requested =
           payload && typeof payload === 'object' && payload.seed != null
             ? payload.seed
             : this.state.seed;
         this.clearFlightInput();
-        startMission(this.state, missionId, seed, this.audio);
+        startMission(this.state, missionId, this.sharedSeed(requested), this.audio);
         this.resyncSprites();
         this.publishSnapshot(true);
       })
@@ -194,7 +196,7 @@ export default class PlayScene extends Phaser.Scene {
       bridge.on('nextMission', () => {
         const next = this.state.mission && this.state.mission.next;
         this.clearFlightInput();
-        startMission(this.state, next || 'add', this.state.seed, this.audio);
+        startMission(this.state, next || 'add', this.sharedSeed(this.state.seed), this.audio);
         this.resyncSprites();
         this.publishSnapshot(true);
       })
@@ -204,7 +206,7 @@ export default class PlayScene extends Phaser.Scene {
       bridge.on('replayMission', () => {
         const id = this.state.mission ? this.state.mission.id : 'add';
         this.clearFlightInput();
-        startMission(this.state, id, this.state.seed, this.audio);
+        startMission(this.state, id, this.sharedSeed(this.state.seed), this.audio);
         this.resyncSprites();
         this.publishSnapshot(true);
       })
@@ -419,6 +421,75 @@ export default class PlayScene extends Phaser.Scene {
     return { w: this.scale.width, h: this.scale.height };
   }
 
+  sharedSeed(fallback) {
+    const live = multiplayer.getSnapshot();
+    if (live.connected && live.seed) return live.seed;
+    return fallback;
+  }
+
+  publishMultiplayerPose() {
+    const ship = this.state.ship;
+    multiplayer.noteFlight({
+      missionId: this.state.mission ? this.state.mission.id : '',
+      layer: this.state.layer,
+    });
+    if (!multiplayer.getSnapshot().connected || this.state.mode === 'title') return;
+    multiplayer.publishPose({
+      x: ship.x,
+      y: ship.y,
+      aim: ship.aim,
+      layer: this.state.layer,
+      sprite: ship.sprite,
+      thrusting: !!ship.thrusting,
+    });
+  }
+
+  syncRemoteShips() {
+    const showAny = this.state.mode !== 'title';
+    const layer = this.state.layer;
+    const seen = new Set();
+    for (const remote of multiplayer.remoteShips()) {
+      seen.add(remote.id);
+      let view = this.remoteViews.get(remote.id);
+      const visible = showAny && remote.hasPose && remote.layer === layer;
+      const key = remote.sprite && this.textures.exists(remote.sprite) ? remote.sprite : DEFAULT_SHIP;
+      if (!view) {
+        const sprite = this.add.image(remote.x, remote.y, key);
+        sprite.setDisplaySize(SHIP_BASE, SHIP_BASE);
+        sprite.setDepth(9);
+        const label = this.add.text(remote.x, remote.y - 48, remote.tag || '', {
+          fontFamily: '"Segoe UI", "Avenir Next", "Helvetica Neue", sans-serif',
+          fontSize: '13px',
+          color: '#e8ecff',
+          backgroundColor: '#0b1220',
+          padding: { left: 5, right: 5, top: 2, bottom: 2 },
+        });
+        label.setOrigin(0.5, 1);
+        label.setDepth(12);
+        this.refreshUiIgnore(sprite);
+        this.refreshUiIgnore(label);
+        view = { sprite, label };
+        this.remoteViews.set(remote.id, view);
+      } else if (view.sprite.texture.key !== key) {
+        view.sprite.setTexture(key);
+      }
+      view.sprite.setPosition(remote.x, remote.y);
+      view.sprite.setRotation(remote.aim + Math.PI / 2);
+      view.sprite.setDisplaySize(SHIP_BASE, SHIP_BASE);
+      view.sprite.setVisible(visible);
+      const tag = remote.tag || '';
+      if (view.label.text !== tag) view.label.setText(tag);
+      view.label.setPosition(remote.x, remote.y - 48);
+      view.label.setVisible(visible && tag.length > 0);
+    }
+    for (const [id, view] of this.remoteViews) {
+      if (seen.has(id)) continue;
+      view.sprite.destroy();
+      view.label.destroy();
+      this.remoteViews.delete(id);
+    }
+  }
+
   update(_time, delta) {
     if (!this.ready) return;
     const dt = Math.min(0.033, delta / 1000);
@@ -440,7 +511,10 @@ export default class PlayScene extends Phaser.Scene {
       idle(this.state, dt, this.audio);
     }
 
+    this.publishMultiplayerPose();
+    multiplayer.step();
     this.syncDisplay();
+    this.syncRemoteShips();
     this.snapshotAcc += delta;
     if (this.snapshotAcc >= SNAPSHOT_INTERVAL_MS) {
       this.snapshotAcc = 0;
@@ -625,5 +699,10 @@ export default class PlayScene extends Phaser.Scene {
       this.inputCtl.destroy();
       this.inputCtl = null;
     }
+    for (const view of this.remoteViews.values()) {
+      view.sprite.destroy();
+      view.label.destroy();
+    }
+    this.remoteViews.clear();
   }
 }

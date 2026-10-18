@@ -8,6 +8,7 @@ import Pause from './Pause.jsx';
 import Clear from './Clear.jsx';
 import Extract from './Extract.jsx';
 import SettingsPanel, { DEFAULT_MISSION, DEFAULT_SEED } from './SettingsPanel.jsx';
+import { useMultiplayer } from './SessionControls.jsx';
 
 const FLIGHT_SETTINGS_NOTE =
   'The same seed builds the same belt. Close resumes this flight. A changed seed or mission starts that flight.';
@@ -17,8 +18,15 @@ export default function App({ bridge }) {
   const [flightSettingsOpen, setFlightSettingsOpen] = useState(false);
   const [flightSeed, setFlightSeed] = useState(DEFAULT_SEED);
   const [flightMission, setFlightMission] = useState(DEFAULT_MISSION);
+  const live = useMultiplayer();
 
   useEffect(() => bridge.subscribe(setSnapshot), [bridge]);
+
+  useEffect(() => {
+    if (!flightSettingsOpen) return;
+    if (live.code) setFlightSeed(live.code);
+    if (live.role === 'join' && live.hostMission) setFlightMission(live.hostMission);
+  }, [flightSettingsOpen, live.code, live.role, live.hostMission]);
 
   const closeFlightSettings = useCallback(() => {
     const snap = bridge.getSnapshot();
@@ -141,6 +149,8 @@ export default function App({ bridge }) {
             seed={flightSeed}
             mission={flightMission}
             modal
+            bridge={bridge}
+            inGame
             note={FLIGHT_SETTINGS_NOTE}
             onSeed={setFlightSeed}
             onMission={chooseFlightMission}

@@ -1,4 +1,5 @@
 import { GearIcon } from './SettingsPanel.jsx';
+import SessionControls from './SessionControls.jsx';
 
 export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOpen, onFlightGear }) {
   const hud = snapshot.hud || {};
@@ -27,19 +28,27 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
             <div className="hull-meter-fill" style={{ width: `${hullPct}%` }} />
           </div>
         </div>
-        {showFlightGear ? (
-          <button
-            type="button"
-            className="flight-gear"
-            aria-label="Settings"
-            aria-haspopup="dialog"
-            aria-expanded={flightSettingsOpen ? 'true' : 'false'}
-            aria-controls="flight-settings"
-            onClick={onFlightGear}
-          >
-            <GearIcon />
-          </button>
-        ) : null}
+        <div className="flight-tools">
+          {showFlightGear ? (
+            <button
+              type="button"
+              className="flight-gear"
+              aria-label="Settings"
+              aria-haspopup="dialog"
+              aria-expanded={flightSettingsOpen ? 'true' : 'false'}
+              aria-controls="flight-settings"
+              onClick={onFlightGear}
+            >
+              <GearIcon />
+            </button>
+          ) : null}
+          <SessionControls
+            bridge={bridge}
+            variant="chip"
+            inGame
+            missionId={snapshot.missionId || 'add'}
+          />
+        </div>
       </div>
       <p id="hint" className={`hint${snapshot.mapUnlocked ? ' hint-beside-map' : ''}`}>
         {hud.hint || ''}

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import SessionControls, { useMultiplayer } from './SessionControls.jsx';
 
 export const DEFAULT_SEED = 'belt-7';
 export const DEFAULT_MISSION = 'add';
@@ -45,11 +46,14 @@ export default function SettingsPanel({
   hidden = false,
   modal = false,
   note = DEFAULT_NOTE,
+  bridge,
+  inGame = false,
   closeRef: closeRefProp,
   onSeed,
   onMission,
   onClose,
 }) {
+  const live = useMultiplayer();
   const localCloseRef = useRef(null);
   const closeRef = closeRefProp || localCloseRef;
 
@@ -107,9 +111,19 @@ export default function SettingsPanel({
           autoComplete="off"
           spellCheck={false}
           aria-label="World seed"
+          readOnly={live.connected}
           onChange={(event) => onSeed(event.target.value)}
         />
       </label>
+
+      <SessionControls
+        bridge={bridge}
+        variant="home"
+        inGame={inGame}
+        missionId={mission}
+        onSeed={onSeed}
+        onMission={onMission}
+      />
 
       <div
         className="home-missions"
