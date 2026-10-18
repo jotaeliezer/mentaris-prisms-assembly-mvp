@@ -1024,6 +1024,84 @@ export function questionReadout(state) {
   return 'Roam the belt. Nothing is timed.';
 }
 
+export const HOTBAR_SIZE = 6;
+
+/**
+ * Stable slot order. A slot is filled only when the ship can use that tool.
+ * Repair has no held charge in this build, and the last slot stays empty.
+ */
+const HOTBAR_TOOLS = [
+  { id: 'drive', name: 'Drive', icon: '/images/powerups/rare_speedboost.png' },
+  { id: 'hull', name: 'Hull', icon: '/images/powerups/powerup_armor.png' },
+  { id: 'hint', name: 'Math hint', icon: '/images/powerups/powerup_targetlock.png' },
+  { id: 'map', name: 'Sector map', icon: '/images/powerups/powerup_scope.png' },
+  { id: 'repair', name: 'Repair', icon: '/images/powerups/powerup_hullrepair.png' },
+  { id: 'spare', name: '', icon: '' },
+];
+
+export function selectHotbar(state, index) {
+  const n = typeof index === 'number' ? index : Number(index);
+  if (!Number.isInteger(n) || n < 0 || n >= HOTBAR_SIZE) return;
+  state.hotbarSlot = n;
+}
+
+export function hotbarIndex(state) {
+  const n = state && state.hotbarSlot;
+  if (!Number.isInteger(n) || n < 0 || n >= HOTBAR_SIZE) return 0;
+  return n;
+}
+
+function hotbarAvailable(state, id) {
+  if (id === 'drive' || id === 'hull') return true;
+  if (id === 'hint') return !!state.hint;
+  if (id === 'map') return !!state.mapUnlocked;
+  return false;
+}
+
+function hotbarLabel(state, id, available) {
+  if (!available) return 'Empty';
+  if (id === 'drive') {
+    return state.driveTier > 0 ? 'Drive · tier ' + state.driveTier : 'Drive';
+  }
+  if (id === 'hull') {
+    return state.hullTier > 0 ? 'Hull · tier ' + state.hullTier : 'Hull';
+  }
+  if (id === 'hint') return 'Math hint';
+  if (id === 'map') return 'Sector map';
+  return 'Empty';
+}
+
+function hotbarBadge(state, id, available) {
+  if (!available) return '';
+  if (id === 'drive' && state.driveTier > 0) return String(state.driveTier);
+  if (id === 'hull' && state.hullTier > 0) return String(state.hullTier);
+  return '';
+}
+
+/** Slots for the vertical tool hotbar. Selection is visual; fabrication stays on F. */
+export function buildHotbar(state) {
+  const selected = hotbarIndex(state);
+  const slots = HOTBAR_TOOLS.map((tool, index) => {
+    const available = hotbarAvailable(state, tool.id);
+    return {
+      id: tool.id,
+      index,
+      key: String(index + 1),
+      name: available ? tool.name : '',
+      label: hotbarLabel(state, tool.id, available),
+      available,
+      icon: available && tool.icon ? tool.icon : '',
+      badge: hotbarBadge(state, tool.id, available),
+      selected: index === selected,
+    };
+  });
+  return {
+    selected,
+    label: slots[selected] ? slots[selected].label : 'Empty',
+    slots,
+  };
+}
+
 export function buildHudFields(state) {
   const quota = state.mission && state.mission.quota ? state.mission.quota : 0;
   const speed = Math.round(len(state.ship.vx, state.ship.vy));
@@ -1059,6 +1137,7 @@ export function buildHudFields(state) {
     hint: state.hint
       ? state.hint
       : 'Hard rocks drop more ore. Bank it before a hull breach. F opens fabrication.',
+    hotbar: buildHotbar(state),
   };
 }
 
