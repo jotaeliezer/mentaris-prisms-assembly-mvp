@@ -29,6 +29,7 @@ import {
   fabricateMap,
   idle,
   openExtract,
+  selectHotbar,
   setFab,
   setPaused,
   startMission,
@@ -258,6 +259,17 @@ export default class PlayScene extends Phaser.Scene {
     );
 
     this.unsubs.push(
+      bridge.on('selectHotbar', (payload) => {
+        const index =
+          payload && typeof payload === 'object' && payload.index != null
+            ? payload.index
+            : payload;
+        selectHotbar(this.state, index);
+        this.publishSnapshot(true);
+      })
+    );
+
+    this.unsubs.push(
       bridge.on('openExtract', (payload) => {
         const rockId =
           typeof payload === 'number'
@@ -383,7 +395,18 @@ export default class PlayScene extends Phaser.Scene {
         this.publishSnapshot(true);
         return;
       }
-      // Digits in fly no longer submit rock answers (extract mode only).
+      // Digits 1–6 select a hotbar slot only while flying.
+      // Extract mode returns above and still types the math answer.
+      // Focused inputs are ignored at the top of this handler.
+      const digit = digitFromEvent(event);
+      if (digit != null) {
+        const n = Number(digit);
+        if (n >= 1 && n <= 6) {
+          selectHotbar(this.state, n - 1);
+          event.preventDefault();
+          this.publishSnapshot(true);
+        }
+      }
     };
     window.addEventListener('keydown', this.onDigitKey);
   }
