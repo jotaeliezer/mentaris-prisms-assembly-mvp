@@ -50,9 +50,13 @@ button, input {
 }
 
 .hud-top {
+  position: relative;
+  z-index: 12;
   display: flex;
+  flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
+  gap: 8px;
 }
 
 .hull-meter {
@@ -806,7 +810,7 @@ button:disabled {
 
 #title.home-menu .menuTitle {
   margin: 0;
-  text-transform: uppercase;
+  text-transform: none;
   font-size: clamp(40px, 7vw, 96px);
   line-height: 1;
   letter-spacing: 4px;
@@ -829,7 +833,7 @@ button:disabled {
   margin-top: 8px;
   font-size: clamp(18px, 2.8vw, 32px);
   letter-spacing: 3px;
-  text-transform: uppercase;
+  text-transform: none;
   color: rgba(255, 255, 255, 0.88);
   font-weight: 600;
   opacity: 0;
@@ -1068,6 +1072,168 @@ button:disabled {
   }
 
   #title.home-menu .home-settings-head {
+    flex-direction: column;
+  }
+}
+
+/* In-flight settings. Same panel as the home menu; the gear sits under the hull bar. */
+.flight-gear {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #e8ecff;
+  background: rgba(8, 12, 24, 0.72);
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.flight-gear:hover,
+.flight-gear:focus-visible {
+  border-color: rgba(0, 229, 255, 0.65);
+  color: #ffffff;
+}
+
+.flight-gear[aria-expanded="true"] {
+  background: linear-gradient(90deg, rgba(0, 229, 255, 0.35), rgba(0, 229, 255, 0.15));
+  border-color: rgba(0, 229, 255, 0.55);
+}
+
+.flight-settings.overlay {
+  z-index: 8;
+  align-items: start;
+  justify-content: center;
+  padding: 96px 18px 18px;
+  background: rgba(3, 8, 14, 0.55);
+}
+
+.flight-settings .home-settings {
+  width: min(860px, 100%);
+  position: relative;
+  padding: 16px 22px 12px;
+  max-height: calc(100vh - 114px);
+  overflow: auto;
+  font-family: "Oxanium", "Segoe UI", sans-serif;
+  background: linear-gradient(160deg, rgba(12, 16, 32, 0.95), rgba(6, 8, 20, 0.9));
+  border: 1px solid rgba(0, 210, 255, 0.26);
+  border-radius: 28px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+}
+
+.flight-settings .home-settings::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto -20%;
+  height: 65%;
+  background: radial-gradient(circle at 50% 45%, rgba(0, 229, 255, 0.18), rgba(0, 0, 0, 0) 70%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.flight-settings .home-settings-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.flight-settings .home-settings-head h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.flight-settings .home-settings-note {
+  margin: 0;
+  color: rgba(232, 236, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+  letter-spacing: 0.2px;
+}
+
+.flight-settings .home-settings-close {
+  flex: 0 0 auto;
+  min-width: 96px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.flight-settings .seed-field {
+  position: relative;
+  z-index: 1;
+}
+
+.flight-settings .seed-field input {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.flight-settings .home-missions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
+.flight-settings .home-mission {
+  width: 100%;
+  text-align: left;
+  border-radius: 14px;
+  padding: 8px 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.flight-settings .home-mission span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(232, 236, 255, 0.72);
+  font-size: 12px;
+  font-weight: 450;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  line-height: 1.35;
+}
+
+.flight-settings .home-mission.is-selected {
+  background: linear-gradient(90deg, rgba(0, 229, 255, 0.35), rgba(0, 229, 255, 0.15));
+  border-color: rgba(0, 229, 255, 0.55);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4), 0 0 28px rgba(0, 229, 255, 0.14);
+}
+
+.flight-settings .keys {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  gap: 4px 10px;
+}
+
+.flight-settings button:focus-visible,
+.flight-settings input:focus-visible {
+  outline: 2px solid rgba(0, 229, 255, 0.9);
+  outline-offset: 2px;
+}
+
+@media (max-width: 800px) {
+  .flight-settings.overlay {
+    padding-top: 84px;
+  }
+
+  .flight-settings .home-settings-head {
     flex-direction: column;
   }
 }

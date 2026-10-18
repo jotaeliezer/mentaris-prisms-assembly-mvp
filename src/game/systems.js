@@ -1183,6 +1183,8 @@ export function buildFabFields(state) {
 export function buildSnapshotPatch(state, muted) {
   return {
     mode: state.mode,
+    seed: state.seed,
+    missionId: state.mission ? state.mission.id : '',
     muted: !!muted,
     clearTitle: state.clearTitle,
     clearCopy: state.clearCopy,
