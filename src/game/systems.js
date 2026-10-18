@@ -2,12 +2,14 @@ import { clamp, len, makeRng, wrapAngle } from './util.js';
 import { nextProblem, problemSpec } from './questions.js';
 import {
   APPROACH,
-  LAYER_COUNT,
+  LAYER_MAX,
+  LAYER_MIN,
   MISSIONS,
   SHIP_RADIUS,
   WORLD,
   cleanSeed,
   clusterName,
+  randomInteriorPoint,
   spawnAsteroid,
 } from './state.js';
 
@@ -204,9 +206,19 @@ function beginShift(state, dir, after, fields, audio) {
   if (audio) audio.launch();
 }
 
+function placeShipAtSpawn(state) {
+  const point = randomInteriorPoint(state.rng);
+  state.ship.x = point.x;
+  state.ship.y = point.y;
+  state.ship.vx = 0;
+  state.ship.vy = 0;
+  state.camera.x = point.x;
+  state.camera.y = point.y;
+}
+
 export function changeLayer(state, dir, audio) {
   const next = state.layer + dir;
-  if (next < 0 || next >= LAYER_COUNT || state.transition) return;
+  if (next < LAYER_MIN || next > LAYER_MAX || state.transition) return;
   const prevAsteroids = state.asteroids.slice();
   const prevDrops = state.drops.slice();
   state.layerBanks[state.layer] = { asteroids: state.asteroids, drops: state.drops };
@@ -231,8 +243,7 @@ export function changeLayer(state, dir, audio) {
         populateField(state);
         state.layerBanks[next] = { asteroids: state.asteroids, drops: state.drops };
       }
-      state.status =
-        dir > 0 ? 'Rose to layer ' + (next + 1) + '.' : 'Dropped to layer ' + (next + 1) + '.';
+      state.status = dir > 0 ? 'Rose to layer ' + next + '.' : 'Dropped to layer ' + next + '.';
       state.statusTime = 2.4;
     },
     { kind: 'layer', prevAsteroids, prevDrops },
@@ -265,11 +276,11 @@ function arriveInCluster(state, cluster, returning) {
     state.drops = slot ? slot.drops : [];
   } else {
     state.layer = 0;
-    state.layerBanks = Array(LAYER_COUNT).fill(null);
+    state.layerBanks = {};
     state.solved = 0;
-    state.ship.x = WORLD.w / 2;
-    state.ship.y = WORLD.h / 2;
     state.ship.aim = -Math.PI / 2;
+    state.rng = layerRng(state);
+    placeShipAtSpawn(state);
     state.home = { x: state.ship.x, y: state.ship.y };
     state.returnHole =
       cluster > 1
@@ -279,7 +290,6 @@ function arriveInCluster(state, cluster, returning) {
             locked: false,
           }
         : null;
-    state.rng = layerRng(state);
     state.asteroids = [];
     state.drops = [];
     populateField(state);
@@ -329,22 +339,17 @@ export function startMission(state, id, seed, audio) {
   state.asteroids = [];
   state.hint = '';
   state.ship.hp = state.ship.maxHp;
-  state.ship.x = WORLD.w / 2;
-  state.ship.y = WORLD.h / 2;
-  state.ship.vx = 0;
-  state.ship.vy = 0;
   state.ship.aim = -Math.PI / 2;
-  state.camera.x = state.ship.x;
-  state.camera.y = state.ship.y;
   state.seed = cleanSeed(seed);
   state.cluster = 1;
   state.layer = 0;
-  state.layerBanks = Array(LAYER_COUNT).fill(null);
+  state.layerBanks = {};
   state.clusterCache = {};
   state.returnHole = null;
   state.transition = null;
-  state.home = { x: state.ship.x, y: state.ship.y };
   state.rng = layerRng(state);
+  placeShipAtSpawn(state);
+  state.home = { x: state.ship.x, y: state.ship.y };
   populateField(state);
   placeWormhole(state);
   state.layerBanks[0] = { asteroids: state.asteroids, drops: state.drops };
@@ -1110,9 +1115,7 @@ export function buildHudFields(state) {
       ' · ' +
       clusterName(state.cluster) +
       ' · L' +
-      (state.layer + 1) +
-      '/' +
-      LAYER_COUNT +
+      state.layer +
       (quota ? ' · ' + Math.min(state.solved, quota) + '/' + quota : '')
     : 'Prisms of Assembly';
   if (state.wormhole && quota) {

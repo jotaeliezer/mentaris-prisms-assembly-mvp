@@ -5,7 +5,21 @@ import { DEFAULT_SHIP } from './assetsManifest.js';
 export const WORLD = { w: 72000, h: 52000 };
 export const SHIP_RADIUS = 28;
 export const APPROACH = 340;
-export const LAYER_COUNT = 50;
+/** Inclusive stack. Layer 0 sits in the middle; Q/E stop at the ends. */
+export const LAYER_MIN = -250;
+export const LAYER_MAX = 250;
+export const LAYER_COUNT = LAYER_MAX - LAYER_MIN + 1;
+/** Same edge inset as a rock scattered in the open belt. */
+export const SHIP_SPAWN_PAD = 180;
+
+/** Seeded point inside the belt, clear of the world edge by SHIP_SPAWN_PAD. */
+export function randomInteriorPoint(rng) {
+  const pad = SHIP_SPAWN_PAD;
+  return {
+    x: pad + rng() * (WORLD.w - pad * 2),
+    y: pad + rng() * (WORLD.h - pad * 2),
+  };
+}
 
 export const MISSIONS = {
   add: { id: 'add', name: 'Addition Drift', operation: 'add', quota: 5, next: 'sub' },
@@ -25,8 +39,9 @@ export function spawnAsteroid(state, operation, difficulty, place) {
       x = clamp(state.ship.x + Math.cos(angle) * dist, 160, WORLD.w - 160);
       y = clamp(state.ship.y + Math.sin(angle) * dist, 160, WORLD.h - 160);
     } else {
-      x = 180 + state.rng() * (WORLD.w - 360);
-      y = 180 + state.rng() * (WORLD.h - 360);
+      const point = randomInteriorPoint(state.rng);
+      x = point.x;
+      y = point.y;
     }
     const shipDist = Math.hypot(x - state.ship.x, y - state.ship.y);
     const clearOfShip =
@@ -77,6 +92,7 @@ export function createState() {
       color: i % 11 === 0 ? '#ffd7a1' : '#d7f4ff',
     });
   }
+  const spawn = randomInteriorPoint(rng);
   const state = {
     mode: 'title',
     world: WORLD,
@@ -102,8 +118,8 @@ export function createState() {
     extractToast: '',
     extractToastTime: 0,
     ship: {
-      x: WORLD.w / 2,
-      y: WORLD.h / 2,
+      x: spawn.x,
+      y: spawn.y,
       vx: 0,
       vy: 0,
       aim: -Math.PI / 2,
@@ -114,16 +130,16 @@ export function createState() {
       maxHp: 100,
       maxSpeed: 430,
     },
-    camera: { x: WORLD.w / 2, y: WORLD.h / 2 },
+    camera: { x: spawn.x, y: spawn.y },
     mission: null,
     wormhole: null,
     seed: 'belt-7',
     cluster: 1,
     layer: 0,
-    layerBanks: Array(LAYER_COUNT).fill(null),
+    layerBanks: {},
     clusterCache: {},
     returnHole: null,
-    home: { x: WORLD.w / 2, y: WORLD.h / 2 },
+    home: { x: spawn.x, y: spawn.y },
     transition: null,
     /** T7 wires fab unlock; minimap stays hidden until true. */
     mapUnlocked: false,
