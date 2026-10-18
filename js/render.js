@@ -23,7 +23,7 @@ export function drawFrame(ctx, view, state, sprites) {
   beginWorld(ctx, state, dpr, w, h);
   drawNebula(ctx, state.nebula);
   drawBoundary(ctx, state.world);
-  for (const rock of state.asteroids) drawAsteroid(ctx, rock, sprites);
+  drawLayerAsteroids(ctx, state, sprites);
   if (state.returnHole) drawGate(ctx, state, state.returnHole, "RETURN", false);
   if (state.wormhole) drawGate(ctx, state, state.wormhole, state.wormhole.locked ? "LOCKED" : "WORMHOLE", state.wormhole.locked);
   drawAimArc(ctx, state);
@@ -48,14 +48,62 @@ function beginWorld(ctx, state, dpr, w, h) {
     const p = state.transition.t / state.transition.dur;
     const bend = Math.sin(Math.PI * Math.min(1, p));
     const dir = state.transition.dir || 1;
-    scaleX = 1 - bend * 0.14;
-    scaleY = 1 - bend * 0.46;
-    shift = bend * 80 * dir;
+    const layer = state.transition.kind === "layer";
+    // Soften world squash during layer zooms so rock scale stays readable.
+    scaleX = 1 - bend * (layer ? 0.06 : 0.14);
+    scaleY = 1 - bend * (layer ? 0.18 : 0.46);
+    shift = bend * (layer ? 36 : 80) * dir;
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.translate(w / 2, h / 2 + shift);
   ctx.scale(scaleX, scaleY);
   ctx.translate(-camera.x, -camera.y);
+}
+
+const LAYER_SWAP = 0.45;
+
+function layerTransitionFx(state) {
+  const tr = state.transition;
+  if (!tr || tr.kind !== "layer") return null;
+  const p = Math.min(1, Math.max(0, tr.t / tr.dur));
+  const dir = tr.dir || 1;
+  const leaveP = Math.min(1, p / LAYER_SWAP);
+  const enterP = p <= LAYER_SWAP ? 0 : Math.min(1, (p - LAYER_SWAP) / (1 - LAYER_SWAP));
+  const mid = Math.sin(Math.PI * p);
+  let leaveScale;
+  let enterScale;
+  if (dir < 0) {
+    leaveScale = 1 + leaveP * (2.4 - 1);
+    enterScale = 0.25 + enterP * (1 - 0.25);
+  } else {
+    leaveScale = 1 + leaveP * (0.35 - 1);
+    enterScale = 2.6 + enterP * (1 - 2.6);
+  }
+  return {
+    p,
+    dir,
+    leave: { scale: leaveScale, alpha: 1 - leaveP },
+    enter: { scale: enterScale, alpha: enterP },
+    shipScale: dir < 0 ? 1 - 0.28 * mid : 1 + 0.28 * mid,
+    swapped: p >= LAYER_SWAP,
+  };
+}
+
+function drawLayerAsteroids(ctx, state, sprites) {
+  const fx = layerTransitionFx(state);
+  if (!fx) {
+    for (const rock of state.asteroids) drawAsteroid(ctx, rock, sprites);
+    return;
+  }
+  const leaveRocks = fx.swapped && state.transition.prevAsteroids
+    ? state.transition.prevAsteroids
+    : state.asteroids;
+  if (fx.leave.alpha > 0.01) {
+    for (const rock of leaveRocks) drawAsteroid(ctx, rock, sprites, fx.leave);
+  }
+  if (fx.swapped && fx.enter.alpha > 0.01) {
+    for (const rock of state.asteroids) drawAsteroid(ctx, rock, sprites, fx.enter);
+  }
 }
 
 function drawStars(ctx, stars, camera, w, h) {
@@ -103,13 +151,17 @@ function drawBoundary(ctx, world) {
   ctx.restore();
 }
 
-function drawAsteroid(ctx, rock, sprites) {
+function drawAsteroid(ctx, rock, sprites, fx) {
   const img = sprites.asteroids[rock.sprite];
   if (!img || rock.alive === false) return;
   const width = rock.size;
   const height = width * (img.height / img.width);
+  const scale = fx && fx.scale != null ? fx.scale : 1;
+  const alpha = fx && fx.alpha != null ? fx.alpha : 1;
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.translate(rock.x, rock.y);
+  ctx.scale(scale, scale);
   if (rock.active || rock.near) {
     const hard = rock.difficulty === "hard";
     ctx.strokeStyle = hard ? "rgba(255, 177, 90, 0.9)" : "rgba(141, 255, 176, 0.88)";
@@ -121,6 +173,7 @@ function drawAsteroid(ctx, rock, sprites) {
   ctx.rotate(rock.rot);
   ctx.drawImage(img, -width / 2, -height / 2, width, height);
   ctx.restore();
+  if (alpha < 0.2) return;
   if ((rock.near || rock.active) && rock.question) drawDifficulty(ctx, rock);
   if (rock.active && rock.question) drawQuestionPlate(ctx, rock);
 }
@@ -253,8 +306,11 @@ function roundRect(ctx, x, y, w, h, r) {
 function drawShip(ctx, state, sprites) {
   const ship = state.ship;
   const img = sprites.ships[ship.sprite];
+  const layerFx = layerTransitionFx(state);
+  const shipScale = layerFx ? layerFx.shipScale : 1;
   ctx.save();
   ctx.translate(ship.x, ship.y);
+  ctx.scale(shipScale, shipScale);
   ctx.rotate(ship.aim + Math.PI / 2);
   if (ship.thrusting) drawFlame(ctx, ship);
   if (img) {
@@ -276,6 +332,7 @@ function drawShip(ctx, state, sprites) {
   const hpRatio = ship.maxHp ? ship.hp / ship.maxHp : 1;
   ctx.save();
   ctx.translate(ship.x, ship.y);
+  ctx.scale(shipScale, shipScale);
   ctx.strokeStyle = state.hurt > 0 ? "rgba(255, 120, 96, 0.95)" : "rgba(141, 255, 176, 0.7)";
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -287,7 +344,7 @@ function drawShip(ctx, state, sprites) {
   if (speed > 8) {
     ctx.strokeStyle = "rgba(223, 247, 255, 0.25)";
     ctx.beginPath();
-    ctx.arc(ship.x, ship.y, 54, ship.aim - 0.5, ship.aim + 0.5);
+    ctx.arc(ship.x, ship.y, 54 * shipScale, ship.aim - 0.5, ship.aim + 0.5);
     ctx.stroke();
   }
 }

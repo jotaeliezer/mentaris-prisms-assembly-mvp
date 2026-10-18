@@ -1,0 +1,97 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mentaris: Prisms of Assembly</title>
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+  <canvas id="view" aria-label="Mentaris flight view"></canvas>
+  <p id="load-note">Loading sprites…</p>
+  <div id="hud" class="hud" hidden>
+    <div class="hud-top">
+      <div class="brand">
+        <span class="brand-mark">Mentaris</span>
+        <span class="brand-sub" id="mission-readout">Prisms of Assembly</span>
+      </div>
+      <div id="buffer" class="buffer">
+        <span id="question-readout">Fly closer to an asteroid</span>
+        <strong id="buffer-value"></strong>
+      </div>
+      <div class="hud-stats">
+        <div id="solved-readout"><span>Rocks</span><strong id="solved-value">0</strong></div>
+        <div id="hull-readout"><span>Hull</span><strong id="hull-value">100</strong></div>
+        <div id="cargo-readout"><span>Cargo</span><strong id="cargo-value">0</strong></div>
+        <div id="bank-readout"><span>Bank</span><strong id="bank-value">0</strong></div>
+        <div id="speed-readout"><span>Speed</span><strong id="speed-value">0</strong></div>
+        <button id="mute" type="button">Sound on</button>
+      </div>
+    </div>
+    <p id="hint" class="hint">Hard rocks drop more ore. Bank it before a hull breach. F opens fabrication.</p>
+  </div>
+  <div id="title" class="overlay">
+    <div class="panel">
+      <p class="eyebrow">Open sector</p>
+      <h1>Mentaris: Prisms of Assembly</h1>
+      <p class="lede">Pick a mission and a world seed. The same seed builds the same belt. Answer the quota, then spend ore to jump. No name, no account.</p>
+      <label class="seed-field">World seed
+        <input id="seed" value="belt-7" maxlength="24" autocomplete="off" spellcheck="false" aria-label="World seed">
+      </label>
+      <div class="missions">
+        <button id="mission-add" type="button">Addition Drift<span>Five addition rocks. The wormhole stays locked until the quota is met.</span></button>
+        <button id="mission-sub" type="button">Subtraction Rift<span>Five subtraction rocks, then the same locked wormhole.</span></button>
+        <button id="launch" type="button">Open belt<span>Practice with both operations. No quota and no wormhole.</span></button>
+      </div>
+      <ul class="keys">
+        <li><kbd>W</kbd> thrust</li>
+        <li><kbd>A</kbd><kbd>D</kbd> strafe</li>
+        <li><kbd>S</kbd> brake</li>
+        <li>Mouse aims the nose</li>
+        <li><kbd>Q</kbd> lower layer</li>
+        <li><kbd>E</kbd> higher layer</li>
+        <li>Click an asteroid to target</li>
+        <li>Digits type the answer</li>
+        <li><kbd>⌫</kbd> erase</li>
+        <li><kbd>F</kbd> fabrication</li>
+        <li><kbd>P</kbd> pause</li>
+        <li><kbd>M</kbd> mute</li>
+      </ul>
+    </div>
+  </div>
+  <div id="clear" class="overlay" hidden>
+    <div class="panel">
+      <p class="eyebrow">Wormhole reached</p>
+      <h2 id="clear-title">Mission clear</h2>
+      <p class="lede" id="clear-copy">The quota is met. A jump needs ore. Without it, this arrival clears the mission.</p>
+      <div class="missions">
+        <button id="next-mission" type="button">Next mission</button>
+        <button id="replay-mission" type="button">Fly this mission again</button>
+      </div>
+    </div>
+  </div>
+  <div id="fab" class="overlay" hidden>
+    <div class="panel">
+      <p class="eyebrow">Fabrication bay</p>
+      <h2>Spend banked ore</h2>
+      <p class="lede" id="fab-copy">Ore in the cargo hold is lost if the hull fails. Banking it keeps it. Nothing here is saved to an account.</p>
+      <div class="missions">
+        <button id="bank-ore" type="button">Bank cargo<span>Move carried ore into the bay. Banked ore stays if the hull fails.</span></button>
+        <button id="fab-drive" type="button">Faster drive<span>Spend 4 banked ore. Raises top speed.</span></button>
+        <button id="fab-hull" type="button">Sturdier hull<span>Spend 4 banked ore. Raises hull points.</span></button>
+        <button id="fab-hint" type="button">Math hint<span>Spend 2 banked ore. A nudge for the rock you have targeted.</span></button>
+        <button id="close-fab" type="button">Resume flight</button>
+      </div>
+    </div>
+  </div>
+  <div id="pause" class="overlay" hidden>
+    <div class="panel">
+      <p class="eyebrow">Holding position</p>
+      <h2>Paused</h2>
+      <p class="lede">The sector waits. Resume when you are ready.</p>
+      <button id="resume" type="button">Resume flight</button>
+    </div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,3 +1,8 @@
+/**
+ * LEGACY canvas rAF entry — NOT used by the Vite/Phaser runtime.
+ * Production entry is src/main.jsx via index.html.
+ * Open index.legacy.html only for reference / comparison.
+ */
 import { loadFoundationSprites } from "./assets.js";
 import { createAudio } from "./audio.js";
 import { createInput } from "./input.js";
@@ -8,6 +13,7 @@ import { clamp, len, makeRng, rand, wrapAngle } from "./util.js";
 const WORLD = { w: 7200, h: 5200 };
 const SHIP_RADIUS = 28;
 const APPROACH = 340;
+const LAYER_COUNT = 50;
 
 const canvas = document.getElementById("view");
 const ctx = canvas.getContext("2d");
@@ -169,7 +175,7 @@ function createState() {
     seed: "belt-7",
     cluster: 1,
     layer: 0,
-    layerBanks: [null, null, null],
+    layerBanks: Array(LAYER_COUNT).fill(null),
     clusterCache: {},
     returnHole: null,
     home: { x: WORLD.w / 2, y: WORLD.h / 2 },
@@ -417,15 +423,17 @@ function clearOfGate(x, y, hole, inner, outer) {
   ];
 }
 
-function beginShift(dir, after) {
-  state.transition = { t: 0, dur: 0.95, dir, after, fired: false };
+function beginShift(dir, after, fields) {
+  state.transition = Object.assign({ t: 0, dur: 0.95, dir, after, fired: false }, fields || {});
   state.mode = "transition";
   audio.launch();
 }
 
 function changeLayer(dir) {
   const next = state.layer + dir;
-  if (next < 0 || next > 2 || state.transition) return;
+  if (next < 0 || next >= LAYER_COUNT || state.transition) return;
+  const prevAsteroids = state.asteroids.slice();
+  const prevDrops = state.drops.slice();
   state.layerBanks[state.layer] = { asteroids: state.asteroids, drops: state.drops };
   beginShift(dir, () => {
     state.layer = next;
@@ -447,7 +455,7 @@ function changeLayer(dir) {
     }
     state.status = dir > 0 ? "Rose to layer " + (next + 1) + "." : "Dropped to layer " + (next + 1) + ".";
     state.statusTime = 2.4;
-  });
+  }, { kind: "layer", prevAsteroids, prevDrops });
 }
 
 function arriveInCluster(cluster, returning) {
@@ -475,7 +483,7 @@ function arriveInCluster(cluster, returning) {
     state.drops = slot ? slot.drops : [];
   } else {
     state.layer = 0;
-    state.layerBanks = [null, null, null];
+    state.layerBanks = Array(LAYER_COUNT).fill(null);
     state.solved = 0;
     state.ship.x = WORLD.w / 2;
     state.ship.y = WORLD.h / 2;
@@ -517,7 +525,11 @@ function returnCluster() {
 }
 
 function startMission(id) {
-  if (!sprites) return;
+  if (!sprites) {
+    loadNote.hidden = false;
+    loadNote.textContent = loadNote.textContent || "Sprites are still loading. Wait a moment, then try again.";
+    return;
+  }
   const mission = MISSIONS[id] || MISSIONS.roam;
   audio.unlock();
   audio.launch();
@@ -542,7 +554,7 @@ function startMission(id) {
   state.seed = readSeed();
   state.cluster = 1;
   state.layer = 0;
-  state.layerBanks = [null, null, null];
+  state.layerBanks = Array(LAYER_COUNT).fill(null);
   state.clusterCache = {};
   state.returnHole = null;
   state.transition = null;
@@ -664,7 +676,7 @@ function frame(now) {
   bankValue.textContent = String(state.bank);
   if (missionReadout) {
     let label = state.mission
-      ? state.mission.name + " · " + clusterName(state.cluster) + " · L" + (state.layer + 1) + "/3"
+      ? state.mission.name + " · " + clusterName(state.cluster) + " · L" + (state.layer + 1) + "/" + LAYER_COUNT
         + (quota ? " · " + Math.min(state.solved, quota) + "/" + quota : "")
       : "Prisms of Assembly";
     if (state.wormhole && quota) {
@@ -726,9 +738,13 @@ function update(dt) {
   ship.thrust = thrust;
 
   const accel = 520;
+  const reverseAccel = accel * 0.35;
   if (thrust && !brake) {
     ship.vx += Math.cos(ship.aim) * accel * dt;
     ship.vy += Math.sin(ship.aim) * accel * dt;
+  } else if (brake && !thrust) {
+    ship.vx -= Math.cos(ship.aim) * reverseAccel * dt;
+    ship.vy -= Math.sin(ship.aim) * reverseAccel * dt;
   }
   if (strafe) {
     ship.vx += Math.cos(ship.aim + Math.PI / 2) * strafe * 360 * dt;
@@ -737,8 +753,19 @@ function update(dt) {
   const drag = brake ? 3.4 : 0.85;
   ship.vx -= ship.vx * drag * dt;
   ship.vy -= ship.vy * drag * dt;
-  const speed = len(ship.vx, ship.vy);
   const maxSpeed = ship.maxSpeed || 430;
+  const reverseCap = maxSpeed * 0.4;
+  if (brake && !thrust) {
+    const fx = Math.cos(ship.aim);
+    const fy = Math.sin(ship.aim);
+    const along = ship.vx * fx + ship.vy * fy;
+    if (along < -reverseCap) {
+      const excess = -along - reverseCap;
+      ship.vx += fx * excess;
+      ship.vy += fy * excess;
+    }
+  }
+  const speed = len(ship.vx, ship.vy);
   if (speed > maxSpeed) {
     ship.vx = (ship.vx / speed) * maxSpeed;
     ship.vy = (ship.vy / speed) * maxSpeed;
