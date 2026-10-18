@@ -51,94 +51,13 @@ button, input {
 
 .hud-top {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: flex-start;
   align-items: flex-start;
 }
 
-.buffer {
-  min-width: 220px;
-  padding: 8px 16px 10px;
-  text-align: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
-}
-
-.buffer span {
-  display: block;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.buffer strong {
-  display: block;
-  min-height: 36px;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 30px;
-  letter-spacing: 0.14em;
-  font-weight: 700;
-}
-
-.buffer.bad {
-  border-color: #ff8d7a;
-}
-
-.brand {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 14px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  backdrop-filter: blur(8px);
-}
-
-.brand-mark {
-  font-size: 13px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.brand-sub {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.hud-stats {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  pointer-events: auto;
-}
-
-#speed-readout, #solved-readout, #hull-readout, #cargo-readout, #bank-readout {
-  min-width: 92px;
-  padding: 10px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-}
-
-#speed-readout span, #solved-readout span, #hull-readout span, #cargo-readout span, #bank-readout span {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-#hull-readout {
-  min-width: 110px;
-}
-
 .hull-meter {
-  margin-top: 6px;
+  width: 260px;
+  max-width: calc(100vw - 36px);
   height: 6px;
   border-radius: 999px;
   background: rgba(126, 231, 255, 0.14);
@@ -264,7 +183,6 @@ button:disabled,
 
 /* React mounts under #ui-root (pointer-events: none); overlays must receive clicks. */
 #ui-root .overlay,
-#ui-root .hud-stats,
 #ui-root .extract-prompt,
 #ui-root .extract-toast {
   pointer-events: auto;
@@ -619,11 +537,7 @@ button:disabled {
 
 @media (max-width: 800px) {
   .hud { padding: 10px; }
-  .brand-sub { font-size: 13px; }
   .panel { padding: 22px 18px; }
   h1 { font-size: 34px; }
-  .buffer { flex: 1 1 100%; order: 3; }
-  .buffer strong { font-size: 26px; }
-  .hud-stats { flex-wrap: wrap; justify-content: flex-end; }
-  #speed-readout, #solved-readout, #hull-readout, #cargo-readout, #bank-readout { min-width: 72px; padding: 8px; }
+  .hull-meter { width: 220px; }
 }
