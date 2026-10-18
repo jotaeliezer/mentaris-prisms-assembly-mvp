@@ -55,7 +55,7 @@ export default function App({ bridge }) {
       if (event.code === 'KeyM' && mode !== 'title') {
         bridge.emit('toggleMute');
       }
-      if (event.code === 'Enter' && (mode === 'title' || mode === 'clear')) {
+      if (event.code === 'Enter' && mode === 'clear') {
         bridge.emit('startMission', { missionId: 'add' });
       }
     }
