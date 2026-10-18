@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import SessionControls, { useMultiplayer } from './SessionControls.jsx';
 
 const DEFAULT_SEED = 'belt-7';
 const DEFAULT_MISSION = 'add';
@@ -49,15 +50,17 @@ export default function Title({ bridge }) {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [mission, setMission] = useState(DEFAULT_MISSION);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const live = useMultiplayer();
   const gearRef = useRef(null);
   const closeRef = useRef(null);
   const openedOnce = useRef(false);
 
   function launch() {
     bridge.emit('uiBeep');
+    const liveSeed = live.connected && live.seed ? live.seed : seed.trim() || DEFAULT_SEED;
     bridge.emit('startMission', {
       missionId: mission,
-      seed: seed.trim() || DEFAULT_SEED,
+      seed: liveSeed,
     });
   }
 
@@ -105,7 +108,12 @@ export default function Title({ bridge }) {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [settingsOpen, mission, seed, bridge]);
+  }, [settingsOpen, mission, seed, bridge, live.connected, live.seed]);
+
+  useEffect(() => {
+    if (live.code) setSeed(live.code);
+    if (live.role === 'join' && live.hostMission) setMission(live.hostMission);
+  }, [live.code, live.role, live.hostMission]);
 
   function onMissionKeyDown(event) {
     const ids = MISSIONS.map((item) => item.id);
@@ -210,9 +218,18 @@ export default function Title({ bridge }) {
               autoComplete="off"
               spellCheck={false}
               aria-label="World seed"
+              readOnly={live.connected}
               onChange={(event) => setSeed(event.target.value)}
             />
           </label>
+
+          <SessionControls
+            bridge={bridge}
+            variant="home"
+            missionId={mission}
+            onSeed={setSeed}
+            onMission={setMission}
+          />
 
           <div
             className="home-missions"

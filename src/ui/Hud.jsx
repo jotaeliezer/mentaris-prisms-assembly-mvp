@@ -1,3 +1,5 @@
+import SessionControls from './SessionControls.jsx';
+
 export default function Hud({ bridge, snapshot }) {
   const hud = snapshot.hud || {};
   const hullPct = Number.isFinite(hud.hullPct) ? hud.hullPct : 100;
@@ -9,6 +11,12 @@ export default function Hud({ bridge, snapshot }) {
   return (
     <div id="hud" className="hud">
       <div className="hud-top">
+        <SessionControls
+          bridge={bridge}
+          variant="hud"
+          inGame
+          missionId={snapshot.missionId || 'add'}
+        />
         <div
           id="hull-readout"
           className={`hull-readout${hullLow ? ' low' : ''}${hullCrit ? ' crit' : ''}`}
