@@ -2,7 +2,7 @@ import { nextProblem, problemSpec } from './questions.js';
 import { clamp, makeRng, rand } from './util.js';
 import { DEFAULT_SHIP } from './assetsManifest.js';
 
-export const WORLD = { w: 7200, h: 5200 };
+export const WORLD = { w: 72000, h: 52000 };
 export const SHIP_RADIUS = 28;
 export const APPROACH = 340;
 export const LAYER_COUNT = 50;
