@@ -16,22 +16,25 @@ import {
 } from '../display.js';
 import { createInput } from '../input.js';
 import { multiplayer } from '../../multiplayer/session.js';
+import { itemTint } from '../items.js';
 import { createState, WORLD } from '../state.js';
 import {
-  bankCargo,
   buildSnapshotPatch,
   cancelExtract,
   changeLayer,
+  craftItem,
+  cycleHotbar,
   digitFromEvent,
   extractBackspace,
-  fabricateDrive,
-  fabricateHint,
-  fabricateHull,
-  fabricateMap,
+  hotbarIndex,
   idle,
   HOTBAR_SIZE,
+  moveCargoToHotbar,
+  moveHotbarToCargo,
   openExtract,
+  respawnShip,
   selectHotbar,
+  setCargoOpen,
   setFab,
   setPaused,
   startMission,
@@ -227,36 +230,41 @@ export default class PlayScene extends Phaser.Scene {
     );
 
     this.unsubs.push(
-      bridge.on('fabBank', () => {
-        bankCargo(this.state, this.audio);
+      bridge.on('craft', (recipeId) => {
+        craftItem(this.state, recipeId, this.audio);
         this.publishSnapshot(true);
       })
     );
 
     this.unsubs.push(
-      bridge.on('fabDrive', () => {
-        fabricateDrive(this.state, this.audio);
+      bridge.on('setCargo', (open) => {
+        setCargoOpen(this.state, !!open);
+        this.clearFlightInput();
         this.publishSnapshot(true);
       })
     );
 
     this.unsubs.push(
-      bridge.on('fabHull', () => {
-        fabricateHull(this.state, this.audio);
+      bridge.on('cargoToHotbar', (payload) => {
+        const cargoIndex = payload && payload.cargoIndex != null ? payload.cargoIndex : payload;
+        moveCargoToHotbar(this.state, Number(cargoIndex), hotbarIndex(this.state));
         this.publishSnapshot(true);
       })
     );
 
     this.unsubs.push(
-      bridge.on('fabHint', () => {
-        fabricateHint(this.state, this.audio);
+      bridge.on('hotbarToCargo', (payload) => {
+        const index =
+          payload && typeof payload === 'object' && payload.index != null ? payload.index : payload;
+        moveHotbarToCargo(this.state, Number(index));
         this.publishSnapshot(true);
       })
     );
 
     this.unsubs.push(
-      bridge.on('fabMap', () => {
-        fabricateMap(this.state, this.audio);
+      bridge.on('respawn', () => {
+        respawnShip(this.state, this.audio);
+        this.clearFlightInput();
         this.publishSnapshot(true);
       })
     );
@@ -341,7 +349,7 @@ export default class PlayScene extends Phaser.Scene {
     this.onDigitKey = (event) => {
       if (event.repeat) return;
       const mode = this.state.mode;
-      if (mode !== 'fly' && mode !== 'extract') return;
+      if (mode !== 'fly' && mode !== 'extract' && mode !== 'cargo') return;
       const el = document.activeElement;
       const tag = el && el.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (el && el.isContentEditable)) return;
@@ -372,6 +380,19 @@ export default class PlayScene extends Phaser.Scene {
           event.preventDefault();
           typeChar(this.state, digit, this.audio);
           this.publishSnapshot(true);
+        }
+        return;
+      }
+
+      if (mode === 'cargo') {
+        const heldDigit = digitFromEvent(event);
+        if (heldDigit != null) {
+          const slot = heldDigit === '0' ? HOTBAR_SIZE - 1 : Number(heldDigit) - 1;
+          if (slot >= 0 && slot < HOTBAR_SIZE) {
+            selectHotbar(this.state, slot);
+            event.preventDefault();
+            this.publishSnapshot(true);
+          }
         }
         return;
       }
@@ -488,6 +509,16 @@ export default class PlayScene extends Phaser.Scene {
     if (!this.ready) return;
     const dt = Math.min(0.033, delta / 1000);
     const mode = this.state.mode;
+
+    if (this.inputCtl && (mode === 'fly' || mode === 'cargo')) {
+      const wheel = this.inputCtl.takeWheel();
+      if (wheel) {
+        cycleHotbar(this.state, wheel);
+        this.publishSnapshot(true);
+      }
+    } else if (this.inputCtl) {
+      this.inputCtl.takeWheel();
+    }
 
     if (mode === 'fly') {
       this.syncPointerWorld();
@@ -632,7 +663,7 @@ export default class PlayScene extends Phaser.Scene {
       this.shipSprite.setPosition(ship.x, ship.y);
       this.shipSprite.setRotation(ship.aim + Math.PI / 2);
       this.shipSprite.setDisplaySize(SHIP_BASE * shipScale, SHIP_BASE * shipScale);
-      this.shipSprite.setVisible(this.state.mode !== 'title');
+      this.shipSprite.setVisible(this.state.mode !== 'title' && this.state.mode !== 'dead');
     }
 
     if (this.flameGfx) syncFlame(this.flameGfx, ship, shipScale);
@@ -656,6 +687,7 @@ export default class PlayScene extends Phaser.Scene {
       } else {
         sprite.setPosition(drop.x, drop.y);
       }
+      if (typeof sprite.setTint === 'function') sprite.setTint(itemTint(drop.itemId || 'pale'));
     }
     for (const [key, sprite] of this.dropSprites) {
       if (!seenDrops.has(key)) {

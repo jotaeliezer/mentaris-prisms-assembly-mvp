@@ -29,9 +29,9 @@ export default function Extract({ bridge, snapshot }) {
     <>
       {extractMode && (
         <div id="extract" className="overlay extract-overlay">
-          <div className="extract-panel">
+          <div className={`extract-panel${snapshot.fxGreen ? ' correct' : ''}`}>
             <p className="eyebrow">Extraction</p>
-            <h2 id="extract-question" className="extract-question">
+            <h2 id="extract-question" className={`extract-question${snapshot.fxGreen ? ' correct' : ''}`}>
               {snapshot.extractQuestion || 'Solve to extract'}
             </h2>
             <div

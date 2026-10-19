@@ -7,6 +7,7 @@ import Fab from './Fab.jsx';
 import Pause from './Pause.jsx';
 import Clear from './Clear.jsx';
 import Extract from './Extract.jsx';
+import GameOver from './GameOver.jsx';
 import SettingsPanel, { DEFAULT_MISSION, DEFAULT_SEED } from './SettingsPanel.jsx';
 import { useMultiplayer } from './SessionControls.jsx';
 
@@ -87,6 +88,18 @@ export default function App({ bridge }) {
         bridge.emit('setPaused', false);
         return;
       }
+      if (event.code === 'KeyC' && mode === 'fly') {
+        bridge.emit('setCargo', true);
+        return;
+      }
+      if (event.code === 'KeyC' && mode === 'cargo') {
+        bridge.emit('setCargo', false);
+        return;
+      }
+      if ((event.code === 'Escape' || event.code === 'KeyF') && mode === 'cargo') {
+        if (event.code === 'Escape') bridge.emit('setCargo', false);
+        return;
+      }
       if (event.code === 'KeyF' && mode === 'fly') {
         bridge.emit('setFab', true);
         return;
@@ -126,6 +139,10 @@ export default function App({ bridge }) {
   return (
     <div id="ui-root" aria-label="Mentaris UI">
       {mode === 'title' && <Title bridge={bridge} />}
+      <div
+        className={`screen-fx${snapshot.fxGreen ? ' fx-green' : ''}${snapshot.fxFlash ? ' fx-flash' : ''}`}
+        aria-hidden="true"
+      />
       {showHud && (
         <Hud
           bridge={bridge}
@@ -156,6 +173,7 @@ export default function App({ bridge }) {
       )}
       {showExtractUi && <Extract bridge={bridge} snapshot={snapshot} />}
       {mode === 'fab' && <Fab bridge={bridge} snapshot={snapshot} />}
+      {mode === 'dead' && <GameOver bridge={bridge} />}
       {mode === 'paused' && !flightSettingsOpen && <Pause bridge={bridge} />}
       {mode === 'clear' && <Clear bridge={bridge} snapshot={snapshot} />}
     </div>

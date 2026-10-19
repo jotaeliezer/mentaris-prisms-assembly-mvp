@@ -104,6 +104,14 @@ export function applyCameraPolish(cam, state) {
   cam.zoomX = scaleX;
   cam.zoomY = scaleY;
   cam.centerOn(state.camera.x, state.camera.y - shift);
+  if (state.shakeTime > 0) {
+    const amp = state.shakeMag || 64;
+    const step = Math.floor(state.clock * 52);
+    const flip = step % 2 === 0 ? 1 : -1;
+    const flipY = (step + 1) % 2 === 0 ? 1 : -1;
+    cam.scrollX += flip * amp;
+    cam.scrollY += flipY * amp * 0.7;
+  }
 }
 
 /** Small fading dots/sparks — matches legacy js/render.js drawParticles. */
@@ -128,34 +136,6 @@ export function syncAimArc(gfx, state) {
     gfx.lineStyle(rock.active ? 2.5 : 1.5, hard ? 0xffb15a : 0x8dffb0, rock.active ? 0.9 : 0.75);
     gfx.strokeCircle(rock.x, rock.y, rock.radius + (rock.active ? 18 : 12));
   }
-  const rock = state.asteroids.find((item) => item.alive && item.id === state.targetId);
-  if (!rock) return;
-  const ship = state.ship;
-  const x0 = ship.x;
-  const y0 = ship.y;
-  const x1 = rock.x;
-  const y1 = rock.y;
-  const dx = x1 - x0;
-  const dy = y1 - y0;
-  const dist = Math.hypot(dx, dy) || 1;
-  const nx = -dy / dist;
-  const ny = dx / dist;
-  const facing = nx * Math.cos(ship.aim) + ny * Math.sin(ship.aim);
-  const side = facing >= 0 ? 1 : -1;
-  const cx = (x0 + x1) / 2 + nx * dist * 0.28 * side;
-  const cy = (y0 + y1) / 2 + ny * dist * 0.28 * side;
-  gfx.lineStyle(2, 0x7ee7ff, 0.45);
-  gfx.beginPath();
-  gfx.moveTo(x0, y0);
-  const steps = 12;
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const u = 1 - t;
-    const px = u * u * x0 + 2 * u * t * cx + t * t * x1;
-    const py = u * u * y0 + 2 * u * t * cy + t * t * y1;
-    gfx.lineTo(px, py);
-  }
-  gfx.strokePath();
 }
 
 export function syncGates(gfx, state) {
@@ -218,7 +198,7 @@ function drawBeacon(gfx, state, w, h, hole, color) {
   gfx.fillTriangle(tipX, tipY, bx + px, by + py, bx - px, by - py);
 }
 
-/** Full-screen wash/streaks for any transition (wormhole + layer). Screen space. */
+/** Soft color wash for wormhole and layer shifts. Scan-line streaks are not drawn. */
 export function syncTransitionWash(gfx, state, w, h) {
   gfx.clear();
   if (!state.transition) return;
@@ -228,14 +208,6 @@ export function syncTransitionWash(gfx, state, w, h) {
   const color = dir > 0 ? 0x7ee7ff : 0xffb15a;
   gfx.fillStyle(color, 0.28 * band);
   gfx.fillRect(0, 0, w, h);
-  gfx.lineStyle(2, 0xf4fbff, 0.35 * band);
-  for (let i = 0; i < 9; i++) {
-    const y = ((((i / 9 + p * dir) % 1) + 1) % 1) * h;
-    gfx.beginPath();
-    gfx.moveTo(0, y);
-    gfx.lineTo(w, y - dir * 36);
-    gfx.strokePath();
-  }
 }
 
 /**

@@ -12,12 +12,66 @@ import {
   randomInteriorPoint,
   spawnAsteroid,
 } from './state.js';
+import {
+  CARGO_SIZE,
+  ITEMS,
+  addItem,
+  RECIPES,
+  canAfford,
+  costLabel,
+  countItem,
+  emptyStacks,
+  ensureInventory,
+  itemById,
+  moveCargoToHotbar,
+  moveHotbarToCargo,
+  recipeById,
+  removeItems,
+  takeAllStacks,
+} from './items.js';
 
 const EXTRACT_SHRINK = 0.83;
 /** Extra shrink once a rock is fully depleted so it reads as a tiny husk. */
 const EXTRACT_DEPLETE_SHRINK = 0.55;
 const EXTRACT_TOAST = 'Extraction Initiation';
 const EXTRACT_TOAST_DUR = 1.2;
+/** World pixels of size lost per second while a rock eases toward its target. */
+const SHRINK_RATE = 42;
+
+function queueShrink(rock, factor) {
+  const sizeBase = rock.sizeTarget != null ? rock.sizeTarget : rock.size;
+  const radiusBase = rock.radiusTarget != null ? rock.radiusTarget : rock.radius;
+  rock.sizeTarget = sizeBase * factor;
+  rock.radiusTarget = radiusBase * factor;
+}
+
+function tickShrink(state, dt) {
+  const step = SHRINK_RATE * dt;
+  for (const rock of state.asteroids) {
+    if (rock.sizeTarget == null || rock.radiusTarget == null) continue;
+    const ds = rock.sizeTarget - rock.size;
+    if (Math.abs(ds) <= step) {
+      rock.size = rock.sizeTarget;
+      rock.radius = rock.radiusTarget;
+      continue;
+    }
+    const frac = step / Math.abs(ds);
+    rock.size += Math.sign(ds) * step;
+    rock.radius += (rock.radiusTarget - rock.radius) * frac;
+  }
+}
+
+function punchCamera(state) {
+  state.shakeTime = 0.2;
+  state.shakeMag = 68;
+}
+
+function tickFx(state, dt) {
+  if (state.shakeTime > 0) state.shakeTime = Math.max(0, state.shakeTime - dt);
+  if (state.fxGreen > 0) state.fxGreen = Math.max(0, state.fxGreen - dt);
+  if (state.fxFlash > 0) state.fxFlash = Math.max(0, state.fxFlash - dt);
+  if (state.quiet > 0) state.quiet = Math.max(0, state.quiet - dt);
+}
 
 export function digitFromEvent(event) {
   if (/^Digit[0-9]$/.test(event.code)) return event.code.slice(5);
@@ -115,22 +169,25 @@ function layerRng(state) {
 export function populateField(state) {
   const mission = state.mission;
   if (mission && mission.operation) {
-    spawnAsteroid(state, mission.operation, 'easy', 'near');
-    spawnAsteroid(state, mission.operation, 'easy', 'near');
-    spawnAsteroid(state, mission.operation, 'easy', 'near');
-    spawnAsteroid(state, mission.operation, 'hard', 'near');
-    spawnAsteroid(state, mission.operation, 'hard', 'near');
     for (let i = 0; i < 6; i++) {
+      spawnAsteroid(state, mission.operation, i % 3 === 2 ? 'hard' : 'easy', 'near');
+    }
+    for (let i = 0; i < 12; i++) {
       spawnAsteroid(state, mission.operation, i % 2 ? 'hard' : 'easy', 'mid');
     }
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 24; i++) {
       spawnAsteroid(state, mission.operation, i % 3 === 0 ? 'hard' : 'easy', 'roam');
     }
   } else {
     spawnAsteroid(state, 'add', 'easy', 'near');
     spawnAsteroid(state, 'sub', 'easy', 'near');
     spawnAsteroid(state, 'add', 'hard', 'near');
-    for (let i = 0; i < 18; i++) {
+    spawnAsteroid(state, 'sub', 'hard', 'near');
+    spawnAsteroid(state, 'add', 'easy', 'near');
+    for (let i = 0; i < 10; i++) {
+      spawnAsteroid(state, i % 2 ? 'sub' : 'add', i % 2 ? 'hard' : 'easy', 'mid');
+    }
+    for (let i = 0; i < 32; i++) {
       spawnAsteroid(state, i % 2 ? 'sub' : 'add', i % 3 === 0 ? 'hard' : 'easy', 'roam');
     }
   }
@@ -152,7 +209,8 @@ export function placeWormhole(state) {
 }
 
 function oreOnHand(state) {
-  return state.cargo + state.bank;
+  const stacked = countItem(state, 'pale') + countItem(state, 'amber') * 2;
+  return stacked + (Number(state.cargo) || 0) + (Number(state.bank) || 0);
 }
 
 function travelCost(state) {
@@ -163,10 +221,20 @@ function travelCost(state) {
 
 function spendOre(state, cost) {
   let left = cost;
-  const fromCargo = Math.min(state.cargo, left);
-  state.cargo -= fromCargo;
+  const fromCargo = Math.min(Number(state.cargo) || 0, left);
+  state.cargo = (Number(state.cargo) || 0) - fromCargo;
   left -= fromCargo;
-  state.bank -= left;
+  if (left > 0) {
+    const usePale = Math.min(countItem(state, 'pale'), left);
+    if (usePale) removeItems(state, 'pale', usePale);
+    left -= usePale;
+  }
+  if (left > 0) {
+    const useAmber = Math.min(countItem(state, 'amber'), Math.ceil(left / 2));
+    if (useAmber) removeItems(state, 'amber', useAmber);
+    left -= useAmber * 2;
+  }
+  if (left > 0) state.bank = (Number(state.bank) || 0) - left;
 }
 
 function clearOfGate(x, y, hole, inner, outer) {
@@ -338,6 +406,12 @@ export function startMission(state, id, seed, audio) {
   state.drops = [];
   state.asteroids = [];
   state.hint = '';
+  state.hotbar = emptyStacks(HOTBAR_SIZE);
+  state.cargoSlots = emptyStacks(CARGO_SIZE);
+  state.fxGreen = 0;
+  state.fxFlash = 0;
+  state.shakeTime = 0;
+  state.quiet = 0;
   state.ship.hp = state.ship.maxHp;
   state.ship.aim = -Math.PI / 2;
   state.seed = cleanSeed(seed);
@@ -435,6 +509,7 @@ export function typeChar(state, ch, audio) {
   if (!answer.startsWith(state.buffer) || state.buffer.length > answer.length) {
     state.buffer = '';
     state.wrong = 0.35;
+    punchCamera(state);
     if (audio) audio.wrong();
   }
 }
@@ -453,6 +528,7 @@ export function submitExtract(state, audio) {
   }
   state.buffer = '';
   state.wrong = 0.35;
+  punchCamera(state);
   if (audio) audio.wrong();
 }
 
@@ -496,19 +572,21 @@ function acceptAnswer(state, rock, audio) {
   if (audio) audio.correct();
   state.extractToast = EXTRACT_TOAST;
   state.extractToastTime = EXTRACT_TOAST_DUR;
+  state.fxGreen = 0.55;
   state.solved += 1;
 
-  rock.radius *= EXTRACT_SHRINK;
-  rock.size *= EXTRACT_SHRINK;
+  queueShrink(rock, EXTRACT_SHRINK);
   rock.extractCount += 1;
 
+  const hard = rock.difficulty === 'hard';
   state.drops.push({
     id: state.nextId++,
     x: rock.x,
     y: rock.y,
-    amount: rock.difficulty === 'hard' ? 3 : 1,
-    life: 16,
-    maxLife: 16,
+    itemId: hard ? 'amber' : 'pale',
+    count: hard ? 2 : 1,
+    life: 48,
+    maxLife: 48,
   });
 
   for (let i = 0; i < 16; i++) {
@@ -527,8 +605,7 @@ function acceptAnswer(state, rock, audio) {
 
   if (rock.extractCount >= 3) {
     rock.depleted = true;
-    rock.radius *= EXTRACT_DEPLETE_SHRINK;
-    rock.size *= EXTRACT_DEPLETE_SHRINK;
+    queueShrink(rock, EXTRACT_DEPLETE_SHRINK);
     cancelExtract(state);
     state.extractAvailable = null;
   } else {
@@ -562,13 +639,15 @@ function destroyAsteroid(state, rock, audio) {
       color: i % 3 === 0 ? '#ffb15a' : '#d7f6ff',
     });
   }
+  const hardDrop = rock.difficulty === 'hard';
   state.drops.push({
     id: state.nextId++,
     x: rock.x,
     y: rock.y,
-    amount: rock.difficulty === 'hard' ? 3 : 1,
-    life: 16,
-    maxLife: 16,
+    itemId: hardDrop ? 'amber' : 'pale',
+    count: hardDrop ? 2 : 1,
+    life: 48,
+    maxLife: 48,
   });
   state.asteroids = state.asteroids.filter((item) => item.alive);
   const operation =
@@ -634,27 +713,84 @@ function containShip(state) {
   }
 }
 
-function breachHull(state, audio) {
+function spillStack(state, stack, x, y) {
+  state.drops.push({
+    id: state.nextId++,
+    x,
+    y,
+    itemId: stack.id,
+    count: stack.count,
+    life: 90,
+    maxLife: 90,
+  });
+}
+
+/** Hull hits zero. Items stay in the world at the wreck until the player respawns and picks them up. */
+export function breachHull(state, audio) {
+  if (state.mode === 'dead') return;
   const ship = state.ship;
-  if (state.cargo > 0) {
-    state.drops.push({
-      id: state.nextId++,
-      x: ship.x,
-      y: ship.y,
-      amount: state.cargo,
-      life: 18,
-      maxLife: 18,
-    });
+  ensureInventory(state);
+  if ((Number(state.cargo) || 0) > 0) {
+    spillStack(state, { id: 'pale', count: state.cargo }, ship.x, ship.y);
     state.cargo = 0;
   }
+  const stacks = takeAllStacks(state);
+  stacks.forEach((stack, index) => {
+    const angle = (index / Math.max(stacks.length, 1)) * Math.PI * 2;
+    const dist = 42 + (index % 4) * 16;
+    spillStack(state, stack, ship.x + Math.cos(angle) * dist, ship.y + Math.sin(angle) * dist);
+  });
+  state.wreckX = ship.x;
+  state.wreckY = ship.y;
+  ship.hp = 0;
+  ship.vx = 0;
+  ship.vy = 0;
+  ship.thrusting = false;
+  state.mode = 'dead';
+  clearExtractSession(state);
+  state.mode = 'dead';
+  for (let i = 0; i < 28; i++) {
+    const angle = state.rng() * Math.PI * 2;
+    const speed = 80 + state.rng() * 220;
+    state.particles.push({
+      x: ship.x,
+      y: ship.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.7 + state.rng() * 0.4,
+      size: 3 + state.rng() * 4,
+      color: i % 2 === 0 ? '#ffb15a' : '#f4fbff',
+    });
+  }
+  punchCamera(state);
+  state.fxFlash = 0.28;
+  state.status = 'Hull breached.';
+  state.statusTime = 4.5;
+  if (audio) {
+    if (typeof audio.hit === 'function') audio.hit();
+  }
+  if (audio && typeof audio.syncMotionLoops === 'function') {
+    audio.syncMotionLoops(false, false);
+  }
+}
+
+/** Same world, same layer. The wreck's drops are still there. */
+export function respawnShip(state, audio) {
+  if (state.mode !== 'dead') return;
+  const ship = state.ship;
   ship.hp = ship.maxHp;
   ship.vx = 0;
   ship.vy = 0;
+  const originX = state.wreckX || ship.x;
+  const originY = state.wreckY || ship.y;
   let placed = false;
-  for (let guard = 0; guard < 24; guard++) {
-    const x = 400 + state.rng() * (WORLD.w - 800);
-    const y = 400 + state.rng() * (WORLD.h - 800);
-    const clear = state.asteroids.every((rock) => Math.hypot(rock.x - x, rock.y - y) > 280);
+  for (let i = 0; i < 16; i++) {
+    const angle = (i / 16) * Math.PI * 2;
+    const x = clamp(originX + Math.cos(angle) * 460, 80, WORLD.w - 80);
+    const y = clamp(originY + Math.sin(angle) * 460, 80, WORLD.h - 80);
+    const clear = state.asteroids.every(
+      (rock) => !rock.alive || Math.hypot(rock.x - x, rock.y - y) > 220
+    );
     if (clear) {
       ship.x = x;
       ship.y = y;
@@ -663,22 +799,16 @@ function breachHull(state, audio) {
     }
   }
   if (!placed) {
-    ship.x = WORLD.w / 2;
-    ship.y = WORLD.h / 2;
+    ship.x = originX;
+    ship.y = originY;
   }
   state.camera.x = ship.x;
   state.camera.y = ship.y;
-  state.status = 'Hull breached. Carried ore was dropped on the spot.';
+  state.mode = 'fly';
+  state.bumpCooldown = 1.2;
+  state.status = 'Respawned. Fly back to the wreck and pick up what you dropped.';
   state.statusTime = 4.5;
-  if (audio) {
-    if (typeof audio.hit === 'function') audio.hit();
-    if (audio.playKey) {
-      /* explosion via hit fallbacks */
-    }
-  }
-  if (audio && typeof audio.syncMotionLoops === 'function') {
-    audio.syncMotionLoops(false, false);
-  }
+  if (audio && typeof audio.launch === 'function') audio.launch();
 }
 
 function separateFromRocks(state, audio) {
@@ -699,14 +829,18 @@ function separateFromRocks(state, audio) {
         ship.vy -= vn * ny * 1.2;
       }
       if (state.bumpCooldown <= 0 && state.mode === 'fly') {
-        ship.hp = Math.max(0, ship.hp - 14);
         state.bumpCooldown = 1.1;
         state.hurt = 0.4;
-        if (audio) {
-          if (typeof audio.damaged === 'function') audio.damaged();
-          else audio.hit();
+        if (!(state.quiet > 0)) {
+          ship.hp = Math.max(0, ship.hp - 14);
+          punchCamera(state);
+          state.fxFlash = 0.22;
+          if (audio) {
+            if (typeof audio.damaged === 'function') audio.damaged();
+            else audio.hit();
+          }
+          if (ship.hp <= 0) breachHull(state, audio);
         }
-        if (ship.hp <= 0) breachHull(state, audio);
       }
     }
   }
@@ -726,6 +860,7 @@ function handleClicks(state, input, view, audio) {
   }
   const queued = input.takeClicks();
   if (!queued.length) return;
+  if (useSelectedHotbar(state, audio)) return;
   for (const click of queued) {
     const world = clickWorld(state, view, click);
     const hit = asteroidAt(state, world.x, world.y);
@@ -794,10 +929,19 @@ function updateDrops(state, dt, audio) {
   for (const drop of state.drops) {
     drop.life -= dt;
     if (drop.life <= 0) continue;
+    if (state.mode === 'dead') continue;
     if (Math.hypot(drop.x - ship.x, drop.y - ship.y) < 56) {
-      state.cargo += drop.amount;
-      drop.life = 0;
-      if (audio) audio.pickup();
+      const itemId = drop.itemId || 'pale';
+      const count = drop.count != null ? drop.count : drop.amount || 1;
+      const left = addItem(state, itemId, count);
+      if (left <= 0) {
+        drop.life = 0;
+        if (audio) audio.pickup();
+      } else if (left < count) {
+        drop.itemId = itemId;
+        drop.count = left;
+        if (audio) audio.pickup();
+      }
     }
   }
   state.drops = state.drops.filter((drop) => drop.life > 0);
@@ -904,6 +1048,14 @@ export function updateFly(state, dt, ctx) {
     audio.syncMotionLoops(!!ship.thrusting, state.mode === 'fly');
   }
   separateFromRocks(state, audio);
+  if (state.mode === 'dead') {
+    tickShrink(state, dt);
+    tickFx(state, dt);
+    updateParticles(state, dt);
+    updateDrops(state, dt, audio);
+    state.clock += dt;
+    return;
+  }
 
   for (const rock of state.asteroids) {
     rock.rot += rock.spin * dt;
@@ -944,6 +1096,8 @@ export function updateFly(state, dt, ctx) {
   if (state.statusTime > 0) state.statusTime -= dt;
   if (state.wrong > 0) state.wrong -= dt;
   tickExtractToast(state, dt);
+  tickShrink(state, dt);
+  tickFx(state, dt);
   state.clock += dt;
   easeCamera(state, dt);
 }
@@ -968,9 +1122,12 @@ export function idle(state, dt, audio) {
   state.ship.aim += dt * 0.15;
   for (const rock of state.asteroids) rock.rot += rock.spin * dt;
   updateParticles(state, dt);
-  updateDrops(state, dt, audio);
+  if (state.mode !== 'dead') updateDrops(state, dt, audio);
   tickExtractToast(state, dt);
+  tickShrink(state, dt);
+  tickFx(state, dt);
   if (state.wrong > 0) state.wrong -= dt;
+  if (state.statusTime > 0) state.statusTime -= dt;
   easeCamera(state, dt);
   if (audio && typeof audio.syncMotionLoops === 'function') {
     audio.syncMotionLoops(false, false);
@@ -1050,29 +1207,240 @@ export function hotbarIndex(state) {
   return n;
 }
 
+function stackView(stack, index, selected, key) {
+  const item = stack ? itemById(stack.id) : null;
+  return {
+    id: (key ? 'hot-' : 'cargo-') + (index + 1),
+    index,
+    key: key || '',
+    name: item ? item.name : '',
+    label: item ? item.name : 'Empty',
+    available: !!item,
+    icon: '',
+    color: item ? item.color : '',
+    mark: item ? item.mark : '',
+    badge: stack && stack.count > 1 ? String(stack.count) : '',
+    selected: !!selected,
+  };
+}
+
 /**
- * Ten empty slots. Nothing is equipped yet: no drive, no hull, no icons.
- * Left click extracts a nearby rock until a crafted item occupies a slot.
+ * Hotbar stacks. Empty until something is extracted or fabricated.
+ * A full bar overflows into cargo.
  */
 export function buildHotbar(state) {
+  ensureInventory(state);
   const selected = hotbarIndex(state);
-  const slots = Array.from({ length: HOTBAR_SIZE }, (_, index) => ({
-    id: 'slot-' + (index + 1),
-    index,
-    key: hotbarKey(index),
-    name: '',
-    label: 'Empty',
-    available: false,
-    icon: '',
-    badge: '',
-    selected: index === selected,
-  }));
+  const slots = state.hotbar.map((stack, index) =>
+    stackView(stack, index, index === selected, hotbarKey(index))
+  );
   return {
     selected,
-    label: 'Empty',
+    label: slots[selected] ? slots[selected].label : 'Empty',
     slots,
   };
 }
+
+export function buildCargo(state) {
+  ensureInventory(state);
+  return {
+    open: state.mode === 'cargo',
+    cols: 6,
+    slots: state.cargoSlots.map((stack, index) => stackView(stack, index, false, '')),
+  };
+}
+
+export function cycleHotbar(state, direction) {
+  const dir = direction > 0 ? 1 : -1;
+  const n = hotbarIndex(state);
+  state.hotbarSlot = (n + dir + HOTBAR_SIZE) % HOTBAR_SIZE;
+}
+
+export function setCargoOpen(state, open) {
+  if (open) {
+    if (state.mode !== 'fly') return;
+    state.mode = 'cargo';
+    return;
+  }
+  if (state.mode === 'cargo') state.mode = 'fly';
+}
+
+export function craftItem(state, recipeId, audio) {
+  const id = typeof recipeId === 'string' ? recipeId : recipeId && recipeId.id;
+  const recipe = recipeById(id);
+  if (!recipe || !canAfford(state, recipe.costs)) return false;
+  for (const cost of recipe.costs) removeItems(state, cost.id, cost.n);
+  const made = recipe.count || 1;
+  const left = addItem(state, recipe.result, made);
+  if (left > 0) {
+    state.drops.push({
+      id: state.nextId++,
+      x: state.ship.x + 36,
+      y: state.ship.y,
+      itemId: recipe.result,
+      count: left,
+      life: 40,
+      maxLife: 40,
+    });
+  }
+  const name = ITEMS[recipe.result] ? ITEMS[recipe.result].name : recipe.result;
+  state.status = left > 0 ? name + ' dropped beside the ship. The hold is full.' : name + ' added.';
+  state.statusTime = 3;
+  if (audio && typeof audio.correct === 'function') audio.correct();
+  return true;
+}
+
+function selectedStack(state) {
+  ensureInventory(state);
+  return state.hotbar[hotbarIndex(state)] || null;
+}
+
+function noteStatus(state, text) {
+  state.status = text;
+  state.statusTime = 3.2;
+}
+
+function applyUse(state, use) {
+  const ship = state.ship;
+  if (use === 'missile') {
+    const rock = nearestAsteroid(state, 720);
+    if (!rock || rock.depleted) {
+      noteStatus(state, 'No rock in range for that weapon.');
+      return false;
+    }
+    launchMissile(state, rock, null);
+    return true;
+  }
+  if (use === 'flare') {
+    const n = state.asteroids.filter((rock) => rock.alive && !rock.depleted).length;
+    noteStatus(state, n + ' rocks on this layer.');
+    return true;
+  }
+  if (use === 'drive') {
+    if (state.driveTier >= 3) {
+      noteStatus(state, 'Drive is already at the top tier.');
+      return false;
+    }
+    state.driveTier += 1;
+    ship.maxSpeed = 430 + state.driveTier * 50;
+    noteStatus(state, 'Drive coil fitted. Top speed ' + ship.maxSpeed + '.');
+    return true;
+  }
+  if (use === 'hull') {
+    if (state.hullTier >= 3) {
+      noteStatus(state, 'Hull is already at the top tier.');
+      return false;
+    }
+    state.hullTier += 1;
+    ship.maxHp = 100 + state.hullTier * 30;
+    ship.hp = Math.min(ship.maxHp, ship.hp + 30);
+    noteStatus(state, 'Hull plate fitted. Hull ' + ship.maxHp + '.');
+    return true;
+  }
+  if (use === 'hint') {
+    const rock = activeAsteroid(state) || nearestAsteroid(state, APPROACH);
+    if (!rock || !rock.question) {
+      noteStatus(state, 'Get closer to a rock before using a hint.');
+      return false;
+    }
+    const text = rock.question.answerText;
+    const value = Number(text);
+    state.hint =
+      text.length <= 1
+        ? 'Hint: the answer is ' + (value % 2 ? 'odd' : 'even') + '.'
+        : 'Hint: the answer starts with ' + text[0] + '.';
+    state.targetId = rock.id;
+    return true;
+  }
+  if (use === 'map') {
+    if (state.mapUnlocked) {
+      noteStatus(state, 'Sector map is already on.');
+      return false;
+    }
+    state.mapUnlocked = true;
+    noteStatus(state, 'Sector map unlocked.');
+    return true;
+  }
+  if (use === 'compass') {
+    noteStatus(state, 'Layer ' + state.layer + '.');
+    return true;
+  }
+  if (use === 'ping') {
+    let bestDist = Infinity;
+    for (const drop of state.drops) {
+      const dist = Math.hypot(drop.x - ship.x, drop.y - ship.y);
+      if (dist < bestDist) bestDist = dist;
+    }
+    noteStatus(
+      state,
+      bestDist < Infinity ? 'Nearest drop is ' + Math.round(bestDist) + ' away.' : 'No drops on this layer.'
+    );
+    return true;
+  }
+  if (use === 'gate') {
+    const hole = state.wormhole || state.returnHole;
+    if (!hole) {
+      noteStatus(state, 'No gate on this layer.');
+      return false;
+    }
+    noteStatus(state, 'Gate is ' + Math.round(Math.hypot(hole.x - ship.x, hole.y - ship.y)) + ' away.');
+    return true;
+  }
+  if (use === 'repair') {
+    if (ship.hp >= ship.maxHp) {
+      noteStatus(state, 'Hull is already full.');
+      return false;
+    }
+    ship.hp = Math.min(ship.maxHp, ship.hp + 40);
+    noteStatus(state, 'Repair patch. Hull ' + Math.round(ship.hp) + '/' + ship.maxHp + '.');
+    return true;
+  }
+  if (use === 'blink') {
+    ship.x = clamp(ship.x + Math.cos(ship.aim) * 320, 80, WORLD.w - 80);
+    ship.y = clamp(ship.y + Math.sin(ship.aim) * 320, 80, WORLD.h - 80);
+    noteStatus(state, 'Phase blink.');
+    return true;
+  }
+  if (use === 'tractor') {
+    let pulled = 0;
+    for (const drop of state.drops) {
+      if (Math.hypot(drop.x - ship.x, drop.y - ship.y) > 640) continue;
+      drop.x = ship.x;
+      drop.y = ship.y;
+      pulled += 1;
+    }
+    if (!pulled) {
+      noteStatus(state, 'Nothing nearby to pull.');
+      return false;
+    }
+    noteStatus(state, 'Tractor pulse pulled ' + pulled + (pulled === 1 ? ' drop.' : ' drops.'));
+    return true;
+  }
+  if (use === 'quiet') {
+    state.quiet = 5;
+    noteStatus(state, 'Quiet running. Bumps will not hurt for a few seconds.');
+    return true;
+  }
+  return false;
+}
+
+/** Left click uses the selected hotbar item when that item has a use. Minerals do not. */
+export function useSelectedHotbar(state, audio) {
+  const stack = selectedStack(state);
+  if (!stack) return false;
+  const item = itemById(stack.id);
+  if (!item || !item.use) return false;
+  if (!applyUse(state, item.use)) return false;
+  stack.count -= 1;
+  if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
+  if (audio) {
+    if (item.use === 'missile' && typeof audio.shot === 'function') audio.shot();
+    else if (typeof audio.correct === 'function') audio.correct();
+  }
+  return true;
+}
+
+export { moveCargoToHotbar, moveHotbarToCargo, addItem, countItem };
 
 export function buildHudFields(state) {
   const quota = state.mission && state.mission.quota ? state.mission.quota : 0;
@@ -1098,7 +1466,10 @@ export function buildHudFields(state) {
     rocks: quota ? Math.min(state.solved, quota) + '/' + quota : String(state.solved),
     hull: Math.round(state.ship.hp) + '/' + state.ship.maxHp,
     hullPct,
-    cargo: String(state.cargo),
+    cargo: String(
+      (state.cargoSlots || []).reduce((total, stack) => total + (stack ? stack.count : 0), 0) +
+        (Number(state.cargo) || 0)
+    ),
     bank: String(state.bank),
     speed: String(speed),
     question: questionReadout(state),
@@ -1106,45 +1477,41 @@ export function buildHudFields(state) {
     bufferBad: state.wrong > 0,
     hint: state.hint
       ? state.hint
-      : 'Hard rocks drop more ore. Bank it before a hull breach. F opens fabrication.',
+      : 'Scroll the wheel to change slots. C opens cargo. F opens fabrication.',
     hotbar: buildHotbar(state),
   };
 }
 
 export function buildFabFields(state) {
-  const rock = activeAsteroid(state);
+  const recipes = RECIPES_FOR_FAB(state);
   return {
     fabCopy:
-      'Ore in the cargo hold is lost if the hull fails. Banking it keeps it. Nothing here is saved to an account.',
-    fabBankLabel: state.cargo
-      ? 'Move ' + state.cargo + ' carried ore into the bay.'
-      : 'The hold is empty.',
-    fabDriveLabel:
-      state.driveTier >= 3
-        ? 'Drive is at the top tier.'
-        : 'Spend 4 banked ore. Tier ' +
-          state.driveTier +
-          ' of 3. Top speed ' +
-          state.ship.maxSpeed +
-          '.',
-    fabHullLabel:
-      state.hullTier >= 3
-        ? 'Hull is at the top tier.'
-        : 'Spend 4 banked ore. Tier ' + state.hullTier + ' of 3. Hull ' + state.ship.maxHp + '.',
-    fabHintLabel: rock
-      ? 'Spend 2 banked ore for a nudge on the targeted rock.'
-      : 'Target a rock first, then spend 2 banked ore.',
-    fabMapLabel: state.mapUnlocked
-      ? 'Sector map owned. Minimap stays on for this session.'
-      : 'Spend 3 banked ore. One-shot unlock for the sector minimap.',
-    fabBankDisabled: state.cargo <= 0,
-    fabDriveDisabled: state.driveTier >= 3 || state.bank < 4,
-    fabHullDisabled: state.hullTier >= 3 || state.bank < 4,
-    fabHintDisabled: !rock || state.bank < 2,
-    fabMapDisabled: state.mapUnlocked || state.bank < 3,
+      'Each recipe is a count of materials, taken from the hotbar and cargo. The result goes to the hotbar, then the cargo if the bar is full.',
+    recipes,
+    fabBankLabel: '',
+    fabDriveLabel: '',
+    fabHullLabel: '',
+    fabHintLabel: '',
+    fabMapLabel: '',
+    fabBankDisabled: true,
+    fabDriveDisabled: true,
+    fabHullDisabled: true,
+    fabHintDisabled: true,
+    fabMapDisabled: true,
     mapUnlocked: !!state.mapUnlocked,
     mapCost: 3,
   };
+}
+
+function RECIPES_FOR_FAB(state) {
+  return RECIPES.map((recipe) => ({
+    id: recipe.id,
+    category: recipe.category,
+    name: ITEMS[recipe.result] ? ITEMS[recipe.result].name : recipe.result,
+    costText: costLabel(recipe.costs),
+    ready: canAfford(state, recipe.costs),
+    costs: recipe.costs.map((cost) => ({ id: cost.id, n: cost.n })),
+  }));
 }
 
 export function buildSnapshotPatch(state, muted) {
@@ -1160,6 +1527,10 @@ export function buildSnapshotPatch(state, muted) {
     extractQuestion: extractQuestionReadout(state),
     extractToast: state.extractToast || '',
     extractRockId: state.extractRockId || null,
+    fxGreen: state.fxGreen > 0,
+    fxFlash: state.fxFlash > 0,
+    cargoOpen: state.mode === 'cargo',
+    cargoHold: buildCargo(state),
     ...buildFabFields(state),
     hud: buildHudFields(state),
   };

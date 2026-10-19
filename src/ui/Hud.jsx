@@ -8,6 +8,9 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const hullCrit = hullPct <= 15;
   const hotbar = hud.hotbar;
   const slots = hotbar && Array.isArray(hotbar.slots) ? hotbar.slots : [];
+  const cargo = snapshot.cargoHold;
+  const cargoSlots = cargo && Array.isArray(cargo.slots) ? cargo.slots : [];
+  const cargoOpen = !!snapshot.cargoOpen;
 
   return (
     <div id="hud" className="hud">
@@ -55,31 +58,57 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       </p>
       {slots.length > 0 && (
         <div
-          id="hotbar"
-          className={`hotbar${snapshot.mapUnlocked ? ' hotbar-clear-map' : ''}`}
-          role="toolbar"
-          aria-label="Ship tools"
+          className={`hotbar-dock${snapshot.mapUnlocked ? ' hotbar-clear-map' : ''}`}
         >
-          {slots.map((slot) => (
-            <button
-              key={slot.id}
-              type="button"
-              className={`hotbar-slot${slot.selected ? ' selected' : ''}${slot.available ? '' : ' empty'}`}
-              aria-pressed={slot.selected ? 'true' : 'false'}
-              aria-label={
-                slot.available
-                  ? slot.label + ', slot ' + slot.key
-                  : 'Empty slot ' + slot.key
-              }
-              onClick={() => bridge.emit('selectHotbar', slot.index)}
-            >
-              <span className="hotbar-key">{slot.key}</span>
-              {slot.available && slot.icon ? (
-                <img src={slot.icon} alt="" draggable={false} />
-              ) : null}
-              {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
-            </button>
-          ))}
+          {cargoOpen && (
+            <div id="cargo" className="cargo-drawer" role="dialog" aria-label="Cargo">
+              <p className="cargo-title">Cargo</p>
+              <div className="cargo-grid">
+                {cargoSlots.map((slot) => (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    className={`hotbar-slot cargo-slot${slot.available ? '' : ' empty'}`}
+                    aria-label={slot.available ? slot.label : 'Empty cargo'}
+                    onClick={() => bridge.emit('cargoToHotbar', { cargoIndex: slot.index })}
+                  >
+                    {slot.available ? (
+                      <span className="hotbar-swatch" style={{ background: slot.color }}>
+                        {slot.mark}
+                      </span>
+                    ) : null}
+                    {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div id="hotbar" className="hotbar" role="toolbar" aria-label="Ship tools">
+            {slots.map((slot) => (
+              <button
+                key={slot.id}
+                type="button"
+                className={`hotbar-slot${slot.selected ? ' selected' : ''}${slot.available ? '' : ' empty'}`}
+                aria-pressed={slot.selected ? 'true' : 'false'}
+                aria-label={
+                  slot.available ? slot.label + ', slot ' + slot.key : 'Empty slot ' + slot.key
+                }
+                onClick={() => bridge.emit('selectHotbar', slot.index)}
+                onDoubleClick={() => {
+                  if (!cargoOpen || !slot.available) return;
+                  bridge.emit('hotbarToCargo', { index: slot.index });
+                }}
+              >
+                <span className="hotbar-key">{slot.key}</span>
+                {slot.available ? (
+                  <span className="hotbar-swatch" style={{ background: slot.color }}>
+                    {slot.mark}
+                  </span>
+                ) : null}
+                {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

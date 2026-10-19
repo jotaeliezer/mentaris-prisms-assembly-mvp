@@ -1,6 +1,7 @@
 import { nextProblem, problemSpec } from './questions.js';
 import { clamp, makeRng, rand } from './util.js';
 import { DEFAULT_SHIP } from './assetsManifest.js';
+import { CARGO_SIZE, emptyStacks } from './items.js';
 
 export const WORLD = { w: 72000, h: 52000 };
 export const SHIP_RADIUS = 28;
@@ -145,7 +146,17 @@ export function createState() {
     mapUnlocked: false,
     cargo: 0,
     bank: 0,
+    /** Ten hotbar stacks, then a cargo hold. Null slots are empty. */
+    hotbar: emptyStacks(10),
+    cargoSlots: emptyStacks(CARGO_SIZE),
     drops: [],
+    fxGreen: 0,
+    fxFlash: 0,
+    shakeTime: 0,
+    shakeMag: 0,
+    quiet: 0,
+    wreckX: spawn.x,
+    wreckY: spawn.y,
     bumpCooldown: 0,
     hurt: 0,
     driveTier: 0,
@@ -164,7 +175,7 @@ export function createState() {
   spawnAsteroid(state, 'sub', 'easy', 'near');
   spawnAsteroid(state, 'add', 'hard', 'near');
   spawnAsteroid(state, 'sub', 'hard', 'near');
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 34; i++) {
     spawnAsteroid(state, i % 2 ? 'sub' : 'add', i % 3 === 0 ? 'hard' : 'easy', 'roam');
   }
   return state;

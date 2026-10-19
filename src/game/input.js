@@ -31,6 +31,7 @@ export function createInput(canvas, options = {}) {
     held: false,
   };
   const clicks = [];
+  let wheel = 0;
 
   function localPoint(event) {
     const rect = canvas.getBoundingClientRect();
@@ -95,6 +96,11 @@ export function createInput(canvas, options = {}) {
     event.preventDefault();
   }
 
+  function onWheel(event) {
+    wheel += event.deltaY || 0;
+    event.preventDefault();
+  }
+
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
@@ -103,6 +109,7 @@ export function createInput(canvas, options = {}) {
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerCancel);
   canvas.addEventListener('contextmenu', onContextMenu);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
 
   return {
     down,
@@ -137,6 +144,13 @@ export function createInput(canvas, options = {}) {
     takeClicks() {
       return clicks.splice(0, clicks.length);
     },
+    /** 1 = wheel down (next slot), -1 = wheel up, 0 = none. One step per frame. */
+    takeWheel() {
+      const delta = wheel;
+      wheel = 0;
+      if (Math.abs(delta) < 1) return 0;
+      return delta > 0 ? 1 : -1;
+    },
     destroy() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -146,6 +160,7 @@ export function createInput(canvas, options = {}) {
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerCancel);
       canvas.removeEventListener('contextmenu', onContextMenu);
+      canvas.removeEventListener('wheel', onWheel);
       clearKeys();
     },
   };
