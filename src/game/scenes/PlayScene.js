@@ -16,7 +16,7 @@ import {
 } from '../display.js';
 import { createInput } from '../input.js';
 import { multiplayer } from '../../multiplayer/session.js';
-import { itemTint } from '../items.js';
+import { inventoryClick, itemTint } from '../items.js';
 import { createState, WORLD } from '../state.js';
 import {
   buildSnapshotPatch,
@@ -46,6 +46,22 @@ import {
 
 const SNAPSHOT_INTERVAL_MS = 80;
 const SHIP_BASE = 72;
+const OUTLINE_OFFSETS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [0.72, 0.72],
+  [-0.72, 0.72],
+  [0.72, -0.72],
+  [-0.72, -0.72],
+];
+
+function destroyOutline(entry) {
+  if (!entry) return;
+  if (Array.isArray(entry)) entry.forEach((sprite) => sprite.destroy());
+  else entry.destroy();
+}
 
 export default class PlayScene extends Phaser.Scene {
   constructor() {
@@ -60,6 +76,7 @@ export default class PlayScene extends Phaser.Scene {
     this.unsubs = [];
     this.shipSprite = null;
     this.rockSprites = new Map();
+    this.outlineSprites = new Map();
     this.leaveRockSprites = new Map();
     this.dropSprites = new Map();
     this.starGfx = null;
@@ -257,6 +274,16 @@ export default class PlayScene extends Phaser.Scene {
         const index =
           payload && typeof payload === 'object' && payload.index != null ? payload.index : payload;
         moveHotbarToCargo(this.state, Number(index));
+        this.publishSnapshot(true);
+      })
+    );
+
+    this.unsubs.push(
+      bridge.on('inventoryClick', (payload) => {
+        const area = payload && payload.area;
+        const index = payload && payload.index != null ? Number(payload.index) : NaN;
+        inventoryClick(this.state, area, index);
+        if (area === 'hotbar') selectHotbar(this.state, index);
         this.publishSnapshot(true);
       })
     );
@@ -552,12 +579,38 @@ export default class PlayScene extends Phaser.Scene {
     if (!force && this.state.mode === 'title') {
       /* still publish quiet title idle hud occasionally */
     }
-    this.bridge.setSnapshot(buildSnapshotPatch(this.state, this.audio.muted));
+    const patch = buildSnapshotPatch(this.state, this.audio.muted);
+    patch.extractAnchor = this.extractAnchor();
+    this.bridge.setSnapshot(patch);
+  }
+
+  /** Screen position of the rock being extracted, so the numpad can sit clear of it. */
+  extractAnchor() {
+    if (this.state.mode !== 'extract' || !this.state.extractRockId) return null;
+    const rock = this.state.asteroids.find((item) => item.alive && item.id === this.state.extractRockId);
+    if (!rock) return null;
+    const cam = this.cameras.main;
+    if (!cam || !cam.worldView) return null;
+    const zoomX = cam.zoomX || cam.zoom || 1;
+    const zoomY = cam.zoomY || cam.zoom || 1;
+    const sprite = this.rockSprites.get(rock.id);
+    const base = sprite
+      ? Math.max(sprite.displayWidth, sprite.displayHeight) * 0.5
+      : rock.size * 0.45;
+    return {
+      x: (rock.x - cam.worldView.x) * zoomX,
+      y: (rock.y - cam.worldView.y) * zoomY,
+      r: base * Math.max(zoomX, zoomY),
+      vw: this.scale.width,
+      vh: this.scale.height,
+    };
   }
 
   resyncSprites() {
     for (const sprite of this.rockSprites.values()) sprite.destroy();
     this.rockSprites.clear();
+    for (const entry of this.outlineSprites.values()) destroyOutline(entry);
+    this.outlineSprites.clear();
     for (const sprite of this.leaveRockSprites.values()) sprite.destroy();
     this.leaveRockSprites.clear();
     for (const sprite of this.dropSprites.values()) sprite.destroy();
@@ -587,6 +640,52 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
+  pruneOutlines() {
+    const live = new Set([...this.rockSprites.keys(), ...this.leaveRockSprites.keys()]);
+    for (const [id, entry] of this.outlineSprites) {
+      if (live.has(id)) continue;
+      destroyOutline(entry);
+      this.outlineSprites.delete(id);
+    }
+  }
+
+  /**
+   * Eight sky-blue copies of the asteroid, nudged around the real sprite,
+   * so the transparent shape reads as an outline.
+   */
+  syncRockOutline(sprite, rock) {
+    const show = !!(rock && rock.alive && (rock.active || rock.near));
+    let copies = this.outlineSprites.get(rock.id);
+    if (!show) {
+      if (copies) {
+        destroyOutline(copies);
+        this.outlineSprites.delete(rock.id);
+      }
+      return;
+    }
+    const key = sprite.texture.key;
+    if (!copies) {
+      copies = OUTLINE_OFFSETS.map(() => {
+        const img = this.add.image(sprite.x, sprite.y, key);
+        img.setDepth(4);
+        this.refreshUiIgnore(img);
+        return img;
+      });
+      this.outlineSprites.set(rock.id, copies);
+    }
+    const reach = Math.max(14, Math.max(sprite.displayWidth, sprite.displayHeight) * 0.07);
+    copies.forEach((img, index) => {
+      if (img.texture.key !== key && this.textures.exists(key)) img.setTexture(key);
+      const [ox, oy] = OUTLINE_OFFSETS[index];
+      img.setPosition(sprite.x + ox * reach, sprite.y + oy * reach);
+      img.setRotation(sprite.rotation);
+      img.setScale(sprite.scaleX, sprite.scaleY);
+      img.setTint(0x7ee7ff);
+      img.setAlpha(1);
+      img.setVisible(sprite.visible);
+    });
+  }
+
   applyRockEnvelope(sprite, rock, envelope) {
     const envScale = envelope && envelope.scale != null ? envelope.scale : 1;
     const envAlpha = envelope && envelope.alpha != null ? envelope.alpha : 1;
@@ -595,8 +694,9 @@ export default class PlayScene extends Phaser.Scene {
     sprite.setRotation(rock.rot);
     sprite.setScale(rockDisplayScale(rock, envScale));
     sprite.setAlpha(baseAlpha * envAlpha);
-    sprite.setTint(rock.active ? 0xffffff : rock.near ? 0xe8f4ff : 0xd0d8e8);
+    sprite.setTint(rock.active || rock.near ? 0xffffff : 0xd0d8e8);
     sprite.setVisible(true);
+    this.syncRockOutline(sprite, rock);
   }
 
   syncLayerRocks(fx) {
@@ -610,6 +710,7 @@ export default class PlayScene extends Phaser.Scene {
         this.applyRockEnvelope(this.ensureRockSprite(this.rockSprites, rock, 5), rock, null);
       }
       this.pruneRockSprites(this.rockSprites, seen);
+      this.pruneOutlines();
       return;
     }
 
@@ -647,6 +748,7 @@ export default class PlayScene extends Phaser.Scene {
     if (fx.swapped) {
       this.pruneRockSprites(this.rockSprites, enterSeen);
     }
+    this.pruneOutlines();
   }
 
   syncDisplay() {

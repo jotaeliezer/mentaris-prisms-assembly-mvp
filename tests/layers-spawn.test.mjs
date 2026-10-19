@@ -6,6 +6,7 @@ import {
   WORLD,
   createState,
 } from '../src/game/state.js';
+import { addItem } from '../src/game/items.js';
 import { buildHudFields, changeLayer, startMission, updateFly, updateTransition } from '../src/game/systems.js';
 
 function assert(cond, msg) {
@@ -110,6 +111,7 @@ assert(nearMissions === 40, 'starting rocks stay near the ship on every seed, go
 
 const travel = createState();
 startMission(travel, 'add', 'layer-walk', null);
+addItem(travel, 'jumper', 1);
 const origin = { x: travel.ship.x, y: travel.ship.y };
 changeLayer(travel, -1, null);
 finishShift(travel);

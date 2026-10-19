@@ -1,8 +1,9 @@
 /** Stacks, count-based recipes, and hotbar/cargo moves. No crafting grid. */
 
 export const STACK_MAX = 64;
-export const CARGO_COLS = 6;
-export const CARGO_ROWS = 4;
+/** Four across and ten down, so the hold is as tall as the hotbar. */
+export const CARGO_COLS = 4;
+export const CARGO_ROWS = 10;
 export const CARGO_SIZE = CARGO_COLS * CARGO_ROWS;
 
 export const ITEMS = {
@@ -26,6 +27,8 @@ export const ITEMS = {
   blink: { id: 'blink', name: 'Phase blink', mark: 'Bl', color: '#e7d6ff', tint: 0xe7d6ff, kind: 'ability', use: 'blink' },
   tractor: { id: 'tractor', name: 'Tractor pulse', mark: 'Tr', color: '#ffb15a', tint: 0xffb15a, kind: 'ability', use: 'tractor' },
   quiet: { id: 'quiet', name: 'Quiet running', mark: 'Qr', color: '#9bb0c0', tint: 0x9bb0c0, kind: 'ability', use: 'quiet' },
+  /** Placeholder cost. The real jumper ingredients are still open. */
+  jumper: { id: 'jumper', name: 'Layer jumper', mark: 'Jp', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'ship' },
 };
 
 /** Each recipe is a result plus how many of each material it takes. */
@@ -37,6 +40,7 @@ export const RECIPES = [
   { id: 'hull', category: 'ship', result: 'hull', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'pale', n: 2 }] },
   { id: 'hint', category: 'ship', result: 'hint', count: 1, costs: [{ id: 'glass', n: 1 }] },
   { id: 'map', category: 'ship', result: 'map', count: 1, costs: [{ id: 'glass', n: 2 }, { id: 'amber', n: 1 }] },
+  { id: 'jumper', category: 'ship', result: 'jumper', count: 1, costs: [{ id: 'pale', n: 4 }] },
   { id: 'glass', category: 'alloys', result: 'glass', count: 1, costs: [{ id: 'pale', n: 2 }] },
   { id: 'iron', category: 'alloys', result: 'iron', count: 1, costs: [{ id: 'pale', n: 2 }, { id: 'amber', n: 1 }] },
   { id: 'resin', category: 'alloys', result: 'resin', count: 1, costs: [{ id: 'amber', n: 2 }] },
@@ -68,7 +72,13 @@ export function ensureInventory(state) {
     state.hotbar = emptyStacks(10);
   }
   if (!Array.isArray(state.cargoSlots) || state.cargoSlots.length !== CARGO_SIZE) {
-    state.cargoSlots = emptyStacks(CARGO_SIZE);
+    const next = emptyStacks(CARGO_SIZE);
+    if (Array.isArray(state.cargoSlots)) {
+      state.cargoSlots.forEach((stack, index) => {
+        if (index < next.length) next[index] = stack;
+      });
+    }
+    state.cargoSlots = next;
   }
 }
 
@@ -178,6 +188,70 @@ export function moveHotbarToCargo(state, hotbarIndex) {
   if (left <= 0) state.hotbar[hotbarIndex] = null;
   else from.count = left;
   return true;
+}
+
+function slotList(state, area) {
+  ensureInventory(state);
+  if (area === 'hotbar') return state.hotbar;
+  if (area === 'cargo') return state.cargoSlots;
+  return null;
+}
+
+/**
+ * Pick up, place, merge, or swap between the hotbar and the cargo.
+ * The carried stack sits on state.held until it is put down.
+ */
+export function inventoryClick(state, area, index) {
+  const list = slotList(state, area);
+  if (!list || !Number.isInteger(index) || index < 0 || index >= list.length) return false;
+  const slot = list[index];
+  const held = state.held || null;
+  if (!held) {
+    if (!slot) return false;
+    state.held = { id: slot.id, count: slot.count, area, index };
+    list[index] = null;
+    return true;
+  }
+  if (!slot) {
+    list[index] = { id: held.id, count: held.count };
+    state.held = null;
+    return true;
+  }
+  if (slot.id === held.id) {
+    const take = Math.min(STACK_MAX - slot.count, held.count);
+    if (take <= 0) return false;
+    slot.count += take;
+    held.count -= take;
+    if (held.count <= 0) state.held = null;
+    return true;
+  }
+  list[index] = { id: held.id, count: held.count };
+  state.held = { id: slot.id, count: slot.count, area, index };
+  return true;
+}
+
+/** Put a carried stack back when cargo closes, preferring its original slot. */
+export function returnHeld(state) {
+  if (!state.held) return;
+  const held = state.held;
+  state.held = null;
+  const list = slotList(state, held.area);
+  if (list && list[held.index] == null) {
+    list[held.index] = { id: held.id, count: held.count };
+    return;
+  }
+  const left = addItem(state, held.id, held.count);
+  if (left > 0 && state.ship) {
+    state.drops.push({
+      id: state.nextId++,
+      x: state.ship.x,
+      y: state.ship.y,
+      itemId: held.id,
+      count: left,
+      life: 40,
+      maxLife: 40,
+    });
+  }
 }
 
 export function takeAllStacks(state) {

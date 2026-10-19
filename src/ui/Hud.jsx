@@ -60,9 +60,14 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
         <div
           className={`hotbar-dock${snapshot.mapUnlocked ? ' hotbar-clear-map' : ''}`}
         >
+          {cargoOpen && snapshot.held ? (
+            <p className="cargo-held">
+              Holding {snapshot.held.name}
+              {snapshot.held.count > 1 ? ' × ' + snapshot.held.count : ''}. Click a slot to place it.
+            </p>
+          ) : null}
           {cargoOpen && (
             <div id="cargo" className="cargo-drawer" role="dialog" aria-label="Cargo">
-              <p className="cargo-title">Cargo</p>
               <div className="cargo-grid">
                 {cargoSlots.map((slot) => (
                   <button
@@ -70,7 +75,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                     type="button"
                     className={`hotbar-slot cargo-slot${slot.available ? '' : ' empty'}`}
                     aria-label={slot.available ? slot.label : 'Empty cargo'}
-                    onClick={() => bridge.emit('cargoToHotbar', { cargoIndex: slot.index })}
+                    onClick={() => bridge.emit('inventoryClick', { area: 'cargo', index: slot.index })}
                   >
                     {slot.available ? (
                       <span className="hotbar-swatch" style={{ background: slot.color }}>
@@ -93,10 +98,12 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                 aria-label={
                   slot.available ? slot.label + ', slot ' + slot.key : 'Empty slot ' + slot.key
                 }
-                onClick={() => bridge.emit('selectHotbar', slot.index)}
-                onDoubleClick={() => {
-                  if (!cargoOpen || !slot.available) return;
-                  bridge.emit('hotbarToCargo', { index: slot.index });
+                onClick={() => {
+                  if (cargoOpen) {
+                    bridge.emit('inventoryClick', { area: 'hotbar', index: slot.index });
+                    return;
+                  }
+                  bridge.emit('selectHotbar', slot.index);
                 }}
               >
                 <span className="hotbar-key">{slot.key}</span>

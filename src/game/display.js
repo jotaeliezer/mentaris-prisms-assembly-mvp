@@ -128,14 +128,9 @@ export function syncParticles(gfx, particles) {
   }
 }
 
-export function syncAimArc(gfx, state) {
+/** Circles are no longer drawn. The targeted rock is outlined on its sprite. */
+export function syncAimArc(gfx) {
   gfx.clear();
-  for (const rock of state.asteroids) {
-    if (!rock.alive || !(rock.active || rock.near)) continue;
-    const hard = rock.difficulty === 'hard';
-    gfx.lineStyle(rock.active ? 2.5 : 1.5, hard ? 0xffb15a : 0x8dffb0, rock.active ? 0.9 : 0.75);
-    gfx.strokeCircle(rock.x, rock.y, rock.radius + (rock.active ? 18 : 12));
-  }
 }
 
 export function syncGates(gfx, state) {

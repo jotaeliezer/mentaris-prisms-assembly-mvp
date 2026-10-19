@@ -13,6 +13,8 @@ import {
   spawnAsteroid,
 } from './state.js';
 import {
+  CARGO_COLS,
+  CARGO_ROWS,
   CARGO_SIZE,
   ITEMS,
   addItem,
@@ -27,6 +29,7 @@ import {
   moveHotbarToCargo,
   recipeById,
   removeItems,
+  returnHeld,
   takeAllStacks,
 } from './items.js';
 
@@ -284,9 +287,19 @@ function placeShipAtSpawn(state) {
   state.camera.y = point.y;
 }
 
+export function hasJumper(state) {
+  return countItem(state, 'jumper') > 0;
+}
+
 export function changeLayer(state, dir, audio) {
   const next = state.layer + dir;
   if (next < LAYER_MIN || next > LAYER_MAX || state.transition) return;
+  if (!hasJumper(state)) {
+    state.status = 'Layer travel is locked. Manufacture a layer jumper first.';
+    state.statusTime = 3.4;
+    if (audio && typeof audio.wrong === 'function') audio.wrong();
+    return;
+  }
   const prevAsteroids = state.asteroids.slice();
   const prevDrops = state.drops.slice();
   state.layerBanks[state.layer] = { asteroids: state.asteroids, drops: state.drops };
@@ -408,6 +421,7 @@ export function startMission(state, id, seed, audio) {
   state.hint = '';
   state.hotbar = emptyStacks(HOTBAR_SIZE);
   state.cargoSlots = emptyStacks(CARGO_SIZE);
+  state.held = null;
   state.fxGreen = 0;
   state.fxFlash = 0;
   state.shakeTime = 0;
@@ -572,17 +586,21 @@ function acceptAnswer(state, rock, audio) {
   if (audio) audio.correct();
   state.extractToast = EXTRACT_TOAST;
   state.extractToastTime = EXTRACT_TOAST_DUR;
-  state.fxGreen = 0.55;
+  state.fxGreen = 1.15;
   state.solved += 1;
 
   queueShrink(rock, EXTRACT_SHRINK);
   rock.extractCount += 1;
 
   const hard = rock.difficulty === 'hard';
+  const dx = state.ship.x - rock.x;
+  const dy = state.ship.y - rock.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const step = Math.max(0, dist - 36);
   state.drops.push({
     id: state.nextId++,
-    x: rock.x,
-    y: rock.y,
+    x: rock.x + (dx / dist) * step,
+    y: rock.y + (dy / dist) * step,
     itemId: hard ? 'amber' : 'pale',
     count: hard ? 2 : 1,
     life: 48,
@@ -733,6 +751,10 @@ export function breachHull(state, audio) {
   if ((Number(state.cargo) || 0) > 0) {
     spillStack(state, { id: 'pale', count: state.cargo }, ship.x, ship.y);
     state.cargo = 0;
+  }
+  if (state.held) {
+    spillStack(state, state.held, ship.x + 18, ship.y);
+    state.held = null;
   }
   const stacks = takeAllStacks(state);
   stacks.forEach((stack, index) => {
@@ -930,7 +952,7 @@ function updateDrops(state, dt, audio) {
     drop.life -= dt;
     if (drop.life <= 0) continue;
     if (state.mode === 'dead') continue;
-    if (Math.hypot(drop.x - ship.x, drop.y - ship.y) < 56) {
+    if (Math.hypot(drop.x - ship.x, drop.y - ship.y) < 72) {
       const itemId = drop.itemId || 'pale';
       const count = drop.count != null ? drop.count : drop.amount || 1;
       const left = addItem(state, itemId, count);
@@ -1245,7 +1267,8 @@ export function buildCargo(state) {
   ensureInventory(state);
   return {
     open: state.mode === 'cargo',
-    cols: 6,
+    cols: CARGO_COLS,
+    rows: CARGO_ROWS,
     slots: state.cargoSlots.map((stack, index) => stackView(stack, index, false, '')),
   };
 }
@@ -1262,7 +1285,9 @@ export function setCargoOpen(state, open) {
     state.mode = 'cargo';
     return;
   }
-  if (state.mode === 'cargo') state.mode = 'fly';
+  if (state.mode !== 'cargo') return;
+  returnHeld(state);
+  state.mode = 'fly';
 }
 
 export function craftItem(state, recipeId, audio) {
@@ -1477,7 +1502,9 @@ export function buildHudFields(state) {
     bufferBad: state.wrong > 0,
     hint: state.hint
       ? state.hint
-      : 'Scroll the wheel to change slots. C opens cargo. F opens fabrication.',
+      : state.statusTime > 0 && state.status
+        ? state.status
+        : 'Scroll the wheel to change slots. C opens cargo. Q and E need a layer jumper.',
     hotbar: buildHotbar(state),
   };
 }
@@ -1514,6 +1541,17 @@ function RECIPES_FOR_FAB(state) {
   }));
 }
 
+function heldView(state) {
+  if (!state.held) return null;
+  const item = itemById(state.held.id);
+  return {
+    name: item ? item.name : state.held.name,
+    count: state.held.count,
+    color: item ? item.color : '#9be7ff',
+    mark: item ? item.mark : '',
+  };
+}
+
 export function buildSnapshotPatch(state, muted) {
   return {
     mode: state.mode,
@@ -1531,6 +1569,7 @@ export function buildSnapshotPatch(state, muted) {
     fxFlash: state.fxFlash > 0,
     cargoOpen: state.mode === 'cargo',
     cargoHold: buildCargo(state),
+    held: heldView(state),
     ...buildFabFields(state),
     hud: buildHudFields(state),
   };

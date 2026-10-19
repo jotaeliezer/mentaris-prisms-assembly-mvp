@@ -140,7 +140,7 @@ export default function App({ bridge }) {
     <div id="ui-root" aria-label="Mentaris UI">
       {mode === 'title' && <Title bridge={bridge} />}
       <div
-        className={`screen-fx${snapshot.fxGreen ? ' fx-green' : ''}${snapshot.fxFlash ? ' fx-flash' : ''}`}
+        className={`screen-fx${snapshot.fxFlash ? ' fx-flash' : ''}`}
         aria-hidden="true"
       />
       {showHud && (

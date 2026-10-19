@@ -1,15 +1,27 @@
 import { createState } from '../src/game/state.js';
-import { CARGO_SIZE, RECIPES, addItem, countItem, moveCargoToHotbar } from '../src/game/items.js';
+import {
+  CARGO_COLS,
+  CARGO_ROWS,
+  CARGO_SIZE,
+  RECIPES,
+  addItem,
+  countItem,
+  inventoryClick,
+  moveCargoToHotbar,
+} from '../src/game/items.js';
 import {
   breachHull,
   buildHotbar,
+  changeLayer,
   craftItem,
   cycleHotbar,
+  hasJumper,
   idle,
   openExtract,
   populateField,
   respawnShip,
   selectHotbar,
+  setCargoOpen,
   startMission,
   typeChar,
 } from '../src/game/systems.js';
@@ -21,6 +33,7 @@ function assert(cond, msg) {
 const fresh = createState();
 assert(fresh.hotbar.length === 10, 'hotbar has ten stacks');
 assert(fresh.cargoSlots.length === CARGO_SIZE, 'cargo has a grid of slots');
+assert(CARGO_COLS === 4 && CARGO_ROWS === 10, 'cargo is 4 across and 10 tall');
 assert(fresh.hotbar.every((stack) => stack == null), 'hotbar starts empty');
 
 const ids = ['pale', 'amber', 'glass', 'iron', 'resin', 'filament', 'flare', 'drive', 'hull', 'hint'];
@@ -44,6 +57,21 @@ const displaced = fresh.hotbar[0].id;
 assert(moveCargoToHotbar(fresh, cargoIndex, 0), 'cargo stack moves onto a hotbar slot');
 assert(fresh.hotbar[0].id === 'compass', 'selected hotbar slot receives the cargo stack');
 assert(fresh.cargoSlots[cargoIndex].id === displaced, 'a different item swaps back into cargo');
+
+const carry = createState();
+addItem(carry, 'pale', 3);
+assert(inventoryClick(carry, 'hotbar', 0), 'click picks a hotbar stack up');
+assert(carry.hotbar[0] == null && carry.held && carry.held.count === 3, 'the stack leaves the hotbar');
+assert(inventoryClick(carry, 'cargo', 7), 'click places it in cargo');
+assert(carry.cargoSlots[7].id === 'pale' && carry.held == null, 'cargo received the hotbar stack');
+assert(inventoryClick(carry, 'cargo', 7), 'click picks it back up');
+assert(inventoryClick(carry, 'hotbar', 2), 'click places it on another hotbar slot');
+assert(carry.hotbar[2].id === 'pale' && carry.hotbar[2].count === 3, 'cargo stack returns to the hotbar');
+carry.mode = 'fly';
+setCargoOpen(carry, true);
+inventoryClick(carry, 'hotbar', 2);
+setCargoOpen(carry, false);
+assert(carry.held == null && carry.hotbar[2] && carry.hotbar[2].id === 'pale', 'closing cargo puts the stack back');
 
 const craft = createState();
 assert(addItem(craft, 'pale', 2) === 0, 'two pale ore');
@@ -101,6 +129,18 @@ assert(wreck.ship.hp === wreck.ship.maxHp, 'respawn restores the hull');
 assert(wreck.asteroids.length === rocks && wreck.layer === layer, 'respawn stays on this layer');
 assert(wreck.drops.some((drop) => drop.itemId === 'pale'), 'dropped items are still there');
 assert(Math.hypot(wreck.ship.x - wreckX, wreck.ship.y - wreckY) > 200, 'respawn steps away from the wreck');
+
+const locked = createState();
+startMission(locked, 'roam', 'no-jumper', null);
+const lockedLayer = locked.layer;
+assert(!hasJumper(locked), 'a new flight has no jumper');
+changeLayer(locked, 1, null);
+assert(locked.layer === lockedLayer && !locked.transition, 'Q and E do nothing without a jumper');
+assert(addItem(locked, 'pale', 4) === 0, 'pale ore for the placeholder jumper');
+assert(craftItem(locked, 'jumper', null), 'the jumper is manufactured from a count');
+assert(hasJumper(locked), 'the jumper is carried');
+changeLayer(locked, 1, null);
+assert(locked.transition && locked.transition.kind === 'layer', 'a carried jumper unlocks the shift');
 
 const emptyField = createState();
 emptyField.asteroids = [];
