@@ -46,16 +46,8 @@ import {
 
 const SNAPSHOT_INTERVAL_MS = 80;
 const SHIP_BASE = 72;
-const OUTLINE_OFFSETS = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [0.72, 0.72],
-  [-0.72, 0.72],
-  [0.72, -0.72],
-  [-0.72, -0.72],
-];
+const RIM_PAD = 18;
+const RIM_RADIUS = 16;
 
 function destroyOutline(entry) {
   if (!entry) return;
@@ -649,41 +641,117 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
+  rockInView(rock) {
+    const view = this.cameras.main.worldView;
+    const pad = 1000;
+    return (
+      rock.x >= view.x - pad &&
+      rock.x <= view.x + view.width + pad &&
+      rock.y >= view.y - pad &&
+      rock.y <= view.y + view.height + pad
+    );
+  }
+
   /**
-   * Eight sky-blue copies of the asteroid, nudged around the real sprite,
-   * so the transparent shape reads as an outline.
+   * Bright sky-blue rim of the asteroid's alpha shape. A tint on the dark
+   * sprite stays dark, so the rim is its own texture drawn over the rock.
+   */
+  ensureRimTexture(key) {
+    const rimKey = key + '::rim';
+    if (this.textures.exists(rimKey)) return rimKey;
+    const texture = this.textures.get(key);
+    const src = texture && texture.getSourceImage ? texture.getSourceImage() : null;
+    if (!src || !src.width || !src.height) return null;
+    const pad = RIM_PAD;
+    const radius = RIM_RADIUS;
+    const canvas = document.createElement('canvas');
+    canvas.width = src.width + pad * 2;
+    canvas.height = src.height + pad * 2;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(src, pad, pad);
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = image.data;
+    const width = canvas.width;
+    const height = canvas.height;
+    const count = width * height;
+    const solid = new Uint8Array(count);
+    for (let i = 0; i < count; i++) solid[i] = data[i * 4 + 3] > 32 ? 1 : 0;
+    const dist = new Uint16Array(count);
+    dist.fill(65535);
+    for (let i = 0; i < count; i++) if (solid[i]) dist[i] = 0;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        let d = dist[i];
+        if (x > 0) d = Math.min(d, dist[i - 1] + 3);
+        if (y > 0) d = Math.min(d, dist[i - width] + 3);
+        if (x > 0 && y > 0) d = Math.min(d, dist[i - width - 1] + 4);
+        if (x + 1 < width && y > 0) d = Math.min(d, dist[i - width + 1] + 4);
+        dist[i] = d;
+      }
+    }
+    for (let y = height - 1; y >= 0; y--) {
+      for (let x = width - 1; x >= 0; x--) {
+        const i = y * width + x;
+        let d = dist[i];
+        if (x + 1 < width) d = Math.min(d, dist[i + 1] + 3);
+        if (y + 1 < height) d = Math.min(d, dist[i + width] + 3);
+        if (x + 1 < width && y + 1 < height) d = Math.min(d, dist[i + width + 1] + 4);
+        if (x > 0 && y + 1 < height) d = Math.min(d, dist[i + width - 1] + 4);
+        dist[i] = d;
+      }
+    }
+    const limit = radius * 3;
+    const out = ctx.createImageData(width, height);
+    const pixels = out.data;
+    for (let i = 0; i < count; i++) {
+      if (solid[i] || dist[i] === 0 || dist[i] > limit) continue;
+      const px = dist[i] / 3;
+      const fade = px < 10 ? 1 : Math.max(0, 1 - (px - 10) / (radius - 10));
+      pixels[i * 4] = 126;
+      pixels[i * 4 + 1] = 231;
+      pixels[i * 4 + 2] = 255;
+      pixels[i * 4 + 3] = Math.round(255 * fade);
+    }
+    ctx.putImageData(out, 0, 0);
+    this.textures.addCanvas(rimKey, canvas);
+    return rimKey;
+  }
+
+  /**
+   * Sky-blue trace around the rock's real shape. Shown for the extract
+   * target and for the nearest rock within targeting range.
    */
   syncRockOutline(sprite, rock) {
-    const show = !!(rock && rock.alive && (rock.active || rock.near));
-    let copies = this.outlineSprites.get(rock.id);
+    const show = !!(rock && rock.alive && (rock.outline || rock.active || rock.near) && sprite.visible);
+    let rim = this.outlineSprites.get(rock.id);
     if (!show) {
-      if (copies) {
-        destroyOutline(copies);
+      if (rim) {
+        destroyOutline(rim);
         this.outlineSprites.delete(rock.id);
       }
       return;
     }
-    const key = sprite.texture.key;
-    if (!copies) {
-      copies = OUTLINE_OFFSETS.map(() => {
-        const img = this.add.image(sprite.x, sprite.y, key);
-        img.setDepth(4);
-        this.refreshUiIgnore(img);
-        return img;
-      });
-      this.outlineSprites.set(rock.id, copies);
+    const rimKey = this.ensureRimTexture(sprite.texture.key);
+    if (!rimKey) return;
+    if (!rim || Array.isArray(rim)) {
+      if (rim) destroyOutline(rim);
+      rim = this.add.image(sprite.x, sprite.y, rimKey);
+      rim.setDepth(6);
+      rim.setOrigin(0.5, 0.5);
+      this.refreshUiIgnore(rim);
+      this.outlineSprites.set(rock.id, rim);
+    } else if (rim.texture.key !== rimKey && this.textures.exists(rimKey)) {
+      rim.setTexture(rimKey);
     }
-    const reach = Math.max(14, Math.max(sprite.displayWidth, sprite.displayHeight) * 0.07);
-    copies.forEach((img, index) => {
-      if (img.texture.key !== key && this.textures.exists(key)) img.setTexture(key);
-      const [ox, oy] = OUTLINE_OFFSETS[index];
-      img.setPosition(sprite.x + ox * reach, sprite.y + oy * reach);
-      img.setRotation(sprite.rotation);
-      img.setScale(sprite.scaleX, sprite.scaleY);
-      img.setTint(0x7ee7ff);
-      img.setAlpha(1);
-      img.setVisible(sprite.visible);
-    });
+    rim.setPosition(sprite.x, sprite.y);
+    rim.setRotation(sprite.rotation);
+    rim.setScale(sprite.scaleX, sprite.scaleY);
+    rim.setAlpha(sprite.alpha);
+    rim.clearTint();
+    rim.setVisible(true);
   }
 
   applyRockEnvelope(sprite, rock, envelope) {
@@ -705,7 +773,7 @@ export default class PlayScene extends Phaser.Scene {
       this.leaveRockSprites.clear();
       const seen = new Set();
       for (const rock of this.state.asteroids) {
-        if (!rock.alive) continue;
+        if (!rock.alive || !this.rockInView(rock)) continue;
         seen.add(rock.id);
         this.applyRockEnvelope(this.ensureRockSprite(this.rockSprites, rock, 5), rock, null);
       }
@@ -722,7 +790,7 @@ export default class PlayScene extends Phaser.Scene {
     const leaveSeen = new Set();
     if (fx.leave.alpha > 0.01) {
       for (const rock of leaveRocks) {
-        if (rock.alive === false) continue;
+        if (rock.alive === false || !this.rockInView(rock)) continue;
         leaveSeen.add(rock.id);
         // After swap, leave rocks live in leaveRockSprites so enter can reuse rockSprites.
         const map = fx.swapped ? this.leaveRockSprites : this.rockSprites;
@@ -740,7 +808,7 @@ export default class PlayScene extends Phaser.Scene {
     const enterSeen = new Set();
     if (fx.swapped && fx.enter.alpha > 0.01) {
       for (const rock of this.state.asteroids) {
-        if (!rock.alive) continue;
+        if (!rock.alive || !this.rockInView(rock)) continue;
         enterSeen.add(rock.id);
         this.applyRockEnvelope(this.ensureRockSprite(this.rockSprites, rock, 5), rock, fx.enter);
       }

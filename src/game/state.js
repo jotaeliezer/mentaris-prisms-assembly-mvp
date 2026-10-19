@@ -28,8 +28,39 @@ export const MISSIONS = {
   roam: { id: 'roam', name: 'Open belt', operation: null, quota: 0, next: 'add' },
 };
 
-export function spawnAsteroid(state, operation, difficulty, place) {
+/** Spacing of the belt grid. Cells fill in around the ship as it flies. */
+export const FIELD_STEP = 720;
+/** How far from the ship the belt keeps rocks ready to extract. */
+export const BELT_RADIUS = 3000;
+
+export function placeAsteroidAt(state, operation, difficulty, x, y) {
   const question = nextProblem(problemSpec(operation, difficulty || 'easy'), state.rng);
+  const size = 120 + state.rng() * 70;
+  const radius = size * 0.34;
+  state.asteroids.push({
+    id: state.nextId++,
+    x,
+    y,
+    sprite: Math.floor(state.rng() * 5),
+    size,
+    radius,
+    baseRadius: radius,
+    extractCount: 0,
+    depleted: false,
+    rot: state.rng() * Math.PI * 2,
+    spin: (state.rng() - 0.5) * 0.28,
+    drift: state.rng() * Math.PI * 2,
+    alive: true,
+    active: false,
+    near: false,
+    question,
+    operation,
+    difficulty: question.difficulty,
+    outline: false,
+  });
+}
+
+export function spawnAsteroid(state, operation, difficulty, place) {
   let x = state.ship.x;
   let y = state.ship.y;
   const minShip = place === 'far' ? 1100 : 420;
@@ -55,28 +86,39 @@ export function spawnAsteroid(state, operation, difficulty, place) {
     const clearOfRocks = state.asteroids.every((rock) => Math.hypot(x - rock.x, y - rock.y) > gap);
     if (clearOfShip && clearOfRocks) break;
   }
-  const size = 120 + state.rng() * 70;
-  const radius = size * 0.34;
-  state.asteroids.push({
-    id: state.nextId++,
-    x,
-    y,
-    sprite: Math.floor(state.rng() * 5),
-    size,
-    radius,
-    baseRadius: radius,
-    extractCount: 0,
-    depleted: false,
-    rot: state.rng() * Math.PI * 2,
-    spin: (state.rng() - 0.5) * 0.28,
-    drift: state.rng() * Math.PI * 2,
-    alive: true,
-    active: false,
-    near: false,
-    question,
-    operation,
-    difficulty: question.difficulty,
-  });
+  placeAsteroidAt(state, operation, difficulty, x, y);
+}
+
+/**
+ * Fill belt cells around the ship. Already-filled cells stay put, so flying
+ * across the layer keeps adding rocks instead of only clustering at spawn.
+ * The spawn pocket is left to the near placements.
+ */
+export function ensureBelt(state, operation) {
+  if (!state.beltCells) state.beltCells = new Set();
+  const step = FIELD_STEP;
+  const margin = 480;
+  const reach = BELT_RADIUS;
+  const sx = state.ship.x;
+  const sy = state.ship.y;
+  const x0 = Math.max(margin, Math.floor((sx - reach) / step) * step);
+  const y0 = Math.max(margin, Math.floor((sy - reach) / step) * step);
+  const x1 = Math.min(WORLD.w - margin, Math.ceil((sx + reach) / step) * step);
+  const y1 = Math.min(WORLD.h - margin, Math.ceil((sy + reach) / step) * step);
+  for (let gx = x0; gx <= x1; gx += step) {
+    for (let gy = y0; gy <= y1; gy += step) {
+      if (Math.hypot(gx - sx, gy - sy) > reach) continue;
+      const key = gx + ',' + gy;
+      if (state.beltCells.has(key)) continue;
+      state.beltCells.add(key);
+      if (Math.hypot(gx - sx, gy - sy) < 400) continue;
+      const x = clamp(gx + (state.rng() - 0.5) * step * 0.5, 200, WORLD.w - 200);
+      const y = clamp(gy + (state.rng() - 0.5) * step * 0.5, 200, WORLD.h - 200);
+      const op = operation || (state.rng() < 0.5 ? 'add' : 'sub');
+      const difficulty = state.rng() < 0.28 ? 'hard' : 'easy';
+      placeAsteroidAt(state, op, difficulty, x, y);
+    }
+  }
 }
 
 export function createState() {
@@ -106,9 +148,13 @@ export function createState() {
       { x: 3800, y: 900, r: 520, color: 'rgba(140, 70, 90, 0.12)' },
     ],
     asteroids: [],
+    beltCells: new Set(),
     missiles: [],
     particles: [],
     buffer: '',
+    /** Last accepted extract answer, kept while the answer box is green. */
+    correctAnswer: '',
+    pendingExtractClose: false,
     solved: 0,
     wrong: 0,
     targetId: 0,
@@ -175,9 +221,7 @@ export function createState() {
   spawnAsteroid(state, 'sub', 'easy', 'near');
   spawnAsteroid(state, 'add', 'hard', 'near');
   spawnAsteroid(state, 'sub', 'hard', 'near');
-  for (let i = 0; i < 34; i++) {
-    spawnAsteroid(state, i % 2 ? 'sub' : 'add', i % 3 === 0 ? 'hard' : 'easy', 'roam');
-  }
+  ensureBelt(state);
   return state;
 }
 

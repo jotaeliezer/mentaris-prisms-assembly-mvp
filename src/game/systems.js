@@ -9,6 +9,7 @@ import {
   WORLD,
   cleanSeed,
   clusterName,
+  ensureBelt,
   randomInteriorPoint,
   spawnAsteroid,
 } from './state.js';
@@ -71,9 +72,25 @@ function punchCamera(state) {
 
 function tickFx(state, dt) {
   if (state.shakeTime > 0) state.shakeTime = Math.max(0, state.shakeTime - dt);
-  if (state.fxGreen > 0) state.fxGreen = Math.max(0, state.fxGreen - dt);
+  if (state.fxGreen > 0) {
+    state.fxGreen = Math.max(0, state.fxGreen - dt);
+    if (state.fxGreen === 0) finishGreen(state);
+  }
   if (state.fxFlash > 0) state.fxFlash = Math.max(0, state.fxFlash - dt);
   if (state.quiet > 0) state.quiet = Math.max(0, state.quiet - dt);
+}
+
+/** Green answer box ended: drop the kept answer, and close a finished rock. */
+function finishGreen(state) {
+  state.correctAnswer = '';
+  if (!state.pendingExtractClose) return;
+  state.pendingExtractClose = false;
+  if (state.mode !== 'extract') return;
+  state.mode = 'fly';
+  state.extractRockId = 0;
+  state.buffer = '';
+  state.hint = '';
+  state.extractAvailable = null;
 }
 
 export function digitFromEvent(event) {
@@ -153,6 +170,8 @@ export function cancelExtract(state) {
   state.mode = 'fly';
   state.extractRockId = 0;
   state.buffer = '';
+  state.correctAnswer = '';
+  state.pendingExtractClose = false;
   state.hint = '';
 }
 
@@ -170,16 +189,12 @@ function layerRng(state) {
 }
 
 export function populateField(state) {
+  state.beltCells = new Set();
   const mission = state.mission;
-  if (mission && mission.operation) {
+  const operation = mission && mission.operation ? mission.operation : null;
+  if (operation) {
     for (let i = 0; i < 6; i++) {
-      spawnAsteroid(state, mission.operation, i % 3 === 2 ? 'hard' : 'easy', 'near');
-    }
-    for (let i = 0; i < 12; i++) {
-      spawnAsteroid(state, mission.operation, i % 2 ? 'hard' : 'easy', 'mid');
-    }
-    for (let i = 0; i < 24; i++) {
-      spawnAsteroid(state, mission.operation, i % 3 === 0 ? 'hard' : 'easy', 'roam');
+      spawnAsteroid(state, operation, i % 3 === 2 ? 'hard' : 'easy', 'near');
     }
   } else {
     spawnAsteroid(state, 'add', 'easy', 'near');
@@ -187,13 +202,8 @@ export function populateField(state) {
     spawnAsteroid(state, 'add', 'hard', 'near');
     spawnAsteroid(state, 'sub', 'hard', 'near');
     spawnAsteroid(state, 'add', 'easy', 'near');
-    for (let i = 0; i < 10; i++) {
-      spawnAsteroid(state, i % 2 ? 'sub' : 'add', i % 2 ? 'hard' : 'easy', 'mid');
-    }
-    for (let i = 0; i < 32; i++) {
-      spawnAsteroid(state, i % 2 ? 'sub' : 'add', i % 3 === 0 ? 'hard' : 'easy', 'roam');
-    }
   }
+  ensureBelt(state, operation);
 }
 
 export function placeWormhole(state) {
@@ -252,8 +262,23 @@ function clearOfGate(x, y, hole, inner, outer) {
   ];
 }
 
+function saveLayerBank(state) {
+  state.layerBanks[state.layer] = {
+    asteroids: state.asteroids,
+    drops: state.drops,
+    beltCells: state.beltCells,
+  };
+}
+
+function restoreLayerBank(state) {
+  const slot = state.layerBanks[state.layer];
+  state.asteroids = slot ? slot.asteroids : [];
+  state.drops = slot ? slot.drops : [];
+  state.beltCells = slot && slot.beltCells ? slot.beltCells : new Set();
+}
+
 function rememberCluster(state) {
-  state.layerBanks[state.layer] = { asteroids: state.asteroids, drops: state.drops };
+  saveLayerBank(state);
   let shipX = state.ship.x;
   let shipY = state.ship.y;
   [shipX, shipY] = clearOfGate(shipX, shipY, state.wormhole, 220, 280);
@@ -302,7 +327,7 @@ export function changeLayer(state, dir, audio) {
   }
   const prevAsteroids = state.asteroids.slice();
   const prevDrops = state.drops.slice();
-  state.layerBanks[state.layer] = { asteroids: state.asteroids, drops: state.drops };
+  saveLayerBank(state);
   beginShift(
     state,
     dir,
@@ -317,12 +342,13 @@ export function changeLayer(state, dir, audio) {
       if (saved) {
         state.asteroids = saved.asteroids;
         state.drops = saved.drops;
+        state.beltCells = saved.beltCells || new Set();
       } else {
         state.rng = layerRng(state);
         state.asteroids = [];
         state.drops = [];
         populateField(state);
-        state.layerBanks[next] = { asteroids: state.asteroids, drops: state.drops };
+        saveLayerBank(state);
       }
       state.status = dir > 0 ? 'Rose to layer ' + next + '.' : 'Dropped to layer ' + next + '.';
       state.statusTime = 2.4;
@@ -352,9 +378,7 @@ function arriveInCluster(state, cluster, returning) {
     state.ship.x = saved.shipX;
     state.ship.y = saved.shipY;
     state.ship.aim = saved.aim;
-    const slot = state.layerBanks[state.layer];
-    state.asteroids = slot ? slot.asteroids : [];
-    state.drops = slot ? slot.drops : [];
+    restoreLayerBank(state);
   } else {
     state.layer = 0;
     state.layerBanks = {};
@@ -375,7 +399,7 @@ function arriveInCluster(state, cluster, returning) {
     state.drops = [];
     populateField(state);
     placeWormhole(state);
-    state.layerBanks[0] = { asteroids: state.asteroids, drops: state.drops };
+    saveLayerBank(state);
   }
   state.camera.x = state.ship.x;
   state.camera.y = state.ship.y;
@@ -423,6 +447,8 @@ export function startMission(state, id, seed, audio) {
   state.cargoSlots = emptyStacks(CARGO_SIZE);
   state.held = null;
   state.fxGreen = 0;
+  state.correctAnswer = '';
+  state.pendingExtractClose = false;
   state.fxFlash = 0;
   state.shakeTime = 0;
   state.quiet = 0;
@@ -440,7 +466,7 @@ export function startMission(state, id, seed, audio) {
   state.home = { x: state.ship.x, y: state.ship.y };
   populateField(state);
   placeWormhole(state);
-  state.layerBanks[0] = { asteroids: state.asteroids, drops: state.drops };
+  saveLayerBank(state);
   state.mode = 'fly';
 }
 
@@ -516,6 +542,7 @@ export function typeChar(state, ch, audio) {
   state.buffer += ch;
   const answer = rock.question.answerText;
   if (state.buffer === answer) {
+    state.correctAnswer = state.buffer;
     acceptAnswer(state, rock, audio);
     state.buffer = '';
     return;
@@ -536,6 +563,7 @@ export function submitExtract(state, audio) {
   if (!state.buffer) return;
   const answer = rock.question.answerText;
   if (state.buffer === answer) {
+    state.correctAnswer = state.buffer;
     acceptAnswer(state, rock, audio);
     state.buffer = '';
     return;
@@ -624,7 +652,7 @@ function acceptAnswer(state, rock, audio) {
   if (rock.extractCount >= 3) {
     rock.depleted = true;
     queueShrink(rock, EXTRACT_DEPLETE_SHRINK);
-    cancelExtract(state);
+    state.pendingExtractClose = true;
     state.extractAvailable = null;
   } else {
     const operation =
@@ -683,6 +711,20 @@ function destroyAsteroid(state, rock, audio) {
         ? 'easy'
         : 'hard';
   spawnAsteroid(state, operation, difficulty, 'far');
+}
+
+function nearestLiveAsteroid(state, maxDist) {
+  let best = null;
+  let bestDist = maxDist;
+  for (const rock of state.asteroids) {
+    if (!rock.alive || rock.depleted) continue;
+    const dist = Math.hypot(rock.x - state.ship.x, rock.y - state.ship.y);
+    if (dist < bestDist) {
+      best = rock;
+      bestDist = dist;
+    }
+  }
+  return best;
 }
 
 function nearestAsteroid(state, maxDist) {
@@ -1087,7 +1129,11 @@ export function updateFly(state, dt, ctx) {
     if (rock.y < 100 || rock.y > WORLD.h - 100) rock.drift = -rock.drift;
     rock.active = false;
     rock.near = false;
+    rock.outline = false;
   }
+  ensureBelt(state, state.mission && state.mission.operation ? state.mission.operation : null);
+  const marked = nearestLiveAsteroid(state, 1600);
+  if (marked) marked.outline = true;
   const nearest = nearestAsteroid(state, APPROACH);
   if (nearest) {
     ensureRockExtractFields(nearest);
@@ -1101,6 +1147,7 @@ export function updateFly(state, dt, ctx) {
     state.targetId = 0;
   } else {
     target.active = true;
+    target.outline = true;
   }
   handleClicks(state, input, view, audio);
   for (const rock of state.asteroids) {
@@ -1566,6 +1613,7 @@ export function buildSnapshotPatch(state, muted) {
     extractToast: state.extractToast || '',
     extractRockId: state.extractRockId || null,
     fxGreen: state.fxGreen > 0,
+    correctAnswer: state.fxGreen > 0 ? state.correctAnswer || '' : '',
     fxFlash: state.fxFlash > 0,
     cargoOpen: state.mode === 'cargo',
     cargoHold: buildCargo(state),

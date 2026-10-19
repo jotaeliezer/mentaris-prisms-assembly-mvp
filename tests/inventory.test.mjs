@@ -12,6 +12,7 @@ import {
 import {
   breachHull,
   buildHotbar,
+  buildSnapshotPatch,
   changeLayer,
   craftItem,
   cycleHotbar,
@@ -93,6 +94,14 @@ typeChar(shrink, '7', null);
 assert(rock.size === before, 'a correct answer does not jump the size');
 assert(rock.sizeTarget < before, 'the rock has a smaller target');
 assert(shrink.fxGreen > 0, 'a correct answer flashes green');
+assert(shrink.correctAnswer === '7', 'the correct answer stays visible in the green box');
+assert(shrink.buffer === '', 'the live buffer clears so the next problem can be typed');
+assert(shrink.mode === 'extract', 'extract stays open while the answer is green');
+const greenSnap = buildSnapshotPatch(shrink, false);
+assert(
+  greenSnap.fxGreen && greenSnap.correctAnswer === '7',
+  'the green box snapshot still carries the answer'
+);
 idle(shrink, 0.4, null);
 assert(rock.size < before, 'the rock keeps shrinking');
 assert(rock.size > rock.sizeTarget, 'the shrink is still in progress');
@@ -103,6 +112,22 @@ shrink.mode = 'extract';
 shrink.extractRockId = rock.id;
 typeChar(shrink, '9', null);
 assert(shrink.shakeTime > 0, 'a wrong answer shakes the camera');
+
+const spent = createState();
+const host = spent.asteroids.find((item) => item.alive);
+spent.mode = 'fly';
+spent.extractAvailable = host.id;
+host.extractCount = 2;
+host.question = { ...host.question, answerText: '4', prompt: '2 + 2' };
+openExtract(spent, host.id, null);
+typeChar(spent, '4', null);
+assert(host.depleted, 'the third answer spends the rock');
+assert(spent.mode === 'extract', 'the last answer stays on screen');
+assert(spent.correctAnswer === '4', 'the last answer is kept while the box is green');
+idle(spent, 1.2, null);
+assert(spent.fxGreen === 0, 'the green box ends');
+assert(spent.correctAnswer === '', 'the kept answer clears when the box is no longer green');
+assert(spent.mode === 'fly', 'extract closes after the green answer');
 
 const wreck = createState();
 startMission(wreck, 'roam', 'wreck-seed', null);

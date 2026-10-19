@@ -68,6 +68,11 @@ export default function Extract({ bridge, snapshot }) {
   }
 
   const place = placeExtractPanel(snapshot.extractAnchor);
+  const shownAnswer = hud.buffer
+    ? hud.buffer
+    : snapshot.fxGreen && snapshot.correctAnswer
+      ? snapshot.correctAnswer
+      : '·';
 
   return (
     <>
@@ -82,7 +87,7 @@ export default function Extract({ bridge, snapshot }) {
               id="extract-buffer"
               className={`extract-buffer${hud.bufferBad ? ' bad' : ''}${snapshot.fxGreen ? ' correct' : ''}`}
             >
-              {hud.buffer || '·'}
+              {shownAnswer}
             </div>
             <div className="extract-numpad" role="group" aria-label="Extract numpad">
               {DIGITS.map((d) => (

@@ -1,4 +1,5 @@
 import {
+  BELT_RADIUS,
   LAYER_COUNT,
   LAYER_MAX,
   LAYER_MIN,
@@ -108,6 +109,29 @@ for (let n = 0; n < 40; n++) {
   }
 }
 assert(nearMissions === 40, 'starting rocks stay near the ship on every seed, got ' + nearMissions);
+
+const flown = createState();
+startMission(flown, 'roam', 'open-belt', null);
+const spawned = flown.asteroids.length;
+flown.ship.x = flown.home.x < WORLD.w / 2 ? WORLD.w - 5000 : 5000;
+flown.ship.y = flown.home.y < WORLD.h / 2 ? WORLD.h - 5000 : 5000;
+flown.camera.x = flown.ship.x;
+flown.camera.y = flown.ship.y;
+updateFly(flown, 0.05, { input: stubInput(), audio: null, view: { w: 1280, h: 720 } });
+const around = flown.asteroids.filter(
+  (rock) => Math.hypot(rock.x - flown.ship.x, rock.y - flown.ship.y) < BELT_RADIUS
+);
+assert(around.length >= 8, 'flying away from spawn still finds asteroids, got ' + around.length);
+assert(flown.asteroids.length > spawned, 'the belt adds rocks as the ship leaves spawn');
+const aimed = around
+  .filter((rock) => rock.alive && !rock.depleted)
+  .slice()
+  .sort(
+    (a, b) =>
+      Math.hypot(a.x - flown.ship.x, a.y - flown.ship.y) -
+      Math.hypot(b.x - flown.ship.x, b.y - flown.ship.y)
+  )[0];
+assert(aimed && aimed.outline, 'the nearest rock is marked for the sky-blue trace');
 
 const travel = createState();
 startMission(travel, 'add', 'layer-walk', null);
