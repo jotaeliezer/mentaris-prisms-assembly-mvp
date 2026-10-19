@@ -12,17 +12,41 @@ function beep(bridge) {
   bridge.emit('uiBeep');
 }
 
-function StubSlots({ category }) {
+const CATEGORY_IDEAS = {
+  weapons: [
+    ['Arc missile', 'A held charge. Left click arcs it into the rock.'],
+    ['Pulse lance', 'A short straight shot at the rock in front of you.'],
+    ['Survey flare', 'Marks the rocks on this layer.'],
+  ],
+  alloys: [
+    ['Prism glass', 'Smelted from pale ore. Used in lenses and hull glaze.'],
+    ['Belt iron', 'The common structural metal.'],
+    ['Amber resin', 'Binder drawn from hard rocks.'],
+    ['Void filament', 'A rare thread for blink and quiet gear.'],
+  ],
+  hud: [
+    ['Layer compass', 'Puts the layer number back on the screen.'],
+    ['Ore ping', 'Points at dropped ore before it fades.'],
+    ['Gate marker', 'A clearer line to the wormhole.'],
+  ],
+  abilities: [
+    ['Repair patch', 'A held hull mend, used from the hotbar.'],
+    ['Phase blink', 'A short hop along your aim.'],
+    ['Tractor pulse', 'Pulls nearby ore in.'],
+    ['Quiet running', 'A brief moment with no bump damage.'],
+  ],
+};
+
+function StubSlots({ categoryId }) {
+  const ideas = CATEGORY_IDEAS[categoryId] || [];
   return (
     <div className="missions fab-stubs">
-      <button className="btn" type="button" disabled>
-        {category}
-        <span>Coming soon</span>
-      </button>
-      <button className="btn" type="button" disabled>
-        Slot reserved
-        <span>Coming soon</span>
-      </button>
+      {ideas.map(([name, detail]) => (
+        <button key={name} className="btn" type="button" disabled>
+          {name}
+          <span>{detail}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -119,7 +143,7 @@ export default function Fab({ bridge, snapshot }) {
         </div>
         <div className="fab-cat-panel" role="tabpanel">
           {active.stub ? (
-            <StubSlots category={active.label} />
+            <StubSlots categoryId={active.id} />
           ) : (
             <ShipImprovements bridge={bridge} snapshot={snapshot} />
           )}

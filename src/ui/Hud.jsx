@@ -60,7 +60,6 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
           role="toolbar"
           aria-label="Ship tools"
         >
-          <span className="hotbar-caption">{hotbar.label || 'Empty'}</span>
           {slots.map((slot) => (
             <button
               key={slot.id}

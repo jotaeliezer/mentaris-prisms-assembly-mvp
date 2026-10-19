@@ -724,17 +724,19 @@ function handleClicks(state, input, view, audio) {
     input.takeClicks();
     return;
   }
-  for (const click of input.takeClicks()) {
+  const queued = input.takeClicks();
+  if (!queued.length) return;
+  for (const click of queued) {
     const world = clickWorld(state, view, click);
     const hit = asteroidAt(state, world.x, world.y);
-    if (!hit) continue;
-    if (hit.id !== state.targetId) {
-      state.buffer = '';
-      state.hint = '';
-    }
-    state.targetId = hit.id;
-    if (audio) audio.lock();
+    if (!hit || hit.depleted) continue;
+    const dist = Math.hypot(hit.x - state.ship.x, hit.y - state.ship.y);
+    if (dist > APPROACH) continue;
+    state.extractAvailable = hit.id;
+    openExtract(state, hit.id, audio);
+    return;
   }
+  if (state.extractAvailable) openExtract(state, state.extractAvailable, audio);
 }
 
 function updateMissiles(state, dt, audio) {
@@ -1029,20 +1031,12 @@ export function questionReadout(state) {
   return 'Roam the belt. Nothing is timed.';
 }
 
-export const HOTBAR_SIZE = 6;
+export const HOTBAR_SIZE = 10;
 
-/**
- * Stable slot order. A slot is filled only when the ship can use that tool.
- * Repair has no held charge in this build, and the last slot stays empty.
- */
-const HOTBAR_TOOLS = [
-  { id: 'drive', name: 'Drive', icon: '/images/powerups/rare_speedboost.png' },
-  { id: 'hull', name: 'Hull', icon: '/images/powerups/powerup_armor.png' },
-  { id: 'hint', name: 'Math hint', icon: '/images/powerups/powerup_targetlock.png' },
-  { id: 'map', name: 'Sector map', icon: '/images/powerups/powerup_scope.png' },
-  { id: 'repair', name: 'Repair', icon: '/images/powerups/powerup_hullrepair.png' },
-  { id: 'spare', name: '', icon: '' },
-];
+/** Key cap for a slot. Slots 1–9 use those digits; slot 10 uses 0. */
+export function hotbarKey(index) {
+  return index === HOTBAR_SIZE - 1 ? '0' : String(index + 1);
+}
 
 export function selectHotbar(state, index) {
   const n = typeof index === 'number' ? index : Number(index);
@@ -1056,53 +1050,26 @@ export function hotbarIndex(state) {
   return n;
 }
 
-function hotbarAvailable(state, id) {
-  if (id === 'drive' || id === 'hull') return true;
-  if (id === 'hint') return !!state.hint;
-  if (id === 'map') return !!state.mapUnlocked;
-  return false;
-}
-
-function hotbarLabel(state, id, available) {
-  if (!available) return 'Empty';
-  if (id === 'drive') {
-    return state.driveTier > 0 ? 'Drive · tier ' + state.driveTier : 'Drive';
-  }
-  if (id === 'hull') {
-    return state.hullTier > 0 ? 'Hull · tier ' + state.hullTier : 'Hull';
-  }
-  if (id === 'hint') return 'Math hint';
-  if (id === 'map') return 'Sector map';
-  return 'Empty';
-}
-
-function hotbarBadge(state, id, available) {
-  if (!available) return '';
-  if (id === 'drive' && state.driveTier > 0) return String(state.driveTier);
-  if (id === 'hull' && state.hullTier > 0) return String(state.hullTier);
-  return '';
-}
-
-/** Slots for the vertical tool hotbar. Selection is visual; fabrication stays on F. */
+/**
+ * Ten empty slots. Nothing is equipped yet: no drive, no hull, no icons.
+ * Left click extracts a nearby rock until a crafted item occupies a slot.
+ */
 export function buildHotbar(state) {
   const selected = hotbarIndex(state);
-  const slots = HOTBAR_TOOLS.map((tool, index) => {
-    const available = hotbarAvailable(state, tool.id);
-    return {
-      id: tool.id,
-      index,
-      key: String(index + 1),
-      name: available ? tool.name : '',
-      label: hotbarLabel(state, tool.id, available),
-      available,
-      icon: available && tool.icon ? tool.icon : '',
-      badge: hotbarBadge(state, tool.id, available),
-      selected: index === selected,
-    };
-  });
+  const slots = Array.from({ length: HOTBAR_SIZE }, (_, index) => ({
+    id: 'slot-' + (index + 1),
+    index,
+    key: hotbarKey(index),
+    name: '',
+    label: 'Empty',
+    available: false,
+    icon: '',
+    badge: '',
+    selected: index === selected,
+  }));
   return {
     selected,
-    label: slots[selected] ? slots[selected].label : 'Empty',
+    label: 'Empty',
     slots,
   };
 }

@@ -151,7 +151,7 @@ export function createState() {
     driveTier: 0,
     hullTier: 0,
     hint: '',
-    /** 0-based index into the six-slot tool hotbar. */
+    /** 0-based index into the ten-slot tool hotbar. Slots start empty. */
     hotbarSlot: 0,
     status: '',
     statusTime: 0,

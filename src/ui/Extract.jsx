@@ -2,15 +2,8 @@ const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
 export default function Extract({ bridge, snapshot }) {
   const extractMode = snapshot.mode === 'extract' || snapshot.extractMode;
-  const available = snapshot.extractAvailable;
   const toast = snapshot.extractToast || '';
   const hud = snapshot.hud || {};
-
-  function open() {
-    if (!available) return;
-    bridge.emit('uiBeep');
-    bridge.emit('openExtract', { rockId: available });
-  }
 
   function digit(d) {
     bridge.emit('uiBeep');
@@ -34,18 +27,6 @@ export default function Extract({ bridge, snapshot }) {
 
   return (
     <>
-      {!extractMode && available != null && (
-        <button
-          id="extract-prompt"
-          type="button"
-          className="btn btn-primary extract-prompt"
-          onClick={open}
-        >
-          Extract
-          <span>E</span>
-        </button>
-      )}
-
       {extractMode && (
         <div id="extract" className="overlay extract-overlay">
           <div className="extract-panel">

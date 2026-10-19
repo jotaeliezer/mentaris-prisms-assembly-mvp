@@ -29,6 +29,7 @@ import {
   fabricateHull,
   fabricateMap,
   idle,
+  HOTBAR_SIZE,
   openExtract,
   selectHotbar,
   setFab,
@@ -387,24 +388,17 @@ export default class PlayScene extends Phaser.Scene {
         return;
       }
       if (event.code === 'KeyE') {
-        if (mode === 'fly' && this.state.extractAvailable) {
-          this.clearFlightInput();
-          openExtract(this.state, this.state.extractAvailable, this.audio);
-          this.publishSnapshot(true);
-          return;
-        }
         changeLayer(this.state, 1, this.audio);
         this.publishSnapshot(true);
         return;
       }
-      // Digits 1–6 select a hotbar slot only while flying.
+      // Digits 1–9 and 0 select a hotbar slot only while flying.
       // Extract mode returns above and still types the math answer.
-      // Focused inputs are ignored at the top of this handler.
       const digit = digitFromEvent(event);
       if (digit != null) {
-        const n = Number(digit);
-        if (n >= 1 && n <= 6) {
-          selectHotbar(this.state, n - 1);
+        const slot = digit === '0' ? HOTBAR_SIZE - 1 : Number(digit) - 1;
+        if (slot >= 0 && slot < HOTBAR_SIZE) {
+          selectHotbar(this.state, slot);
           event.preventDefault();
           this.publishSnapshot(true);
         }

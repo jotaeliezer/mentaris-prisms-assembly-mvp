@@ -12,42 +12,38 @@ function assert(cond, msg) {
 
 const state = createState();
 const fresh = buildHotbar(state);
-assert(fresh.slots.length === HOTBAR_SIZE, 'six slots');
+assert(fresh.slots.length === HOTBAR_SIZE, 'ten slots');
+assert(HOTBAR_SIZE === 10, 'four slots beyond the original six');
 assert(
-  fresh.slots
-    .filter((slot) => slot.available)
-    .map((slot) => slot.id)
-    .join(',') === 'drive,hull',
-  'a new ship carries drive and hull'
+  fresh.slots.every((slot) => slot.available === false && slot.icon === '' && slot.badge === ''),
+  'nothing is equipped yet'
 );
-assert(fresh.slots.find((slot) => slot.id === 'hint').available === false, 'no hint yet');
-assert(fresh.slots.find((slot) => slot.id === 'map').available === false, 'map locked');
-assert(fresh.slots.find((slot) => slot.id === 'repair').available === false, 'no repair charge');
-assert(fresh.slots.find((slot) => slot.id === 'repair').icon === '', 'empty repair slot');
-assert(fresh.slots.find((slot) => slot.id === 'spare').available === false, 'placeholder slot');
+assert(
+  fresh.slots.map((slot) => slot.key).join(',') === '1,2,3,4,5,6,7,8,9,0',
+  'keys run 1 through 9, then 0'
+);
 assert(fresh.selected === 0 && fresh.slots[0].selected, 'slot 1 starts selected');
-assert(fresh.label === 'Drive', 'caption names the drive');
+assert(fresh.label === 'Empty', 'no item name is shown');
 
 selectHotbar(state, 3);
 assert(state.hotbarSlot === 3, 'select slot 4');
 assert(buildHotbar(state).label === 'Empty', 'empty slot caption');
-selectHotbar(state, 9);
+selectHotbar(state, 10);
 selectHotbar(state, -1);
 selectHotbar(state, 1.5);
 assert(state.hotbarSlot === 3, 'out of range ignored');
+selectHotbar(state, '9');
+assert(state.hotbarSlot === 9, '0-key index selects the last slot');
 selectHotbar(state, '1');
-assert(state.hotbarSlot === 1, 'numeric string selects hull');
+assert(state.hotbarSlot === 1, 'numeric string selects the second slot');
 
 state.hint = 'Hint: the answer starts with 1.';
 state.mapUnlocked = true;
 state.driveTier = 2;
 state.hullTier = 1;
 const owned = buildHotbar(state);
-assert(owned.slots.find((slot) => slot.id === 'hint').available, 'held hint fills a slot');
-assert(owned.slots.find((slot) => slot.id === 'map').available, 'unlocked map fills a slot');
-assert(owned.slots.find((slot) => slot.id === 'drive').badge === '2', 'drive tier badge');
-assert(owned.slots.find((slot) => slot.id === 'hull').badge === '1', 'hull tier badge');
-assert(owned.slots.find((slot) => slot.id === 'repair').available === false, 'repair stays empty');
+assert(owned.slots.every((slot) => slot.available === false), 'upgrades stay off the bar');
+assert(owned.slots.every((slot) => slot.icon === ''), 'no drive or hull icon');
 
 const rock = state.asteroids.find((item) => item.alive);
 state.mode = 'extract';

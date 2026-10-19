@@ -103,10 +103,6 @@ export default function App({ bridge }) {
         bridge.emit('cancelExtract');
         return;
       }
-      if (event.code === 'KeyE' && mode === 'fly' && snap.extractAvailable != null) {
-        bridge.emit('openExtract', { rockId: snap.extractAvailable });
-        return;
-      }
       if (event.code === 'Enter' && mode === 'extract') {
         bridge.emit('extractSubmit');
         return;
