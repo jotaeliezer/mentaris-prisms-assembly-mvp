@@ -467,6 +467,8 @@ export function startMission(state, id, seed, audio) {
   state.sharedGathers = [];
   state.sharedRocks = [];
   state.intro = { t: 0 };
+  state.taught = {};
+  state.idleFly = 0;
   state.fxFlash = 0;
   state.shakeTime = 0;
   state.quiet = 0;
@@ -1178,6 +1180,31 @@ function updateWormhole(state, audio) {
   }
 }
 
+function teachOnce(state, key, text) {
+  if (!state.taught) state.taught = {};
+  if (state.taught[key]) return;
+  state.taught[key] = true;
+  pushNotice(state, text);
+}
+
+function teachFlight(state, dt, input) {
+  if (!state.taught) state.taught = {};
+  if (state.intro || state.mode !== 'fly') return;
+  if (!state.taught.jumper && hullHas(state, 'jumper')) {
+    teachOnce(state, 'jumper', 'Layer jumper installed. Q and E change layers.');
+  }
+  if (state.taught.fly) return;
+  const speed = Math.hypot(state.ship.vx, state.ship.vy);
+  const thrusting = input && input.thrust && input.thrust();
+  if (speed > 12 || thrusting) {
+    state.taught.fly = true;
+    state.idleFly = 0;
+    return;
+  }
+  state.idleFly = (state.idleFly || 0) + dt;
+  if (state.idleFly > 8) teachOnce(state, 'fly', 'Hold W to fly.');
+}
+
 function pushNotice(state, text) {
   if (!state.notices) state.notices = [];
   state.notices.push({ id: state.nextId++, text, time: 4.4 });
@@ -1320,6 +1347,7 @@ export function updateFly(state, dt, ctx) {
   tickExtractToast(state, dt);
   tickShrink(state, dt);
   tickFx(state, dt);
+  teachFlight(state, dt, input);
   state.clock += dt;
   easeCamera(state, dt);
 }
@@ -1483,6 +1511,7 @@ export function setCargoOpen(state, open) {
   if (open) {
     if (state.mode !== 'fly') return;
     state.mode = 'cargo';
+    teachOnce(state, 'cargo', 'Drag a stack between the cargo and the hotbar.');
     return;
   }
   if (state.mode !== 'cargo') return;
