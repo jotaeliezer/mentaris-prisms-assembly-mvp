@@ -6,7 +6,7 @@ The Fabrication bench is in the game. By hand you can make Prism glass and the b
 
 ## What is in the game now
 
-The fabrication bay already shows every category at once. Each recipe is a count, such as `2 Pale ore`. Results go to the hotbar, then the cargo.
+The fabrication bay already shows every category at once. Each recipe is a count, such as `2 Pale ore`. Results go to the hotbar, then the cargo. Carrying the bench opens Belt iron, Amber resin, Void filament, Slate plate, Virid wire, and Glint lens. Those three are one count each: 2 Slate ore, 2 Virid ore, and 1 Glint ore.
 
 Layer travel with Q and E is locked. It opens when the ship is carrying a **Layer jumper**. The jumper’s current recipe is **4 Pale ore**. That cost is temporary so the lock can be tested. The real ingredients are not chosen yet. The jumper is not used up when you change layer. If a hull breach drops it, layer travel locks again until you pick it up.
 

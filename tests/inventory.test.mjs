@@ -182,6 +182,104 @@ assert(hasJumper(locked), 'the jumper is carried');
 changeLayer(locked, 1, null);
 assert(locked.transition && locked.transition.kind === 'layer', 'a carried jumper unlocks the shift');
 
+const plate = RECIPES.find((recipe) => recipe.id === 'slate-plate');
+const wire = RECIPES.find((recipe) => recipe.id === 'virid-wire');
+const lens = RECIPES.find((recipe) => recipe.id === 'glint-lens');
+assert(plate && plate.station === 'bench' && plate.costs.length === 1 && plate.costs[0].id === 'slate' && plate.costs[0].n === 2, 'slate plate is two slate ore at the bench');
+assert(wire && wire.station === 'bench' && wire.costs[0].id === 'virid' && wire.costs[0].n === 2, 'virid wire is two virid ore at the bench');
+assert(lens && lens.station === 'bench' && lens.costs[0].id === 'glint' && lens.costs[0].n === 1, 'glint lens is one glint ore at the bench');
+const refined = createState();
+startMission(refined, 'roam', 'ores', null);
+addItem(refined, 'slate', 2);
+addItem(refined, 'virid', 2);
+addItem(refined, 'glint', 1);
+assert(!craftItem(refined, 'slate-plate', null), 'slate plate stays closed without a bench');
+assert(!craftItem(refined, 'virid-wire', null), 'virid wire stays closed without a bench');
+assert(!craftItem(refined, 'glint-lens', null), 'glint lens stays closed without a bench');
+assert(addItem(refined, 'bench', 1) === 0, 'the same bench opens the mineral recipes');
+const bay = buildSnapshotPatch(refined, false);
+assert(
+  bay.recipes.some((recipe) => recipe.name === 'Slate plate' && recipe.ready),
+  'the fabrication bay lists a ready Slate plate'
+);
+assert(
+  bay.recipes.some((recipe) => recipe.name === 'Virid wire' && recipe.ready),
+  'the fabrication bay lists a ready Virid wire'
+);
+assert(
+  bay.recipes.some((recipe) => recipe.name === 'Glint lens' && recipe.ready),
+  'the fabrication bay lists a ready Glint lens'
+);
+assert(craftItem(refined, 'slate-plate', null), 'slate plate crafts');
+assert(countItem(refined, 'slate') === 0 && countItem(refined, 'slate-plate') === 1, 'two slate ore become one plate');
+assert(craftItem(refined, 'virid-wire', null) && countItem(refined, 'virid-wire') === 1, 'virid wire crafts');
+assert(craftItem(refined, 'glint-lens', null) && countItem(refined, 'glint-lens') === 1, 'glint lens crafts');
+
+function flyInput(worldX, worldY) {
+  return {
+    mouse: { x: 0, y: 0, worldX, worldY, touch: false, held: false },
+    thrust: () => false,
+    brake: () => false,
+    strafe: () => 0,
+    takeClicks: () => [],
+  };
+}
+
+const lesson = createState();
+startMission(lesson, 'roam', 'lesson', null);
+lesson.intro = null;
+lesson.mode = 'fly';
+const lessonRock = lesson.asteroids.find((item) => item.alive && !item.depleted);
+lesson.ship.x = lessonRock.x + 180;
+lesson.ship.y = lessonRock.y;
+lesson.camera.x = lesson.ship.x;
+lesson.camera.y = lesson.ship.y;
+const lessonInput = flyInput(lesson.ship.x + 40, lesson.ship.y);
+updateFly(lesson, 0.05, { input: lessonInput, audio: null, view: { w: 800, h: 600 } });
+assert(
+  lesson.notices.some((note) => note.text === 'Click a rock to see its question.'),
+  'the first rock in range toasts the click'
+);
+updateFly(lesson, 0.05, { input: lessonInput, audio: null, view: { w: 800, h: 600 } });
+assert(
+  lesson.notices.filter((note) => note.text === 'Click a rock to see its question.').length === 1,
+  'the rock toast shows once'
+);
+
+const full = createState();
+startMission(full, 'roam', 'full-bar', null);
+full.intro = null;
+full.mode = 'fly';
+for (const id of ['pale', 'slate', 'amber', 'virid', 'glint', 'glass', 'iron', 'resin', 'filament', 'flare']) {
+  addItem(full, id, 1);
+}
+assert(full.hotbar.every((stack) => stack), 'ten different stacks fill the hotbar');
+updateFly(full, 0.05, { input: flyInput(full.ship.x, full.ship.y), audio: null, view: { w: 800, h: 600 } });
+assert(
+  full.notices.some((note) => note.text === 'The hotbar is full. Press C.'),
+  'a full hotbar says to press C'
+);
+
+const breachLesson = createState();
+startMission(breachLesson, 'roam', 'breach-toast', null);
+breachLesson.intro = null;
+breachHull(breachLesson, null);
+assert(
+  breachLesson.notices.some((note) => note.text === 'Hull breached. Fly back and pick up what you dropped.'),
+  'the first hull breach queues its own toast'
+);
+idle(breachLesson, 3, null);
+assert(
+  breachLesson.notices.some((note) => note.text.startsWith('Hull breached')),
+  'the breach toast waits through the game-over screen'
+);
+respawnShip(breachLesson, null);
+idle(breachLesson, 0.2, null);
+assert(
+  breachLesson.notices.some((note) => note.text.startsWith('Hull breached')),
+  'the breach toast is still there once the ship flies again'
+);
+
 const emptyField = createState();
 emptyField.asteroids = [];
 emptyField.ship.x = 4000;

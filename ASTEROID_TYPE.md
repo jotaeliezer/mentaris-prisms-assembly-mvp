@@ -41,4 +41,4 @@ The crystal on the ground is still `mineral.png`, tinted for the mineral. Pale i
 
 - The question on the rock is still easy or hard on its own. A glint rock can ask an easy question. It still drops Glint ore, just one crystal.
 - Alien parts in `FREE_COMBAT.md` are not these ores. Aliens do not drop Pale, Slate, Amber, Virid, or Glint.
-- Slate, Virid, and Glint can be picked up and stored. They do not have fabrication recipes yet.
+- Slate, Virid, and Glint can be picked up and stored. The fabrication bench turns two Slate ore into a Slate plate, two Virid ore into a Virid wire, and one Glint ore into a Glint lens.

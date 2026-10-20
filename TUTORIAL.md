@@ -20,12 +20,12 @@ The player learns by doing these, in this order. A later beat does not appear be
 1. **Launch.** The title is the only full-screen lesson. Launch drops the ship into the belt. The ship is hidden until then.
 2. **Fly.** The first seconds of flight are enough. W builds speed and the exhaust grows. S reverses. The mouse aims. No toast for this unless the ship has not moved after a long idle, and even then it is one line: `Hold W to fly.`
 3. **Touch a rock.** The bump is the lesson. The sky-blue rim is the rock you are aimed at. No separate "watch out" speech before the first hit.
-4. **Extract.** The first time a rock is in range, the hint says to click it. The numpad is the lesson. A correct answer leaves the mineral beside the rock. It does not enter the hotbar by itself.
+4. **Extract.** The first time a rock is in range, a toast says `Click a rock to see its question.` The bottom hint still says to click it. The numpad is the lesson. A correct answer leaves the mineral beside the rock. It does not enter the hotbar by itself.
 5. **Collect.** Flying onto the mineral puts it in the hotbar. That is the first inventory beat. The toast names what you picked up only by unlocking a recipe, not by listing every pebble.
 6. **Fabricate.** The first time the hotbar and cargo can pay for a recipe, the toast names that recipe and says `Press F.` Opening fabrication with F completes the beat. The bay is the recipe list. There is no crafting grid.
-7. **Cargo.** The first time the hotbar is full, or the first time the player presses C, the hint says cargo is beside the hotbar. Dragging a stack is the lesson. Click still picks up and places.
+7. **Cargo.** The first time the hotbar is full, a toast says `The hotbar is full. Press C.` The first time the player presses C, a toast says to drag a stack between the cargo and the hotbar. Click still picks up and places.
 8. **Jumper.** When the player can afford the layer jumper, that toast is the layer lesson. Q and E stay locked until the jumper is carried. The toast does not explain all 501 layers.
-9. **Breach.** The first hull breach is the lesson for dropped stacks. The respawn line already says to fly back and pick them up. No extra toast on top of game over.
+9. **Breach.** The first hull breach toasts `Hull breached. Fly back and pick up what you dropped.` That toast waits on the game-over screen and shows when the ship is flying again. The respawn line says to fly back and pick the stacks up.
 
 ## What not to do
 
