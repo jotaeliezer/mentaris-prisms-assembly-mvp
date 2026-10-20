@@ -2,6 +2,7 @@ import { clamp, len, makeRng, wrapAngle } from './util.js';
 import { nextProblem, problemSpec } from './questions.js';
 import {
   APPROACH,
+  ASTEROID_TYPES,
   LAYER_MAX,
   LAYER_MIN,
   MISSIONS,
@@ -14,6 +15,7 @@ import {
   mineralYield,
   spawnAsteroid,
 } from './state.js';
+import { buildProgressSnapshot, decodeBanks, decodeClusters } from '../save/snapshot.js';
 import {
   dieClaimKey,
   eventOnLayer,
@@ -476,7 +478,91 @@ function returnCluster(state, audio) {
   beginShift(state, -1, () => arriveInCluster(state, dest, true), null, audio);
 }
 
-export function startMission(state, id, seed, audio) {
+export function captureProgress(state) {
+  saveLayerBank(state);
+  return buildProgressSnapshot(state);
+}
+
+export function returnToTitle(state) {
+  state.mode = 'title';
+  state.transition = null;
+  state.assemblyId = null;
+  state.held = null;
+}
+
+export function resumeAssembly(state, progress, audio, assemblyId) {
+  if (!progress || progress.version !== 1) return false;
+  const mission = MISSIONS[progress.missionId] || MISSIONS.add;
+  if (audio) {
+    audio.unlock();
+    audio.launch();
+  }
+  state.assemblyId = assemblyId || null;
+  state.mission = { ...mission, cleared: false };
+  state.seed = cleanSeed(progress.seed || state.seed);
+  state.cluster = Number(progress.cluster) || 1;
+  state.layer = Number.isFinite(Number(progress.layer)) ? Number(progress.layer) : 0;
+  state.solved = Number(progress.solved) || 0;
+  state.bank = Number(progress.bank) || 0;
+  state.cargo = Number(progress.cargo) || 0;
+  state.mapUnlocked = !!progress.mapUnlocked;
+  state.driveTier = Number(progress.driveTier) || 0;
+  state.hullTier = Number(progress.hullTier) || 0;
+  state.hotbarSlot = Number(progress.hotbarSlot) || 0;
+  state.knownCrafts = progress.knownCrafts && typeof progress.knownCrafts === 'object' ? progress.knownCrafts : {};
+  state.taught = progress.taught && typeof progress.taught === 'object' ? progress.taught : {};
+  state.hotbar = Array.isArray(progress.hotbar) ? progress.hotbar : emptyStacks(10);
+  state.cargoSlots = Array.isArray(progress.cargoSlots) ? progress.cargoSlots : emptyStacks(CARGO_SIZE);
+  state.hullSlots = Array.isArray(progress.hullSlots) ? progress.hullSlots : null;
+  ensureInventory(state);
+  const ship = progress.ship || {};
+  state.ship.x = Number(ship.x) || state.ship.x;
+  state.ship.y = Number(ship.y) || state.ship.y;
+  state.ship.vx = Number(ship.vx) || 0;
+  state.ship.vy = Number(ship.vy) || 0;
+  state.ship.aim = Number.isFinite(Number(ship.aim)) ? Number(ship.aim) : -Math.PI / 2;
+  state.ship.hp = Number(ship.hp) || 100;
+  state.ship.maxHp = 100 + state.hullTier * 30;
+  state.ship.maxSpeed = 430 + state.driveTier * 50;
+  if (typeof ship.sprite === 'string' && ship.sprite) state.ship.sprite = ship.sprite;
+  state.ship.hp = Math.min(state.ship.maxHp, state.ship.hp);
+  state.home = progress.home || { x: state.ship.x, y: state.ship.y };
+  state.wormhole = progress.wormhole || null;
+  state.returnHole = progress.returnHole || null;
+  state.layerBanks = decodeBanks(progress.layerBanks);
+  state.clusterCache = decodeClusters(progress.clusterCache);
+  state.rng = layerRng(state);
+  state.buffer = '';
+  state.wrong = 0;
+  state.held = null;
+  state.hint = '';
+  state.targetId = 0;
+  state.missiles = [];
+  state.particles = [];
+  state.fxGreen = 0;
+  state.correctAnswer = '';
+  state.pendingExtractClose = false;
+  state.notices = [];
+  state.sharedGathers = [];
+  state.sharedRocks = [];
+  state.intro = null;
+  state.idleFly = 0;
+  state.transition = null;
+  clearExtractSession(state);
+  resetShareMaps(state);
+  restoreLayerBank(state);
+  if (!state.asteroids.length) {
+    populateField(state);
+    if (!state.wormhole && mission.operation) placeWormhole(state);
+    saveLayerBank(state);
+  }
+  state.camera.x = state.ship.x;
+  state.camera.y = state.ship.y;
+  state.mode = 'fly';
+  return true;
+}
+
+export function startMission(state, id, seed, audio, assemblyId) {
   const mission = MISSIONS[id] || MISSIONS.roam;
   if (audio) {
     audio.unlock();
@@ -514,6 +600,7 @@ export function startMission(state, id, seed, audio) {
   state.ship.hp = state.ship.maxHp;
   state.ship.aim = -Math.PI / 2;
   state.seed = cleanSeed(seed);
+  state.assemblyId = assemblyId || null;
   state.cluster = 1;
   state.layer = 0;
   state.layerBanks = {};
@@ -856,7 +943,13 @@ function acceptAnswer(state, rock, audio) {
         : state.rng() < 0.5
           ? 'add'
           : 'sub');
-    rock.question = nextProblem(problemSpec(operation, rock.difficulty || 'easy'), state.rng);
+    const previous = rock.question && rock.question.prompt;
+    const spec = problemSpec(operation, rock.difficulty || 'easy');
+    let next = nextProblem(spec, state.rng);
+    for (let attempt = 0; attempt < 12 && previous && next.prompt === previous; attempt += 1) {
+      next = nextProblem(spec, state.rng);
+    }
+    rock.question = next;
     rock.difficulty = rock.question.difficulty;
     state.hint = '';
   }
@@ -1849,6 +1942,12 @@ export function idle(state, dt, audio) {
   }
 }
 
+function rockTypeName(rock) {
+  if (!rock) return '';
+  const type = ASTEROID_TYPES.find((entry) => entry.mineral === rock.mineral);
+  return type ? type.name : '';
+}
+
 function extractQuestionReadout(state) {
   if (state.mode !== 'extract') return '';
   const rock = extractRock(state);
@@ -2104,10 +2203,6 @@ function applyUse(state, use) {
     noteStatus(state, 'Sector map unlocked.');
     return true;
   }
-  if (use === 'compass') {
-    noteStatus(state, 'Layer ' + state.layer + '.');
-    return true;
-  }
   if (use === 'ping') {
     let bestDist = Infinity;
     for (const drop of state.drops) {
@@ -2224,6 +2319,12 @@ export function buildHudFields(state) {
         ? state.status
         : 'Scroll the wheel to change slots. C opens cargo. Q and E need a layer jumper.',
     hotbar: buildHotbar(state),
+    compass: hullHas(state, 'compass')
+      ? {
+          layer: state.layer,
+          along: Math.max(0, Math.min(1, state.ship.x / (state.world.w || 1))),
+        }
+      : null,
   };
 }
 
@@ -2279,10 +2380,13 @@ export function buildSnapshotPatch(state, muted) {
     missionId: state.mission ? state.mission.id : '',
     muted: !!muted,
     clearTitle: state.clearTitle,
+    assemblyId: state.assemblyId || '',
     clearCopy: state.clearCopy,
     extractAvailable: state.extractAvailable || null,
     extractMode: state.mode === 'extract',
     extractQuestion: extractQuestionReadout(state),
+    extractRockName: state.mode === 'extract' ? rockTypeName(extractRock(state)) : '',
+    rockTip: state.rockTip || null,
     extractToast: state.extractToast || '',
     extractRockId: state.extractRockId || null,
     fxGreen: state.fxGreen > 0,

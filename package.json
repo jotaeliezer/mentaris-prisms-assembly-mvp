@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/questions.test.mjs && node tests/hotbar.test.mjs && node tests/layers-spawn.test.mjs && node tests/session-code.test.mjs && node tests/inventory.test.mjs && node tests/multiplayer-sync.test.mjs"
+    "test": "node tests/questions.test.mjs && node tests/hotbar.test.mjs && node tests/layers-spawn.test.mjs && node tests/session-code.test.mjs && node tests/inventory.test.mjs && node tests/multiplayer-sync.test.mjs && node tests/save-snapshot.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

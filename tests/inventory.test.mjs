@@ -14,6 +14,7 @@ import {
 import {
   breachHull,
   buildHotbar,
+  buildHudFields,
   buildSnapshotPatch,
   changeLayer,
   craftItem,
@@ -46,8 +47,8 @@ assert(fresh.hotbar.every((stack) => stack == null), 'hotbar starts empty');
 const ids = ['pale', 'amber', 'glass', 'iron', 'resin', 'filament', 'flare', 'drive', 'hull', 'hint'];
 for (const id of ids) assert(addItem(fresh, id, 1) === 0, 'first ten kinds fit the hotbar');
 assert(fresh.hotbar.every((stack) => stack && stack.count === 1), 'hotbar is full');
-assert(addItem(fresh, 'compass', 1) === 0, 'the next item fits');
-assert(fresh.cargoSlots.some((stack) => stack && stack.id === 'compass'), 'overflow goes to cargo');
+assert(addItem(fresh, 'ping', 1) === 0, 'the next item fits');
+assert(fresh.cargoSlots.some((stack) => stack && stack.id === 'ping'), 'overflow goes to cargo');
 assert(buildHotbar(fresh).slots.every((slot) => slot.available), 'hotbar shows every stack');
 
 selectHotbar(fresh, 0);
@@ -58,12 +59,23 @@ assert(fresh.hotbarSlot === 0, 'wheel up moves back');
 cycleHotbar(fresh, -1);
 assert(fresh.hotbarSlot === 9, 'wheel wraps to the last slot');
 
-const cargoIndex = fresh.cargoSlots.findIndex((stack) => stack && stack.id === 'compass');
+const cargoIndex = fresh.cargoSlots.findIndex((stack) => stack && stack.id === 'ping');
 selectHotbar(fresh, 0);
 const displaced = fresh.hotbar[0].id;
 assert(moveCargoToHotbar(fresh, cargoIndex, 0), 'cargo stack moves onto a hotbar slot');
-assert(fresh.hotbar[0].id === 'compass', 'selected hotbar slot receives the cargo stack');
+assert(fresh.hotbar[0].id === 'ping', 'selected hotbar slot receives the cargo stack');
 assert(fresh.cargoSlots[cargoIndex].id === displaced, 'a different item swaps back into cargo');
+
+const worn = createState();
+assert(addItem(worn, 'compass', 1) === 0, 'the compass fits');
+assert(worn.hullSlots.some((stack) => stack && stack.id === 'compass'), 'the compass wears in the hull');
+assert(!worn.hotbar.some((stack) => stack && stack.id === 'compass'), 'the compass does not sit in the hotbar');
+worn.layer = -3;
+worn.ship.x = worn.world.w * 0.1;
+const compassHud = buildHudFields(worn);
+assert(compassHud.compass && compassHud.compass.layer === -3, 'a worn compass reports the layer');
+assert(compassHud.compass.along > 0.09 && compassHud.compass.along < 0.11, 'the dot sits along the layer length');
+assert(buildHudFields(createState()).compass == null, 'the compass stays hidden until it is worn');
 
 const carry = createState();
 addItem(carry, 'pale', 3);

@@ -16,6 +16,7 @@ import {
 } from '../display.js';
 import { createInput } from '../input.js';
 import { multiplayer } from '../../multiplayer/session.js';
+import { saveAssembly } from '../../save/cloud.js';
 import { inventoryClick, inventoryDrag, itemTint } from '../items.js';
 import { readPilotName } from '../pilot.js';
 import { createState, WORLD } from '../state.js';
@@ -38,12 +39,16 @@ import {
   moveCargoToHotbar,
   moveHotbarToCargo,
   openExtract,
+  rockTouchDistance,
   respawnShip,
   selectHotbar,
   setCargoOpen,
   setHullOpen,
   setFab,
   setPaused,
+  captureProgress,
+  resumeAssembly,
+  returnToTitle,
   startMission,
   submitExtract,
   typeChar,
@@ -136,6 +141,12 @@ export default class PlayScene extends Phaser.Scene {
     this.wireBridge();
     this.wireDigits();
     this.wireLayerKeys();
+    this.onPageHide = () => {
+      const id = this.state && this.state.assemblyId;
+      if (!id || !this.state || this.state.mode === 'title') return;
+      saveAssembly(id, captureProgress(this.state));
+    };
+    window.addEventListener('pagehide', this.onPageHide);
 
     this.spawnPresenceSprites();
 
@@ -194,7 +205,10 @@ export default class PlayScene extends Phaser.Scene {
             ? payload.seed
             : this.state.seed;
         this.clearFlightInput();
-        startMission(this.state, missionId, this.sharedSeed(requested), this.audio);
+        const assemblyId = payload && typeof payload === 'object' ? payload.assemblyId : '';
+        const progress = payload && typeof payload === 'object' ? payload.progress : null;
+        if (progress) resumeAssembly(this.state, progress, this.audio, assemblyId);
+        else startMission(this.state, missionId, this.sharedSeed(requested), this.audio, assemblyId);
         this.resyncSprites();
         this.publishSnapshot(true);
       })
@@ -204,6 +218,21 @@ export default class PlayScene extends Phaser.Scene {
       bridge.on('setPaused', (paused) => {
         setPaused(this.state, !!paused);
         this.clearFlightInput();
+        this.publishSnapshot(true);
+      }),
+      bridge.on('saveAndLeave', async () => {
+        const id = this.state.assemblyId;
+        if (id) {
+          const result = await saveAssembly(id, captureProgress(this.state));
+          if (!result.ok) {
+            this.state.status = result.error || 'Could not save.';
+            this.state.statusTime = 3.4;
+            this.publishSnapshot(true);
+            return;
+          }
+        }
+        this.clearFlightInput();
+        returnToTitle(this.state);
         this.publishSnapshot(true);
       })
     );
@@ -388,6 +417,47 @@ export default class PlayScene extends Phaser.Scene {
     if (!this.inputCtl) return;
     this.inputCtl.clearKeys();
     this.inputCtl.takeClicks();
+  }
+
+  /** Star rank of the rock under the cursor, in screen space. */
+  syncRockTip() {
+    const mouse = this.inputCtl && this.inputCtl.mouse;
+    if (!mouse || !mouse.inside) {
+      this.state.rockTip = null;
+      return;
+    }
+    this.syncPointerWorld();
+    const x = mouse.worldX;
+    const y = mouse.worldY;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      this.state.rockTip = null;
+      return;
+    }
+    let best = null;
+    let bestDist = Infinity;
+    for (const rock of this.state.asteroids) {
+      if (!rock.alive || rock.depleted) continue;
+      const sprite = this.rockSprites && this.rockSprites.get(rock.id);
+      const radius = sprite
+        ? Math.max(sprite.displayWidth, sprite.displayHeight) * 0.46
+        : Math.max(8, rockTouchDistance(rock) - 24);
+      const dist = Math.hypot(rock.x - x, rock.y - y);
+      if (dist <= radius && dist < bestDist) {
+        best = rock;
+        bestDist = dist;
+      }
+    }
+    if (!best) {
+      this.state.rockTip = null;
+      return;
+    }
+    const canvas = this.game && this.game.canvas;
+    const rect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
+    this.state.rockTip = {
+      stars: best.difficulty === 'hard' ? '★★★' : '★',
+      x: rect.left + mouse.x,
+      y: rect.top + mouse.y,
+    };
   }
 
   /** Project canvas-local pointer through the main camera (handles scroll/zoom/squash). */
@@ -730,6 +800,7 @@ export default class PlayScene extends Phaser.Scene {
       idle(this.state, dt, this.audio);
     }
 
+    if (mode !== 'title') this.syncRockTip();
     this.publishMultiplayerPose();
     multiplayer.step();
     this.syncDisplay();
@@ -1074,6 +1145,7 @@ export default class PlayScene extends Phaser.Scene {
     this._didShutdown = true;
     this.scale.off('resize', this.onResize, this);
     if (this.onDigitKey) window.removeEventListener('keydown', this.onDigitKey);
+    if (this.onPageHide) window.removeEventListener('pagehide', this.onPageHide);
     for (const off of this.unsubs) off();
     this.unsubs = [];
     if (this.inputCtl) {

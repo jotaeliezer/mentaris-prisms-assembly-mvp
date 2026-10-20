@@ -54,4 +54,4 @@ Choose the material counts when the real recipes are chosen. Until then, do not 
 - No enchantment table minigame, no random modifier, and no second track of bonuses.
 - No extra slots beyond the four above.
 - The drawer does not require the fabrication bench. A piece you can already make can be worn. A later station can gate a piece’s recipe, following `STATIONS.md`, without gating the drawer itself.
-- No layer-number readout, and no new number on the top-left hull bar beyond the hull it already shows.
+- No always-on layer number, and no new number on the top-left hull bar beyond the hull it already shows. The layer compass is the exception: once that piece is worn, its diagram shows the layer number in bold to the left of the layer line.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { readPilotName } from '../game/pilot.js';
 import { GearIcon } from './SettingsPanel.jsx';
 import SessionControls from './SessionControls.jsx';
@@ -18,6 +18,15 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const hull = snapshot.hullRack;
   const hullSlots = hull && Array.isArray(hull.slots) ? hull.slots : [];
   const hullOpen = !!snapshot.hullOpen;
+  const [pointer, setPointer] = useState(null);
+
+  useEffect(() => {
+    function onMove(event) {
+      setPointer({ x: event.clientX, y: event.clientY });
+    }
+    window.addEventListener('pointermove', onMove);
+    return () => window.removeEventListener('pointermove', onMove);
+  }, []);
 
   function beginDrag(event, area, index, slot) {
     if (!slot.available) {
@@ -114,6 +123,27 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
             <div className="hull-meter-fill" style={{ width: `${hullPct}%` }} />
           </div>
         </div>
+        {hud.compass ? (
+          <div
+            className="layer-compass"
+            aria-label={
+              'Layer ' +
+              hud.compass.layer +
+              '. Ship is ' +
+              (hud.compass.along < 0.33 ? 'far left' : hud.compass.along > 0.66 ? 'far right' : 'near the middle') +
+              ' on this layer.'
+            }
+          >
+            <strong className="layer-compass-num">{hud.compass.layer}</strong>
+            <div className="layer-compass-track">
+              <span className="layer-compass-line" />
+              <span
+                className="layer-compass-dot"
+                style={{ left: `${hud.compass.along * 100}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
         <div className="flight-tools">
           <span className="pilot-name">{readPilotName()}</span>
           {showFlightGear ? (
@@ -230,6 +260,18 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
           <span className="hotbar-swatch" style={{ background: drag.color }}>
             {drag.mark}
           </span>
+        </div>
+      ) : snapshot.held && pointer ? (
+        <div className="drag-ghost" style={{ left: pointer.x, top: pointer.y }}>
+          <span className="hotbar-swatch" style={{ background: snapshot.held.color }}>
+            {snapshot.held.mark}
+          </span>
+          {snapshot.held.count > 1 ? <span className="hotbar-badge">{snapshot.held.count}</span> : null}
+        </div>
+      ) : null}
+      {snapshot.rockTip ? (
+        <div className="rock-tip" style={{ left: snapshot.rockTip.x, top: snapshot.rockTip.y }}>
+          {snapshot.rockTip.stars}
         </div>
       ) : null}
       {tip ? (

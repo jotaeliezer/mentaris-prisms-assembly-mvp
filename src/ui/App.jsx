@@ -187,7 +187,7 @@ export default function App({ bridge }) {
       {showExtractUi && <Extract bridge={bridge} snapshot={snapshot} />}
       {mode === 'fab' && <Fab bridge={bridge} snapshot={snapshot} />}
       {mode === 'dead' && <GameOver bridge={bridge} />}
-      {mode === 'paused' && !flightSettingsOpen && <Pause bridge={bridge} />}
+      {mode === 'paused' && !flightSettingsOpen && <Pause bridge={bridge} snapshot={snapshot} />}
       {mode === 'clear' && <Clear bridge={bridge} snapshot={snapshot} />}
       {snapshot.intro && snapshot.intro.black > 0.02 && (
         <div className="intro-cover" style={{ opacity: snapshot.intro.black }} />

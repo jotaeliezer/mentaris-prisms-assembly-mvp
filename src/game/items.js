@@ -23,7 +23,7 @@ export const ITEMS = {
   hull: { id: 'hull', name: 'Hull plate', mark: 'Hu', color: '#b7d4ff', tint: 0xb7d4ff, kind: 'ship', use: 'hull', about: 'A plate that raises maximum hull and repairs a little. Use it from the hotbar, up to three times. Useful after a few rock bumps.' },
   hint: { id: 'hint', name: 'Math hint', mark: 'Hi', color: '#ffe08a', tint: 0xffe08a, kind: 'ship', use: 'hint', about: 'A hint for the rock you are nearest. Use it from the hotbar. It tells you if a one-digit answer is odd or even, or the first digit of a longer one. Useful when you are stuck on an extract.' },
   map: { id: 'map', name: 'Layer map', mark: 'Mp', color: '#9ad7ff', tint: 0x9ad7ff, kind: 'hud', use: 'map', about: 'The small map in the bottom right of the flight view. Fabricating it turns that map on for this layer. Useful when you need to see rocks and the gate without flying blind.' },
-  compass: { id: 'compass', name: 'Layer compass', mark: 'Lc', color: '#d2fff8', tint: 0xd2fff8, kind: 'hud', use: 'compass', about: 'A one-shot readout of the layer you are on. Use it from the hotbar. Useful after several jumps, when you want the signed layer number without a permanent HUD label.' },
+  compass: { id: 'compass', name: 'Layer compass', mark: 'Lc', color: '#d2fff8', tint: 0xd2fff8, kind: 'hud', about: 'A hull instrument. Once it is worn, the flight view draws this layer as a line, with a dot for where the ship sits between the two ends, and the layer number beside that line. It is not used up from the hotbar. Useful after several jumps, when you need to know if you are far to the left or the right.' },
   ping: { id: 'ping', name: 'Ore ping', mark: 'Op', color: '#ffd7a1', tint: 0xffd7a1, kind: 'hud', use: 'ping', about: 'Reports how far the nearest dropped mineral is. Use it from the hotbar. Useful when an extract dropped ore and you flew past it.' },
   gate: { id: 'gate', name: 'Gate marker', mark: 'Gm', color: '#d2b4ff', tint: 0xd2b4ff, kind: 'hud', use: 'gate', about: 'Reports how far the wormhole or return gate is. Use it from the hotbar. Useful when the quota is met and you are looking for the jump.' },
   repair: { id: 'repair', name: 'Repair patch', mark: 'Rp', color: '#8dffb0', tint: 0x8dffb0, kind: 'ability', use: 'repair', about: 'Restores 40 hull, up to the maximum. Use it from the hotbar. Useful just after a bump, before the hull reaches zero.' },
@@ -68,6 +68,7 @@ export function recipeOpen(state, recipe) {
 export const HULL_FITS = [
   { accept: 'jumper', label: 'Layer jumper' },
   { accept: 'bench', label: 'Fabrication bench' },
+  { accept: 'compass', label: 'Layer compass' },
 ];
 
 export function ensureHull(state) {
@@ -174,7 +175,7 @@ export function addItem(state, id, count) {
   ensureHull(state);
   if (!ITEMS[id] || count <= 0) return count;
   let left = count;
-  if ((id === 'jumper' || id === 'bench') && equipHull(state, id)) left -= 1;
+  if (HULL_FITS.some((slot) => slot.accept === id) && equipHull(state, id)) left -= 1;
   if (left <= 0) return 0;
   left = addInto(state.hotbar, id, left);
   if (left > 0) left = addInto(state.cargoSlots, id, left);

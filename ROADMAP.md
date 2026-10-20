@@ -8,7 +8,7 @@ What is already in the game, then the work that is still only written down. The 
 - Five asteroid pictures. Each picture drops its own mineral. Size and a hard question change the count. Rarer pictures spawn less often. See `ASTEROID_TYPE.md`.
 - Hotbar, cargo on C, drag between them, and a name when you hover a slot.
 - Fabrication on F. Prism glass and the Fabrication bench are hand recipes. Carrying the bench, in the hull panel, opens the rest. See `STATIONS.md`.
-- Hull panel on R for the layer jumper and the fabrication bench. Q and E need the jumper installed there.
+- Hull panel on R for the layer jumper, the fabrication bench, and the layer compass. The compass draws this layer as a line, with the ship as a dot and the layer number in bold beside it. Q and E need the jumper installed there.
 - Launch fades through black, asteroids, stars, then the ship and HUD.
 - Pilot name on the title screen and at the top right.
 - Live ships on one seed. Shots, shrinks, ore pickups, and a drill while extracting are visible to the other pilot. A crafted weapon can hit the other ship.
@@ -28,6 +28,10 @@ What is already in the game, then the work that is still only written down. The 
 10. **Achievements.** There is no achievements file. When there is one, each achievement uses the same toast as `TUTORIAL.md`.
 
 ## Leave for later
+
+- Planets, digging, and a ground base. See `PLANETS.md`. The floating build in `CONSTRUCT.md` is the station.
+- Star dust and light rays as extra fabrication materials. See `STARS.md`.
+- Black holes, nebulas, abandoned strongholds, and the other large objects in `SPACE_OBJECT.md`.
 
 - A second crafting grid. Recipes stay counts.
 - Timed extract questions. The belt stays untimed.

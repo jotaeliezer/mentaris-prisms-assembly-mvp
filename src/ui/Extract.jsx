@@ -8,7 +8,7 @@ function placeExtractPanel(anchor) {
   }
   const vw = anchor.vw;
   const vh = anchor.vh;
-  const bottomGap = 78;
+  const bottomGap = 112;
   const width = Math.min(PANEL_W, vw - 108);
   const height = Math.min(PANEL_H, vh - bottomGap - 16);
   const spots = [
@@ -80,7 +80,7 @@ export default function Extract({ bridge, snapshot }) {
       {extractMode && (
         <div id="extract" className="overlay extract-overlay">
           <div className="extract-panel" style={{ left: place.left, top: place.top }}>
-            <p className="eyebrow">Extraction</p>
+            <p className="eyebrow">{snapshot.extractRockName || 'Extraction'}</p>
             <h2 id="extract-question" className="extract-question">
               {snapshot.extractQuestion || 'Solve to extract'}
             </h2>

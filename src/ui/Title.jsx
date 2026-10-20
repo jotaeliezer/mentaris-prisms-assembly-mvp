@@ -1,5 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { readPilotName, writePilotName } from '../game/pilot.js';
+import { cleanSeed } from '../game/state.js';
+import { generateSessionCode } from '../multiplayer/sessionCode.js';
+import {
+  ASSEMBLY_LIMIT,
+  cloudConfigured,
+  createAccount,
+  createAssembly,
+  deleteAssembly,
+  listAssemblies,
+  loadProgress,
+  playOnThisBrowser,
+  readPilot,
+  signInAccount,
+  signOutPilot,
+} from '../save/cloud.js';
 import SettingsPanel, { DEFAULT_MISSION, DEFAULT_SEED, GearIcon } from './SettingsPanel.jsx';
 import { useMultiplayer } from './SessionControls.jsx';
 
@@ -21,12 +36,22 @@ export default function Title({ bridge }) {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [mission, setMission] = useState(DEFAULT_MISSION);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [assemblies, setAssemblies] = useState([]);
+  const [cloudOn, setCloudOn] = useState(false);
+  const [account, setAccount] = useState(null);
+  const [authMode, setAuthMode] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [cloudNote, setCloudNote] = useState('');
+  const [assemblyName, setAssemblyName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState('');
   const live = useMultiplayer();
   const gearRef = useRef(null);
   const closeRef = useRef(null);
   const openedOnce = useRef(false);
 
-  function launch() {
+  function launchFresh() {
     if (live.needsShip || live.sessionFull) return;
     bridge.emit('uiBeep');
     const liveSeed = live.connected && live.seed ? live.seed : seed.trim() || DEFAULT_SEED;
@@ -34,6 +59,152 @@ export default function Title({ bridge }) {
       missionId: mission,
       seed: liveSeed,
     });
+  }
+
+  async function refreshHome() {
+    if (!cloudConfigured()) {
+      setCloudOn(false);
+      setAccount(null);
+      setAssemblies([]);
+      return;
+    }
+    const pilot = await readPilot();
+    setCloudOn(true);
+    setAccount(pilot);
+    if (!pilot.signedIn) {
+      setAssemblies([]);
+      return;
+    }
+    const result = await listAssemblies();
+    if (result.error) setCloudNote(result.error);
+    setAssemblies(result.assemblies || []);
+  }
+
+  async function useThisBrowser() {
+    if (busy) return;
+    setBusy(true);
+    bridge.emit('uiBeep');
+    const result = await playOnThisBrowser();
+    setBusy(false);
+    if (!result.ok) {
+      setCloudNote(result.error || 'Could not save on this browser.');
+      return;
+    }
+    setCloudNote('');
+    setAuthMode('');
+    refreshHome();
+  }
+
+  async function submitAccount(event) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    bridge.emit('uiBeep');
+    const result =
+      authMode === 'signin' ? await signInAccount(email, password) : await createAccount(email, password);
+    setBusy(false);
+    if (!result.ok) {
+      setCloudNote(result.error || 'Could not sign in.');
+      return;
+    }
+    setPassword('');
+    setAuthMode('');
+    if (result.pending) {
+      setCloudNote('Check that email to finish. Then sign in. This pilot keeps the same assemblies once the account is confirmed.');
+    } else {
+      setCloudNote('');
+    }
+    refreshHome();
+  }
+
+  async function leaveAccount() {
+    if (busy) return;
+    setBusy(true);
+    bridge.emit('uiBeep');
+    const result = await signOutPilot();
+    setBusy(false);
+    setAuthMode('');
+    setPassword('');
+    if (!result.ok) {
+      setCloudNote(result.error || 'Could not sign out.');
+      return;
+    }
+    setCloudNote('');
+    refreshHome();
+  }
+
+  async function beginAssembly(row) {
+    if (busy || live.needsShip || live.sessionFull) return;
+    setBusy(true);
+    bridge.emit('uiBeep');
+    const loaded = await loadProgress(row.id);
+    setBusy(false);
+    if (!loaded.ok) {
+      setCloudNote(loaded.error || 'Could not open that assembly.');
+      return;
+    }
+    if (loaded.progress) {
+      bridge.emit('startMission', {
+        missionId: row.missionId,
+        seed: row.seed,
+        assemblyId: row.id,
+        progress: loaded.progress,
+      });
+      return;
+    }
+    bridge.emit('startMission', {
+      missionId: row.missionId || mission,
+      seed: row.seed,
+      assemblyId: row.id,
+    });
+  }
+
+  async function makeAssembly() {
+    if (busy || assemblies.length >= ASSEMBLY_LIMIT) return;
+    const title = assemblyName.trim();
+    if (!title) {
+      setCloudNote('Name the assembly first.');
+      return;
+    }
+    setBusy(true);
+    bridge.emit('uiBeep');
+    const created = await createAssembly({
+      name: title,
+      seed: cleanSeed(generateSessionCode()),
+      missionId: mission,
+    });
+    setBusy(false);
+    if (!created.ok || !created.assembly) {
+      setCloudNote(created.error || 'Could not create the assembly.');
+      return;
+    }
+    setAssemblyName('');
+    setCloudNote('');
+    bridge.emit('startMission', {
+      missionId: created.assembly.missionId,
+      seed: created.assembly.seed,
+      assemblyId: created.assembly.id,
+    });
+  }
+
+  async function removeAssembly(id) {
+    if (confirmDelete !== id) {
+      setConfirmDelete(id);
+      return;
+    }
+    setBusy(true);
+    const result = await deleteAssembly(id);
+    setBusy(false);
+    setConfirmDelete('');
+    if (!result.ok) {
+      setCloudNote(result.error || 'Could not delete that assembly.');
+      return;
+    }
+    refreshHome();
+  }
+
+  function launch() {
+    launchFresh();
   }
 
   function toggleSettings() {
@@ -51,6 +222,10 @@ export default function Title({ bridge }) {
     bridge.emit('uiBeep');
     setMission(id);
   }
+
+  useEffect(() => {
+    refreshHome();
+  }, []);
 
   useEffect(() => {
     if (settingsOpen) {
@@ -71,7 +246,7 @@ export default function Title({ bridge }) {
         setSettingsOpen(false);
         return;
       }
-      if (event.code !== 'Enter' || settingsOpen) return;
+      if (event.code !== 'Enter' || settingsOpen || cloudOn) return;
       const tag = document.activeElement && document.activeElement.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'A' || tag === 'SELECT') {
         return;
@@ -80,7 +255,7 @@ export default function Title({ bridge }) {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [settingsOpen, mission, seed, bridge, live.connected, live.seed, live.needsShip, live.sessionFull]);
+  }, [settingsOpen, mission, seed, bridge, live.connected, live.seed, live.needsShip, live.sessionFull, cloudOn]);
 
   useEffect(() => {
     if (live.code) setSeed(live.code);
@@ -138,17 +313,241 @@ export default function Title({ bridge }) {
               onBlur={() => setPilot(writePilotName(pilot))}
             />
           </label>
-          <div className="home-launch-row">
-            <button
-              id="launch"
-              className="btn btn-primary home-launch"
-              type="button"
-              disabled={live.needsShip || live.sessionFull}
-              onClick={launch}
-            >
-              Launch
-            </button>
-          </div>
+          {cloudOn && account && !account.signedIn ? (
+            <div className="assembly-board">
+              <p className="assembly-label">Save</p>
+              <p className="assembly-empty">
+                Sign in before you pick an assembly. An account keeps the worlds with you. This browser keeps them here only.
+              </p>
+              <div className="auth-actions">
+                <button className="btn btn-primary" type="button" disabled={busy} onClick={useThisBrowser}>
+                  Play on this browser
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    bridge.emit('uiBeep');
+                    setAuthMode('signin');
+                  }}
+                >
+                  Sign in
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    bridge.emit('uiBeep');
+                    setAuthMode('create');
+                  }}
+                >
+                  Create account
+                </button>
+              </div>
+              {authMode ? (
+                <form className="auth-form" onSubmit={submitAccount}>
+                  <input
+                    type="email"
+                    value={email}
+                    autoComplete="email"
+                    placeholder="Email"
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                  <input
+                    type="password"
+                    value={password}
+                    autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'}
+                    placeholder="Password"
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button className="btn btn-primary" type="submit" disabled={busy}>
+                    {authMode === 'signin' ? 'Sign in' : 'Create account'}
+                  </button>
+                </form>
+              ) : null}
+              {cloudNote ? <p className="assembly-note">{cloudNote}</p> : null}
+              <button
+                id="launch"
+                className="btn auth-launch"
+                type="button"
+                disabled={live.needsShip || live.sessionFull}
+                onClick={launch}
+              >
+                Launch without saving
+              </button>
+            </div>
+          ) : null}
+          {cloudOn && account && account.signedIn ? (
+            <div className="assembly-board">
+              {account.anonymous ? (
+                <div className="save-banner is-browser" role="status">
+                  <strong>Saved on this browser only.</strong>
+                  <span>These assemblies stay in this browser. They do not follow an account.</span>
+                  <div className="auth-actions">
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        bridge.emit('uiBeep');
+                        setAuthMode(authMode === 'create' ? '' : 'create');
+                      }}
+                    >
+                      Add an account
+                    </button>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        bridge.emit('uiBeep');
+                        setAuthMode(authMode === 'signin' ? '' : 'signin');
+                      }}
+                    >
+                      Sign in
+                    </button>
+                    <button className="assembly-delete" type="button" disabled={busy} onClick={leaveAccount}>
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="save-banner is-account" role="status">
+                  <strong>Signed in{account.email ? ' as ' + account.email : ''}.</strong>
+                  <span>These assemblies follow this account.</span>
+                  <button className="assembly-delete" type="button" disabled={busy} onClick={leaveAccount}>
+                    Sign out
+                  </button>
+                </div>
+              )}
+              {authMode === 'create' && account.anonymous ? (
+                <form className="auth-form" onSubmit={submitAccount}>
+                  <p className="assembly-empty">
+                    Adding an account keeps the assemblies you already made on this browser.
+                  </p>
+                  <input
+                    type="email"
+                    value={email}
+                    autoComplete="email"
+                    placeholder="Email"
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                  <input
+                    type="password"
+                    value={password}
+                    autoComplete="new-password"
+                    placeholder="Password"
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button className="btn btn-primary" type="submit" disabled={busy}>
+                    Add an account
+                  </button>
+                </form>
+              ) : null}
+              {authMode === 'signin' && account.anonymous ? (
+                <form className="auth-form" onSubmit={submitAccount}>
+                  <p className="assembly-empty">
+                    Signing in to an existing account leaves this browser's assemblies behind.
+                  </p>
+                  <input
+                    type="email"
+                    value={email}
+                    autoComplete="email"
+                    placeholder="Email"
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                  <input
+                    type="password"
+                    value={password}
+                    autoComplete="current-password"
+                    placeholder="Password"
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button className="btn btn-primary" type="submit" disabled={busy}>
+                    Sign in
+                  </button>
+                </form>
+              ) : null}
+              <p className="assembly-label">Assemblies</p>
+              {assemblies.length === 0 ? (
+                <p className="assembly-empty">No assemblies yet. Name one to start a belt.</p>
+              ) : (
+                <ul className="assembly-list">
+                  {assemblies.map((row) => (
+                    <li key={row.id} className="assembly-row">
+                      <div className="assembly-copy">
+                        <strong>{row.name}</strong>
+                        <span>
+                          {row.started
+                            ? 'Layer ' + row.layer + ' · ' + row.score + ' solved'
+                            : 'Not started'}
+                          {' · '}
+                          {row.seed}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn assembly-continue"
+                        disabled={busy || live.needsShip || live.sessionFull}
+                        onClick={() => beginAssembly(row)}
+                      >
+                        {row.started ? 'Continue' : 'Launch'}
+                      </button>
+                      <button
+                        type="button"
+                        className="assembly-delete"
+                        disabled={busy}
+                        onClick={() => removeAssembly(row.id)}
+                      >
+                        {confirmDelete === row.id ? 'Confirm' : 'Delete'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {assemblies.length < ASSEMBLY_LIMIT ? (
+                <form
+                  className="assembly-create"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    makeAssembly();
+                  }}
+                >
+                  <input
+                    id="assembly-name"
+                    value={assemblyName}
+                    maxLength={24}
+                    placeholder="Assembly name"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onChange={(event) => setAssemblyName(event.target.value)}
+                  />
+                  <button className="btn btn-primary" type="submit" disabled={busy}>
+                    New assembly
+                  </button>
+                </form>
+              ) : (
+                <p className="assembly-empty">Five assemblies is the limit. Delete one to make another.</p>
+              )}
+              {cloudNote ? <p className="assembly-note">{cloudNote}</p> : null}
+            </div>
+          ) : null}
+          {!cloudOn ? (
+            <div className="home-launch-row">
+              <button
+                id="launch"
+                className="btn btn-primary home-launch"
+                type="button"
+                disabled={live.needsShip || live.sessionFull}
+                onClick={launch}
+              >
+                Launch
+              </button>
+              {cloudNote ? <p className="assembly-note">{cloudNote}</p> : null}
+            </div>
+          ) : null}
           <button
             ref={gearRef}
             type="button"

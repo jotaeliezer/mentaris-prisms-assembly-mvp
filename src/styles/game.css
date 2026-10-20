@@ -59,6 +59,64 @@ button, input {
   gap: 8px;
 }
 
+.layer-compass {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  pointer-events: none;
+}
+
+.layer-compass-num {
+  min-width: 2.4ch;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #f4fbff;
+  text-align: right;
+}
+
+.layer-compass-track {
+  position: relative;
+  width: min(420px, calc(100vw - 280px));
+  height: 16px;
+}
+
+.layer-compass-track::before,
+.layer-compass-track::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 2px;
+  background: rgba(210, 255, 248, 0.95);
+}
+
+.layer-compass-track::before { left: 0; }
+.layer-compass-track::after { right: 0; }
+
+.layer-compass-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: rgba(126, 231, 255, 0.9);
+  transform: translateY(-50%);
+}
+
+.layer-compass-dot {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f4fbff;
+  box-shadow: 0 0 8px rgba(126, 231, 255, 0.95);
+  transform: translate(-50%, -50%);
+}
+
 .hull-meter {
   width: 260px;
   max-width: calc(100vw - 36px);
@@ -403,6 +461,21 @@ button:disabled,
   filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
 }
 
+.rock-tip {
+  position: fixed;
+  z-index: 40;
+  transform: translate(16px, -50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(8, 12, 24, 0.94);
+  border: 1px solid rgba(126, 231, 255, 0.55);
+  color: #f4fbff;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .craft-toasts {
   position: fixed;
   right: 88px;
@@ -599,6 +672,13 @@ button:disabled,
   font-size: 22px;
   font-weight: 650;
   letter-spacing: 0.02em;
+}
+
+.extract-key:not(.extract-key-wide) {
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .extract-key:nth-child(10) {
@@ -973,6 +1053,14 @@ button:disabled {
   .hotbar-clear-map { right: 198px; }
 }
 
+@font-face {
+  font-family: "Press Start 2P";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/press-start/press-start-2p-latin-400-normal.woff2") format("woff2");
+}
+
 /* Home menu — Arith Belt title screen (home.html + asteroid_blaster.css). Oxanium is self-hosted. */
 @font-face {
   font-family: "Oxanium";
@@ -1094,7 +1182,9 @@ button:disabled {
 
 #title.home-menu .heroPanel {
   padding: 28px 32px 72px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: min(92vh, 920px);
 }
 
 #title.home-menu .heroPanel::before,
@@ -1142,10 +1232,206 @@ button:disabled {
 
 #title.home-menu .home-launch-row {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   margin-top: 18px;
   position: relative;
   z-index: 1;
+}
+
+.save-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.save-banner strong {
+  font-size: 14px;
+}
+
+.save-banner span {
+  color: rgba(232, 236, 255, 0.82);
+}
+
+.save-banner.is-browser {
+  background: rgba(255, 207, 112, 0.12);
+  border: 1px solid rgba(255, 207, 112, 0.55);
+}
+
+.save-banner.is-browser strong {
+  color: #ffcf70;
+}
+
+.save-banner.is-account {
+  background: rgba(126, 231, 255, 0.08);
+  border: 1px solid rgba(126, 231, 255, 0.35);
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assembly-board > .auth-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.assembly-board > .auth-actions .btn,
+.auth-launch {
+  width: 100%;
+}
+
+#launch.auth-launch {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.auth-actions .btn,
+.auth-form .btn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  background: rgba(8, 12, 24, 0.72);
+  color: #f4fbff;
+  font-size: 15px;
+}
+
+.assembly-board {
+  position: relative;
+  z-index: 1;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.assembly-label {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(232, 236, 255, 0.72);
+}
+
+.assembly-empty,
+.assembly-note {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(232, 236, 255, 0.78);
+}
+
+.assembly-note {
+  color: #ffcf70;
+}
+
+.assembly-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assembly-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(8, 12, 24, 0.55);
+  border: 1px solid rgba(126, 231, 255, 0.22);
+}
+
+.assembly-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.assembly-copy strong {
+  font-size: 15px;
+}
+
+.assembly-copy span {
+  font-size: 12px;
+  color: rgba(232, 236, 255, 0.68);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assembly-continue {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.assembly-delete {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: rgba(232, 236, 255, 0.72);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assembly-create {
+  display: flex;
+  gap: 8px;
+}
+
+.assembly-create input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  background: rgba(8, 12, 24, 0.72);
+  color: #f4fbff;
+  font-size: 15px;
+}
+
+.assembly-create .btn {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 #title.home-menu #launch.home-launch {

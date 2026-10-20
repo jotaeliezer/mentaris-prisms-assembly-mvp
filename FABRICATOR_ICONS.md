@@ -62,7 +62,7 @@ A cyan device the size of a coil, with two short prongs and a pale core. It is t
 A small rounded rectangle, dark fill, cyan border, with a few tiny rock dots and one white ship dot. This is the bottom-right flight map. Fabricating it turns that map on.
 
 ### Layer compass
-A pale cyan disc with a single needle pointing up and a small diamond at the center. It reports the current layer when used.
+A pale cyan disc with a single needle pointing up and a small diamond at the center. Worn in the hull, it draws the current layer as a line with the ship marked on it.
 
 ### Ore ping
 An amber ring with a small cyan crystal in the middle. It reports the distance to the nearest drop.
