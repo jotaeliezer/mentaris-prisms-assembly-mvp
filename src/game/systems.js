@@ -88,7 +88,7 @@ function punchCamera(state) {
 
 function tickFx(state, dt) {
   if (state.shakeTime > 0) state.shakeTime = Math.max(0, state.shakeTime - dt);
-  if (state.notices && state.notices.length) {
+  if (state.notices && state.notices.length && state.mode !== 'dead') {
     for (const note of state.notices) note.time -= dt;
     state.notices = state.notices.filter((note) => note.time > 0);
   }
@@ -1181,6 +1181,7 @@ export function breachHull(state, audio) {
   punchCamera(state);
   state.fxFlash = 0.28;
   state.status = 'Hull breached.';
+  teachOnce(state, 'breach', 'Hull breached. Fly back and pick up what you dropped.');
   state.statusTime = 4.5;
   if (audio) {
     if (typeof audio.hit === 'function') audio.hit();
@@ -1751,6 +1752,8 @@ function teachFlight(state, dt, input) {
   if (!state.taught.jumper && hullHas(state, 'jumper')) {
     teachOnce(state, 'jumper', 'Layer jumper installed. Q and E change layers.');
   }
+  teachRock(state);
+  teachHotbar(state);
   if (state.taught.fly) return;
   const speed = Math.hypot(state.ship.vx, state.ship.vy);
   const thrusting = input && input.thrust && input.thrust();
@@ -1761,6 +1764,25 @@ function teachFlight(state, dt, input) {
   }
   state.idleFly = (state.idleFly || 0) + dt;
   if (state.idleFly > 8) teachOnce(state, 'fly', 'Hold W to fly.');
+}
+
+/** First rock in range. The bottom hint still repeats the click. This is the toast. */
+function teachRock(state) {
+  if (!state.taught) state.taught = {};
+  if (state.taught.rock || state.intro || state.mode !== 'fly') return;
+  const near = state.asteroids.some((rock) => rock.near && rock.alive && !rock.depleted);
+  if (!near) return;
+  teachOnce(state, 'rock', 'Click a rock to see its question.');
+}
+
+/** First time every hotbar slot holds a stack. */
+function teachHotbar(state) {
+  if (!state.taught) state.taught = {};
+  if (state.taught.hotbar || state.intro) return;
+  if (state.mode === 'title' || state.mode === 'dead' || state.mode === 'paused') return;
+  ensureInventory(state);
+  if (state.hotbar.some((stack) => !stack)) return;
+  teachOnce(state, 'hotbar', 'The hotbar is full. Press C.');
 }
 
 function pushNotice(state, text) {
@@ -1934,6 +1956,7 @@ export function idle(state, dt, audio) {
   tickExtractToast(state, dt);
   tickShrink(state, dt);
   tickFx(state, dt);
+  teachHotbar(state);
   if (state.wrong > 0) state.wrong -= dt;
   if (state.statusTime > 0) state.statusTime -= dt;
   easeCamera(state, dt);
