@@ -27,6 +27,7 @@ export default function Title({ bridge }) {
   const openedOnce = useRef(false);
 
   function launch() {
+    if (live.needsShip || live.sessionFull) return;
     bridge.emit('uiBeep');
     const liveSeed = live.connected && live.seed ? live.seed : seed.trim() || DEFAULT_SEED;
     bridge.emit('startMission', {
@@ -79,7 +80,7 @@ export default function Title({ bridge }) {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [settingsOpen, mission, seed, bridge, live.connected, live.seed]);
+  }, [settingsOpen, mission, seed, bridge, live.connected, live.seed, live.needsShip, live.sessionFull]);
 
   useEffect(() => {
     if (live.code) setSeed(live.code);
@@ -138,7 +139,13 @@ export default function Title({ bridge }) {
             />
           </label>
           <div className="home-launch-row">
-            <button id="launch" className="btn btn-primary home-launch" type="button" onClick={launch}>
+            <button
+              id="launch"
+              className="btn btn-primary home-launch"
+              type="button"
+              disabled={live.needsShip || live.sessionFull}
+              onClick={launch}
+            >
               Launch
             </button>
           </div>

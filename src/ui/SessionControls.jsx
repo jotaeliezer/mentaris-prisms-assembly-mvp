@@ -96,7 +96,8 @@ export default function SessionControls({
     const ok = await done;
     setBusy(false);
     if (!ok) return;
-    if (inGame && bridge) {
+    const snap = multiplayer.getSnapshot();
+    if (inGame && bridge && snap.ship && !snap.needsShip && !snap.sessionFull) {
       bridge.emit('startMission', { missionId: missionId || 'add', seed: code });
     }
     setOpen(false);
@@ -120,7 +121,7 @@ export default function SessionControls({
     if (!ok) return;
     const snap = multiplayer.getSnapshot();
     if (onMission && snap.hostMission) onMission(snap.hostMission);
-    if (inGame && bridge) {
+    if (inGame && bridge && snap.ship && !snap.needsShip && !snap.sessionFull) {
       bridge.emit('startMission', {
         missionId: snap.hostMission || missionId || 'add',
         seed: code,
@@ -140,7 +141,7 @@ export default function SessionControls({
     const snap = multiplayer.getSnapshot();
     if (onSeed && snap.code) onSeed(snap.code);
     if (onMission && snap.hostMission) onMission(snap.hostMission);
-    if (inGame && bridge && snap.code) {
+    if (inGame && bridge && snap.code && snap.ship && !snap.needsShip && !snap.sessionFull) {
       bridge.emit('startMission', {
         missionId: snap.hostMission || missionId || 'add',
         seed: snap.code,
@@ -169,8 +170,9 @@ export default function SessionControls({
   const body = (
     <div className="session-body">
       <p className="session-note">
-        Host a code or join one. That code is the world seed, so everyone gets the same belt.
-        Pick the same mission as the host. Rocks, missiles, and ore stay on your ship.
+        Host a code or join one. That code is the world seed, so everyone shares the belt.
+        On your layer you see each other's rocks, missiles, ore, and hull. The host flies the
+        Verdant Spire. Everyone else picks a free ship before launch.
       </p>
       {mp.connected && (
         <p className="session-status">

@@ -22,6 +22,7 @@ import { createState, WORLD } from '../state.js';
 import {
   applyFriendlyFire,
   applySharedRock,
+  applyWorldEvent,
   buildSnapshotPatch,
   cancelExtract,
   changeLayer,
@@ -176,6 +177,11 @@ export default class PlayScene extends Phaser.Scene {
     if (!bridge) return;
 
     this.unsubs.push(
+      bridge.on('setShip', (name) => {
+        if (typeof name !== 'string' || !name) return;
+        if (this.textures.exists(name)) this.state.ship.sprite = name;
+        this.publishSnapshot(true);
+      }),
       bridge.on('startMission', (payload) => {
         const missionId =
           typeof payload === 'string'
@@ -488,15 +494,33 @@ export default class PlayScene extends Phaser.Scene {
     return fallback;
   }
 
+  syncShareFlag() {
+    const snap = multiplayer.getSnapshot();
+    this.state.playerId = multiplayer.playerId;
+    this.state.shareWorld = !!(snap.connected && snap.ship && !snap.needsShip && !snap.sessionFull);
+    if (snap.ship && this.state.ship.sprite !== snap.ship) this.state.ship.sprite = snap.ship;
+    return snap;
+  }
+
+  applyIncomingWorld() {
+    for (const event of multiplayer.takeWorldNotes()) {
+      applyWorldEvent(this.state, event, multiplayer.playerId);
+    }
+    for (const note of multiplayer.takeRockNotes()) applySharedRock(this.state, note);
+    for (const amount of multiplayer.takeFireNotes()) applyFriendlyFire(this.state, amount, this.audio);
+  }
+
   publishMultiplayerPose() {
     const ship = this.state.ship;
+    const snap = this.syncShareFlag();
     multiplayer.noteFlight({
       missionId: this.state.mission ? this.state.mission.id : '',
       layer: this.state.layer,
     });
-    if (!multiplayer.getSnapshot().connected || this.state.mode === 'title') {
+    if (!snap.connected || this.state.mode === 'title' || !this.state.shareWorld) {
       if (this.state.sharedRocks) this.state.sharedRocks.length = 0;
       if (this.state.sharedGathers) this.state.sharedGathers.length = 0;
+      if (this.state.worldEvents) this.state.worldEvents.length = 0;
       return;
     }
     multiplayer.publishPose({
@@ -504,20 +528,18 @@ export default class PlayScene extends Phaser.Scene {
       y: ship.y,
       aim: ship.aim,
       layer: this.state.layer,
-      sprite: ship.sprite,
+      sprite: snap.ship || ship.sprite,
       thrusting: !!ship.thrusting,
       extracting: this.state.mode === 'extract',
+      hp: ship.hp,
+      maxHp: ship.maxHp,
       pilot: readPilotName(),
     });
-    const rocks = this.state.sharedRocks;
-    if (rocks && rocks.length) {
-      const latest = new Map();
-      for (const rock of rocks) latest.set(rock.key, rock);
-      for (const rock of latest.values()) multiplayer.publishRock(rock);
-      rocks.length = 0;
+    const queued = this.state.worldEvents;
+    if (queued && queued.length) {
+      const burst = queued.splice(0, 24);
+      for (const event of burst) multiplayer.publishWorld(event);
     }
-    for (const note of multiplayer.takeRockNotes()) applySharedRock(this.state, note);
-    for (const amount of multiplayer.takeFireNotes()) applyFriendlyFire(this.state, amount, this.audio);
     for (const id of missilesHitPlayers(this.state, multiplayer.remoteShips())) {
       multiplayer.publishFire(id, 14);
     }
@@ -554,7 +576,9 @@ export default class PlayScene extends Phaser.Scene {
         this.refreshUiIgnore(label);
         const drill = this.add.graphics().setDepth(11);
         this.refreshUiIgnore(drill);
-        view = { sprite, label, drill };
+        const hull = this.add.graphics().setDepth(12);
+        this.refreshUiIgnore(hull);
+        view = { sprite, label, drill, hull };
         this.remoteViews.set(remote.id, view);
       } else if (view.sprite.texture.key !== key) {
         view.sprite.setTexture(key);
@@ -565,8 +589,9 @@ export default class PlayScene extends Phaser.Scene {
       view.sprite.setVisible(visible);
       const tag = remote.pilot || remote.tag || '';
       if (view.label.text !== tag) view.label.setText(tag);
-      view.label.setPosition(remote.x, remote.y - 48);
+      view.label.setPosition(remote.x, remote.y - 56);
       view.label.setVisible(visible && tag.length > 0);
+      this.syncRemoteHull(view.hull, remote, visible);
       this.syncRemoteDrill(view.drill, remote, visible);
     }
     for (const [id, view] of this.remoteViews) {
@@ -574,9 +599,32 @@ export default class PlayScene extends Phaser.Scene {
       view.sprite.destroy();
       view.label.destroy();
       if (view.drill) view.drill.destroy();
+      if (view.hull) view.hull.destroy();
       this.remoteViews.delete(id);
     }
     this.syncRemoteGathers(showAny, layer);
+  }
+
+  /** Small hull bar sitting just under the remote pilot's tag. */
+  syncRemoteHull(gfx, remote, visible) {
+    if (!gfx) return;
+    gfx.clear();
+    const maxHp = remote.maxHp > 0 ? remote.maxHp : 100;
+    const hp = Math.max(0, Math.min(maxHp, remote.hp != null ? remote.hp : maxHp));
+    if (!visible) {
+      gfx.setVisible(false);
+      return;
+    }
+    gfx.setVisible(true);
+    const width = 40;
+    const height = 4;
+    const x = remote.x - width / 2;
+    const y = remote.y - 48;
+    const frac = maxHp > 0 ? hp / maxHp : 0;
+    gfx.fillStyle(0x102033, 0.92);
+    gfx.fillRect(x, y, width, height);
+    gfx.fillStyle(frac > 0.35 ? 0x7dff9a : 0xff6b6b, 1);
+    gfx.fillRect(x, y, Math.max(0, width * frac), height);
   }
 
   /** Spinning bit just ahead of another player's ship while they extract. */
@@ -662,6 +710,9 @@ export default class PlayScene extends Phaser.Scene {
     } else if (this.inputCtl) {
       this.inputCtl.takeWheel();
     }
+
+    this.syncShareFlag();
+    this.applyIncomingWorld();
 
     if (mode === 'fly') {
       this.syncPointerWorld();
@@ -1005,6 +1056,10 @@ export default class PlayScene extends Phaser.Scene {
       for (const m of this.state.missiles) {
         this.missileGfx.fillCircle(m.x, m.y, 4);
       }
+      this.missileGfx.fillStyle(0xffd27a, 0.95);
+      for (const m of this.state.ghostMissiles || []) {
+        this.missileGfx.fillCircle(m.x, m.y, 4);
+      }
     }
 
     if (this.particleGfx) syncParticles(this.particleGfx, this.state.particles);
@@ -1028,6 +1083,8 @@ export default class PlayScene extends Phaser.Scene {
     for (const view of this.remoteViews.values()) {
       view.sprite.destroy();
       view.label.destroy();
+      if (view.drill) view.drill.destroy();
+      if (view.hull) view.hull.destroy();
     }
     this.remoteViews.clear();
   }

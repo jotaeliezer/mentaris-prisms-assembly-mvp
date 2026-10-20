@@ -45,15 +45,16 @@ Open Settings on the home menu, or the gear at the top left during flight.
 
 - **Host** makes a 6-character code. That code is the world seed, so everyone in the session gets the same belt and layers.
 - **Join** with the host's code. Launch the same mission (Addition Drift, Subtraction Rift, or Open belt) so the rocks line up. Joining during a flight rebuilds the belt from that code.
-- Other ships on your layer appear with a tag such as `P2`, and drop off when that player leaves. Ships on another layer stay hidden.
+- The host flies the Verdant Spire. Everyone else picks one of three free ships before launch. A ship already in use is not offered. If two pilots pick the same ship, the earlier arrival keeps it and the other gets a new choice. When no ship is left, the session says it is full.
+- Other ships on your layer appear with a tag such as `P2` and a small hull bar, and drop off when that player leaves. Ships on another layer stay hidden.
 - Copy sits next to the code in flight, with the number of players connected.
-- Each player's rocks, missiles, and ore stay on their own ship. Only the ships move together.
+- Rocks, missiles, and ore on your layer are shared. One pilot's shot or finished rock is gone for everyone on that layer, and a dropped crystal can be picked up only once.
 
 If `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` is missing, Host and Join stay off and the game keeps working alone. See `.env.example`.
 
 ## Privacy
 
-No account, no name field, and no analytics. Tags in a live session are `P1`, `P2`, and so on, generated in the browser. The optional Supabase client is bundled with the app and connects only when the public URL and anon key are set. It sends ship position, rotation, layer, and that tag. It does not load a third-party font or a script from a CDN. Sprites are served from this project. Without those env vars, the game never contacts Supabase.
+No account, no name field, and no analytics. Tags in a live session are `P1`, `P2`, and so on, generated in the browser. The optional Supabase client is bundled with the app and connects only when the public URL and anon key are set. It sends ship position, rotation, hull, the ship picture, and short events for rocks, missiles, and ore on that layer, plus the pilot tag. It does not load a third-party font or a script from a CDN. Sprites are served from this project. Without those env vars, the game never contacts Supabase.
 
 ## Stack
 

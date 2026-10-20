@@ -9,6 +9,6 @@ Design source of truth: `DESIGN.md` (copy of mentaris2.md from branch Prisms-of-
 5. [x] Free-roaming missions: operation-locked missions, asteroid question quota, locked wormhole that unlocks when the quota is met.
 6. [x] Rewards, fabrication and ship HP: materials, upgrades, HP, dropped materials fade after a limited time.
 7. [x] Clusters, layers and wormholes: seeded worlds, stacked 2D layers with a transition animation, wormhole travel that costs material.
-8. [x] Live ships on one seed: a session code is the world seed, and Supabase Realtime (Broadcast + Presence) shows other ships on the same layer. Asteroids, missiles, and ore stay on each player's machine. Bases and aliens are still later.
+8. [x] Live ships on one seed: a session code is the world seed, and Supabase Realtime (Broadcast + Presence) shares ships, hull, rocks, missiles, and ore on the same layer. The host flies the Verdant Spire; other pilots pick a free ship. Bases and aliens are still later.
 
 Rules: one commit per phase, tick each phase off here when done. Child privacy: no personal data from kids, no trackers, no third-party fonts or scripts.

@@ -10,6 +10,7 @@ import Extract from './Extract.jsx';
 import GameOver from './GameOver.jsx';
 import SettingsPanel, { DEFAULT_MISSION, DEFAULT_SEED } from './SettingsPanel.jsx';
 import { useMultiplayer } from './SessionControls.jsx';
+import ShipChoice from './ShipChoice.jsx';
 
 const FLIGHT_SETTINGS_NOTE =
   'The same seed builds the same belt. Close resumes this flight. A changed seed or mission starts that flight.';
@@ -200,6 +201,7 @@ export default function App({ bridge }) {
           ))}
         </div>
       )}
+      <ShipChoice bridge={bridge} />
     </div>
   );
 }

@@ -61,11 +61,16 @@ export function mineralYield(type, size, difficulty) {
   return Math.min(4, band + hard);
 }
 
-export function placeAsteroidAt(state, operation, difficulty, x, y) {
-  const type = rollAsteroidType(state.rng);
-  const question = nextProblem(problemSpec(operation, difficulty || 'easy'), state.rng);
-  const size = 120 + state.rng() * 70;
+export function placeAsteroidAt(state, operation, difficulty, x, y, options) {
+  const rng = options && options.rng ? options.rng : state.rng;
+  const type = rollAsteroidType(rng);
+  const question = nextProblem(problemSpec(operation, difficulty || 'easy'), rng);
+  const size = 120 + rng() * 70;
   const radius = size * 0.34;
+  const key =
+    options && options.key
+      ? options.key
+      : 'n:' + (state.layer || 0) + ':' + Math.round(x) + ':' + Math.round(y);
   state.asteroids.push({
     id: state.nextId++,
     x,
@@ -77,9 +82,9 @@ export function placeAsteroidAt(state, operation, difficulty, x, y) {
     baseRadius: radius,
     extractCount: 0,
     depleted: false,
-    rot: state.rng() * Math.PI * 2,
-    spin: (state.rng() - 0.5) * 0.28,
-    drift: state.rng() * Math.PI * 2,
+    rot: rng() * Math.PI * 2,
+    spin: (rng() - 0.5) * 0.28,
+    drift: rng() * Math.PI * 2,
     alive: true,
     active: false,
     near: false,
@@ -87,11 +92,25 @@ export function placeAsteroidAt(state, operation, difficulty, x, y) {
     operation,
     difficulty: question.difficulty,
     outline: false,
-    key: Math.round(x) + ':' + Math.round(y),
+    key,
   });
+  const pending = state.remoteMines && state.remoteMines.get(key);
+  if (pending) {
+    const rock = state.asteroids[state.asteroids.length - 1];
+    rock.extractCount = pending.n || 0;
+    if (Number.isFinite(pending.size)) {
+      rock.size = pending.size;
+      rock.sizeTarget = pending.size;
+      rock.radius = Math.max(8, pending.size * 0.34);
+      rock.radiusTarget = rock.radius;
+    }
+    if (pending.depleted) rock.depleted = true;
+    if (pending.alive === false) rock.alive = false;
+    if (pending.question) rock.question = pending.question;
+  }
 }
 
-export function spawnAsteroid(state, operation, difficulty, place) {
+export function spawnAsteroid(state, operation, difficulty, place, options) {
   let x = state.ship.x;
   let y = state.ship.y;
   const minShip = place === 'far' ? 1100 : 420;
@@ -117,7 +136,7 @@ export function spawnAsteroid(state, operation, difficulty, place) {
     const clearOfRocks = state.asteroids.every((rock) => Math.hypot(x - rock.x, y - rock.y) > gap);
     if (clearOfShip && clearOfRocks) break;
   }
-  placeAsteroidAt(state, operation, difficulty, x, y);
+  placeAsteroidAt(state, operation, difficulty, x, y, options);
 }
 
 /**
@@ -125,6 +144,30 @@ export function spawnAsteroid(state, operation, difficulty, place) {
  * across the layer keeps adding rocks instead of only clustering at spawn.
  * The spawn pocket is left to the near placements.
  */
+/** Stable id for a belt cell. The same seed, cluster, and layer always rebuild it. */
+export function beltRockKey(state, gx, gy) {
+  const cluster = state && state.cluster ? state.cluster : 1;
+  const layer = state && state.layer ? state.layer : 0;
+  return 'b:' + cluster + ':' + layer + ':' + gx + ',' + gy;
+}
+
+function beltCellSeed(state, gx, gy) {
+  const missionId = state.mission ? state.mission.id : 'roam';
+  return (
+    (state.seed || 'belt') +
+    '|c' +
+    (state.cluster || 1) +
+    '|l' +
+    (state.layer || 0) +
+    '|' +
+    missionId +
+    '|' +
+    gx +
+    ',' +
+    gy
+  );
+}
+
 export function ensureBelt(state, operation) {
   if (!state.beltCells) state.beltCells = new Set();
   const step = FIELD_STEP;
@@ -143,11 +186,14 @@ export function ensureBelt(state, operation) {
       if (state.beltCells.has(key)) continue;
       state.beltCells.add(key);
       if (Math.hypot(gx - sx, gy - sy) < 400) continue;
-      const x = clamp(gx + (state.rng() - 0.5) * step * 0.5, 200, WORLD.w - 200);
-      const y = clamp(gy + (state.rng() - 0.5) * step * 0.5, 200, WORLD.h - 200);
-      const op = operation || (state.rng() < 0.5 ? 'add' : 'sub');
-      const difficulty = state.rng() < 0.28 ? 'hard' : 'easy';
-      placeAsteroidAt(state, op, difficulty, x, y);
+      const rockKey = beltRockKey(state, gx, gy);
+      if (state.goneRocks && state.goneRocks.has(rockKey)) continue;
+      const rng = makeRng(beltCellSeed(state, gx, gy));
+      const x = clamp(gx + (rng() - 0.5) * step * 0.5, 200, WORLD.w - 200);
+      const y = clamp(gy + (rng() - 0.5) * step * 0.5, 200, WORLD.h - 200);
+      const op = operation || (rng() < 0.5 ? 'add' : 'sub');
+      const difficulty = rng() < 0.28 ? 'hard' : 'easy';
+      placeAsteroidAt(state, op, difficulty, x, y, { rng, key: rockKey });
     }
   }
 }
@@ -180,6 +226,21 @@ export function createState() {
     ],
     asteroids: [],
     beltCells: new Set(),
+    goneRocks: new Set(),
+    remoteMines: new Map(),
+    rockClaims: new Map(),
+    oreClaims: new Map(),
+    oreGranted: new Map(),
+    mineCredit: new Set(),
+    rockUndo: new Map(),
+    localReplacements: new Map(),
+    pendingSpawns: new Map(),
+    worldEvents: [],
+    ghostMissiles: [],
+    seenEvents: new Set(),
+    shareWorld: false,
+    playerId: '',
+    spawnSeq: 0,
     missiles: [],
     particles: [],
     buffer: '',

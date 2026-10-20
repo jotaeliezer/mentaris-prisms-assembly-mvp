@@ -15,6 +15,15 @@ import {
   spawnAsteroid,
 } from './state.js';
 import {
+  dieClaimKey,
+  eventOnLayer,
+  mineClaimKey,
+  oreIdForRock,
+  rememberEvent,
+  shouldApplyEvent,
+  takeClaim,
+} from '../multiplayer/events.js';
+import {
   CARGO_COLS,
   CARGO_ROWS,
   CARGO_SIZE,
@@ -276,6 +285,8 @@ function saveLayerBank(state) {
     asteroids: state.asteroids,
     drops: state.drops,
     beltCells: state.beltCells,
+    goneRocks: state.goneRocks,
+    remoteMines: state.remoteMines,
   };
 }
 
@@ -284,6 +295,24 @@ function restoreLayerBank(state) {
   state.asteroids = slot ? slot.asteroids : [];
   state.drops = slot ? slot.drops : [];
   state.beltCells = slot && slot.beltCells ? slot.beltCells : new Set();
+  state.goneRocks = slot && slot.goneRocks ? slot.goneRocks : new Set();
+  state.remoteMines = slot && slot.remoteMines ? slot.remoteMines : new Map();
+}
+
+function resetShareMaps(state) {
+  state.goneRocks = new Set();
+  state.remoteMines = new Map();
+  state.rockClaims = new Map();
+  state.oreClaims = new Map();
+  state.oreGranted = new Map();
+  state.mineCredit = new Set();
+  state.rockUndo = new Map();
+  state.localReplacements = new Map();
+  state.pendingSpawns = new Map();
+  state.worldEvents = [];
+  state.ghostMissiles = [];
+  state.seenEvents = new Set();
+  state.spawnSeq = 0;
 }
 
 function rememberCluster(state) {
@@ -347,6 +376,7 @@ export function changeLayer(state, dir, audio) {
     () => {
       state.layer = next;
       state.missiles = [];
+      state.ghostMissiles = [];
       state.particles = [];
       state.targetId = 0;
       state.buffer = '';
@@ -356,10 +386,14 @@ export function changeLayer(state, dir, audio) {
         state.asteroids = saved.asteroids;
         state.drops = saved.drops;
         state.beltCells = saved.beltCells || new Set();
+        state.goneRocks = saved.goneRocks || new Set();
+        state.remoteMines = saved.remoteMines || new Map();
       } else {
         state.rng = layerRng(state);
         state.asteroids = [];
         state.drops = [];
+        state.goneRocks = new Set();
+        state.remoteMines = new Map();
         populateField(state);
         saveLayerBank(state);
       }
@@ -376,6 +410,7 @@ function arriveInCluster(state, cluster, returning) {
   state.ship.vx = 0;
   state.ship.vy = 0;
   state.missiles = [];
+  state.ghostMissiles = [];
   state.particles = [];
   state.targetId = 0;
   state.buffer = '';
@@ -410,6 +445,8 @@ function arriveInCluster(state, cluster, returning) {
         : null;
     state.asteroids = [];
     state.drops = [];
+    state.goneRocks = new Set();
+    state.remoteMines = new Map();
     populateField(state);
     placeWormhole(state);
     saveLayerBank(state);
@@ -452,9 +489,11 @@ export function startMission(state, id, seed, audio) {
   state.targetId = 0;
   clearExtractSession(state);
   state.missiles = [];
+  state.ghostMissiles = [];
   state.particles = [];
   state.drops = [];
   state.asteroids = [];
+  resetShareMaps(state);
   state.hint = '';
   state.hotbar = emptyStacks(HOTBAR_SIZE);
   state.cargoSlots = emptyStacks(CARGO_SIZE);
@@ -600,7 +639,101 @@ export function extractBackspace(state) {
   state.buffer = state.buffer.slice(0, -1);
 }
 
-/** Unused for rocks (extract is primary). Kept for possible future non-rock targets. */
+function queueWorld(state, event) {
+  if (!state.shareWorld || !event) return;
+  if (!state.worldEvents) state.worldEvents = [];
+  if (event.t == null) event.t = Date.now();
+  state.worldEvents.push(event);
+}
+
+function packQuestion(question) {
+  if (!question) return null;
+  return {
+    p: question.prompt || '',
+    a: question.answerText != null ? String(question.answerText) : String(question.answer ?? ''),
+    d: question.difficulty || '',
+    o: question.operation || '',
+  };
+}
+
+function unpackQuestion(packed) {
+  if (!packed || !packed.p) return null;
+  const answerText = packed.a != null ? String(packed.a) : '';
+  return {
+    prompt: packed.p,
+    answerText,
+    answer: Number(answerText),
+    difficulty: packed.d || 'easy',
+    operation: packed.o || 'add',
+  };
+}
+
+function round1(value) {
+  return Math.round(Number(value) * 10) / 10;
+}
+
+function packSpawn(rock) {
+  return {
+    k: 'spawn',
+    key: rock.key,
+    x: round1(rock.x),
+    y: round1(rock.y),
+    sp: rock.sprite,
+    min: rock.mineral,
+    sz: round1(rock.size),
+    rot: round1(rock.rot),
+    spin: round1(rock.spin),
+    drift: round1(rock.drift),
+    op: rock.operation,
+    diff: rock.difficulty,
+    q: packQuestion(rock.question),
+  };
+}
+
+function dropSharedOre(state, rock, x, y, count, step, announce) {
+  const id = oreIdForRock(rock.key, step);
+  if (state.oreClaims && state.oreClaims.has(id)) return id;
+  if (!state.drops.some((drop) => drop.id === id)) {
+    state.drops.push({
+      id,
+      x,
+      y,
+      itemId: rock.mineral || 'pale',
+      count,
+      life: 48,
+      maxLife: 48,
+      shared: true,
+    });
+  }
+  if (announce !== false) {
+    queueWorld(state, {
+      k: 'ore',
+      op: 'spawn',
+      ore: id,
+      x: round1(x),
+      y: round1(y),
+      item: rock.mineral || 'pale',
+      n: count,
+    });
+  }
+  return id;
+}
+
+function copyRock(rock) {
+  return {
+    key: rock.key,
+    size: rock.size,
+    sizeTarget: rock.sizeTarget,
+    radius: rock.radius,
+    radiusTarget: rock.radiusTarget,
+    extractCount: rock.extractCount,
+    depleted: rock.depleted,
+    alive: rock.alive,
+    question: rock.question,
+  };
+}
+
+/** Unused for rocks (extract is primary). Kept for the crafted arc missile. */
 function launchMissile(state, rock, audio) {
   const ship = state.ship;
   const x = ship.x + Math.cos(ship.aim) * 40;
@@ -611,15 +744,29 @@ function launchMissile(state, rock, audio) {
   const nx = -dy / dist;
   const ny = dx / dist;
   const facing = nx * Math.cos(ship.aim) + ny * Math.sin(ship.aim);
+  const bend = facing >= 0 ? 1 : -1;
   state.missiles.push({
     x,
     y,
     vx: Math.cos(ship.aim) * 80,
     vy: Math.sin(ship.aim) * 80,
-    bend: facing >= 0 ? 1 : -1,
+    bend,
     targetId: rock.id,
+    targetKey: rock.key,
+    tx: rock.x,
+    ty: rock.y,
     life: 6,
     age: 0,
+  });
+  queueWorld(state, {
+    k: 'shot',
+    x: round1(x),
+    y: round1(y),
+    aim: Math.round(ship.aim * 1000) / 1000,
+    key: rock.key,
+    tx: round1(rock.x),
+    ty: round1(rock.y),
+    bend,
   });
   if (audio) audio.shot();
 }
@@ -631,29 +778,56 @@ function acceptAnswer(state, rock, audio) {
   ensureRockExtractFields(rock);
   if (rock.depleted) return;
 
+  const step = rock.extractCount + 1;
+  const claimKey = mineClaimKey(rock.key, step);
+  let claim = 'local';
+  if (state.shareWorld) {
+    if (!state.rockClaims) state.rockClaims = new Map();
+    claim = takeClaim(state.rockClaims, claimKey, { id: state.playerId || 'local', t: Date.now() });
+    if (claim === 'lose' || claim === 'keep') {
+      state.status = 'Another pilot already mined this rock.';
+      state.statusTime = 2.6;
+      return;
+    }
+  }
+
   if (audio) audio.correct();
   state.extractToast = EXTRACT_TOAST;
   state.extractToastTime = EXTRACT_TOAST_DUR;
   state.fxGreen = 1.15;
   state.solved += 1;
+  if (claim === 'new') {
+    if (!state.mineCredit) state.mineCredit = new Set();
+    state.mineCredit.add(claimKey);
+  }
 
+  const before = copyRock(rock);
   queueShrink(rock, EXTRACT_SHRINK);
   rock.extractCount += 1;
-  noteSharedRock(state, rock);
 
   const mineral = rock.mineral || 'pale';
+  const spillRng = state.shareWorld ? makeRng(rock.key + ':' + step) : state.rng;
   const away = Math.atan2(rock.y - state.ship.y, rock.x - state.ship.x);
   const spill = rockTouchDistance(rock) + 36;
-  const angle = away + (state.rng() - 0.5) * 1.1;
-  state.drops.push({
-    id: state.nextId++,
-    x: rock.x + Math.cos(angle) * spill,
-    y: rock.y + Math.sin(angle) * spill,
-    itemId: mineral,
-    count: mineralYield({ mineral }, rock.size, rock.difficulty),
-    life: 48,
-    maxLife: 48,
-  });
+  const angle = state.shareWorld ? spillRng() * Math.PI * 2 : away + (spillRng() - 0.5) * 1.1;
+  const dropX = rock.x + Math.cos(angle) * spill;
+  const dropY = rock.y + Math.sin(angle) * spill;
+  const count = mineralYield({ mineral }, rock.size, rock.difficulty);
+  if (state.shareWorld) {
+    const oreId = dropSharedOre(state, rock, dropX, dropY, count, step);
+    if (!state.rockUndo) state.rockUndo = new Map();
+    state.rockUndo.set(claimKey, { before, oreId });
+  } else {
+    state.drops.push({
+      id: state.nextId++,
+      x: dropX,
+      y: dropY,
+      itemId: mineral,
+      count,
+      life: 48,
+      maxLife: 48,
+    });
+  }
 
   for (let i = 0; i < 16; i++) {
     const angle = state.rng() * Math.PI * 2;
@@ -672,7 +846,6 @@ function acceptAnswer(state, rock, audio) {
   if (rock.extractCount >= 3) {
     rock.depleted = true;
     queueShrink(rock, EXTRACT_DEPLETE_SHRINK);
-    noteSharedRock(state, rock);
     state.pendingExtractClose = true;
     state.extractAvailable = null;
   } else {
@@ -687,37 +860,67 @@ function acceptAnswer(state, rock, audio) {
     rock.difficulty = rock.question.difficulty;
     state.hint = '';
   }
-}
-
-function destroyAsteroid(state, rock, audio) {
-  if (!rock.alive) return;
-  // Missile impact path only — answer path no longer routes here for rocks.
-  rock.alive = false;
-  noteSharedRock(state, rock);
-  for (let i = 0; i < 18; i++) {
-    const angle = state.rng() * Math.PI * 2;
-    const speed = 40 + state.rng() * 180;
-    state.particles.push({
-      x: rock.x,
-      y: rock.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 0.55 + state.rng() * 0.3,
-      size: 2 + state.rng() * 3,
-      color: i % 3 === 0 ? '#ffb15a' : '#d7f6ff',
+  if (state.shareWorld) {
+    queueWorld(state, {
+      k: 'rock',
+      op: 'mine',
+      key: rock.key,
+      n: rock.extractCount,
+      size: round1(rock.sizeTarget != null ? rock.sizeTarget : rock.size),
+      depleted: !!rock.depleted,
+      q: packQuestion(rock.question),
     });
   }
+}
+
+function destroyAsteroid(state, rock, audio, owner) {
+  if (!rock || !rock.alive) return;
+  const claimId = owner && owner.id ? owner.id : state.playerId || 'local';
+  const claimT = owner && owner.t != null ? owner.t : Date.now();
+  let claim = 'local';
+  if (state.shareWorld) {
+    if (!state.rockClaims) state.rockClaims = new Map();
+    claim = takeClaim(state.rockClaims, dieClaimKey(rock.key), { id: claimId, t: claimT });
+    if (claim === 'lose' || claim === 'keep') return;
+  }
+  const selfKill = !owner || String(claimId) === String(state.playerId || 'local');
+  // Missile impact path only — answer path no longer routes here for rocks.
+  rock.alive = false;
+  if (!state.goneRocks) state.goneRocks = new Set();
+  state.goneRocks.add(rock.key);
+  if (selfKill) {
+    for (let i = 0; i < 18; i++) {
+      const angle = state.rng() * Math.PI * 2;
+      const speed = 40 + state.rng() * 180;
+      state.particles.push({
+        x: rock.x,
+        y: rock.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.55 + state.rng() * 0.3,
+        size: 2 + state.rng() * 3,
+        color: i % 3 === 0 ? '#ffb15a' : '#d7f6ff',
+      });
+    }
+  }
   const mined = rock.mineral || 'pale';
-  state.drops.push({
-    id: state.nextId++,
-    x: rock.x,
-    y: rock.y,
-    itemId: mined,
-    count: mineralYield({ mineral: mined }, rock.size, rock.difficulty),
-    life: 48,
-    maxLife: 48,
-  });
+  const count = mineralYield({ mineral: mined }, rock.size, rock.difficulty);
+  if (state.shareWorld) {
+    dropSharedOre(state, rock, rock.x, rock.y, count, 'die', selfKill);
+    if (selfKill) queueWorld(state, { k: 'rock', op: 'die', key: rock.key, t: claimT });
+  } else {
+    state.drops.push({
+      id: state.nextId++,
+      x: rock.x,
+      y: rock.y,
+      itemId: mined,
+      count,
+      life: 48,
+      maxLife: 48,
+    });
+  }
   state.asteroids = state.asteroids.filter((item) => item.alive);
+  if (!selfKill) return;
   const operation =
     state.mission && state.mission.operation
       ? state.mission.operation
@@ -732,7 +935,17 @@ function destroyAsteroid(state, rock, audio) {
       : state.rng() < 0.65
         ? 'easy'
         : 'hard';
-  spawnAsteroid(state, operation, difficulty, 'far');
+  state.spawnSeq = (state.spawnSeq || 0) + 1;
+  const spawnedKey = state.shareWorld
+    ? 's:' + String(state.playerId || 'local') + ':' + state.spawnSeq
+    : '';
+  spawnAsteroid(state, operation, difficulty, 'far', spawnedKey ? { key: spawnedKey } : undefined);
+  const spawned = state.asteroids[state.asteroids.length - 1];
+  if (state.shareWorld && spawned) {
+    if (!state.localReplacements) state.localReplacements = new Map();
+    state.localReplacements.set(rock.key, spawned.key);
+    queueWorld(state, Object.assign(packSpawn(spawned), { from: rock.key }));
+  }
 }
 
 function nearestLiveAsteroid(state, maxDist) {
@@ -985,45 +1198,59 @@ function handleClicks(state, input, view, audio) {
   if (state.extractAvailable) openExtract(state, state.extractAvailable, audio);
 }
 
-function updateMissiles(state, dt, audio) {
+function stepOneMissile(state, missile, dt, onHit) {
   const speed = 700;
+  missile.life -= dt;
+  missile.age += dt;
+  const rock = missile.targetKey
+    ? state.asteroids.find((item) => item.key === missile.targetKey && item.alive)
+    : state.asteroids.find((item) => item.id === missile.targetId && item.alive);
+  const tx = rock ? rock.x : missile.tx;
+  const ty = rock ? rock.y : missile.ty;
+  if (!Number.isFinite(tx) || !Number.isFinite(ty)) {
+    missile.life = 0;
+    return;
+  }
+  const dx = tx - missile.x;
+  const dy = ty - missile.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const desired = Math.atan2(dy, dx);
+  const bias = missile.age > 0.45 || dist < 140 ? 0 : missile.bend * Math.min(0.9, dist / 480);
+  const heading = desired + bias;
+  missile.vx = Math.cos(heading) * speed;
+  missile.vy = Math.sin(heading) * speed;
+  missile.x += missile.vx * dt;
+  missile.y += missile.vy * dt;
+  state.particles.push({
+    x: missile.x,
+    y: missile.y,
+    vx: 0,
+    vy: 0,
+    life: 0.28,
+    size: 3,
+    color: '#b9f3ff',
+  });
+  const reach = rock ? rock.radius + 28 : 28;
+  if (missile.age > 2.2) {
+    missile.x = tx;
+    missile.y = ty;
+  }
+  if (dist < reach || missile.age > 2.2) {
+    missile.life = 0;
+    if (onHit && rock) onHit(rock);
+  }
+}
+
+function updateMissiles(state, dt, audio) {
   for (const missile of state.missiles) {
-    missile.life -= dt;
-    missile.age += dt;
-    const rock = state.asteroids.find((item) => item.id === missile.targetId && item.alive);
-    if (!rock) {
-      missile.life = 0;
-      continue;
-    }
-    const dx = rock.x - missile.x;
-    const dy = rock.y - missile.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const desired = Math.atan2(dy, dx);
-    const bias = missile.age > 0.45 || dist < 140 ? 0 : missile.bend * Math.min(0.9, dist / 480);
-    const heading = desired + bias;
-    missile.vx = Math.cos(heading) * speed;
-    missile.vy = Math.sin(heading) * speed;
-    missile.x += missile.vx * dt;
-    missile.y += missile.vy * dt;
-    state.particles.push({
-      x: missile.x,
-      y: missile.y,
-      vx: 0,
-      vy: 0,
-      life: 0.28,
-      size: 3,
-      color: '#b9f3ff',
-    });
-    if (missile.age > 2.2) {
-      missile.x = rock.x;
-      missile.y = rock.y;
-    }
-    if (dist < rock.radius + 28 || missile.age > 2.2) {
-      missile.life = 0;
-      destroyAsteroid(state, rock, audio);
-    }
+    stepOneMissile(state, missile, dt, (rock) => destroyAsteroid(state, rock, audio));
   }
   state.missiles = state.missiles.filter((missile) => missile.life > 0);
+  if (!state.ghostMissiles) state.ghostMissiles = [];
+  for (const missile of state.ghostMissiles) {
+    stepOneMissile(state, missile, dt, null);
+  }
+  state.ghostMissiles = state.ghostMissiles.filter((missile) => missile.life > 0);
 }
 
 function noteSharedRock(state, rock) {
@@ -1075,6 +1302,195 @@ export function missilesHitPlayers(state, remotes) {
   return hits;
 }
 
+function applyMineVisual(rock, event) {
+  ensureRockExtractFields(rock);
+  const nextSize = Number(event.size);
+  if (Number.isFinite(nextSize) && nextSize < rock.size) {
+    rock.sizeTarget = nextSize;
+    rock.radiusTarget = Math.max(8, nextSize * 0.34);
+  }
+  if (Number(event.n) > (rock.extractCount || 0)) rock.extractCount = Number(event.n);
+  if (event.depleted) rock.depleted = true;
+  const question = unpackQuestion(event.q);
+  if (question && !rock.depleted) rock.question = question;
+}
+
+function undoMineCredit(state, claimKey) {
+  if (!state.mineCredit || !state.mineCredit.has(claimKey)) return;
+  state.mineCredit.delete(claimKey);
+  if (state.solved > 0) state.solved -= 1;
+  state.status = 'Another pilot mined that rock first.';
+  state.statusTime = 3;
+  const undo = state.rockUndo && state.rockUndo.get(claimKey);
+  if (!undo) return;
+  state.rockUndo.delete(claimKey);
+  const rock = state.asteroids.find((item) => item.key === undo.before.key);
+  if (rock) {
+    const winnerAhead = rock.extractCount > undo.before.extractCount;
+    if (!winnerAhead) {
+      rock.size = undo.before.size;
+      rock.sizeTarget = undo.before.sizeTarget;
+      rock.radius = undo.before.radius;
+      rock.radiusTarget = undo.before.radiusTarget;
+      rock.extractCount = undo.before.extractCount;
+      rock.depleted = undo.before.depleted;
+      rock.question = undo.before.question;
+    }
+  }
+}
+
+function applyRockWorld(state, event, selfId) {
+  if (!event.key) return;
+  const claim =
+    event.op === 'die'
+      ? { key: dieClaimKey(event.key), id: event.id, t: event.t }
+      : { key: mineClaimKey(event.key, event.n), id: event.id, t: event.t };
+  if (!state.rockClaims) state.rockClaims = new Map();
+  const result = takeClaim(state.rockClaims, claim.key, { id: claim.id, t: claim.t });
+  if (result === 'lose' || result === 'keep') return;
+  if (result === 'steal' && event.op !== 'die') undoMineCredit(state, claim.key);
+  if (event.op === 'die') {
+    if (!state.goneRocks) state.goneRocks = new Set();
+    state.goneRocks.add(event.key);
+    if (result === 'steal') {
+      const extra = state.localReplacements && state.localReplacements.get(event.key);
+      if (extra) {
+        state.asteroids = state.asteroids.filter((item) => item.key !== extra);
+        state.localReplacements.delete(event.key);
+      }
+    }
+    state.asteroids = state.asteroids.filter((item) => item.key !== event.key);
+    const pending = state.pendingSpawns && state.pendingSpawns.get(event.key);
+    if (pending) {
+      state.pendingSpawns.delete(event.key);
+      if (String(pending.id) === String(event.id)) addSpawnedRock(state, pending);
+    }
+    return;
+  }
+  if (!state.remoteMines) state.remoteMines = new Map();
+  state.remoteMines.set(event.key, {
+    n: Number(event.n) || 0,
+    size: Number(event.size),
+    depleted: !!event.depleted,
+    question: unpackQuestion(event.q),
+  });
+  const rock = state.asteroids.find((item) => item.key === event.key && item.alive);
+  if (rock) applyMineVisual(rock, event);
+}
+
+function applyOreWorld(state, event, selfId) {
+  if (!event.ore) return;
+  if (event.op === 'spawn') {
+    if (state.oreClaims && state.oreClaims.has(event.ore)) return;
+    if (state.drops.some((drop) => drop.id === event.ore)) return;
+    state.drops.push({
+      id: event.ore,
+      x: Number(event.x) || 0,
+      y: Number(event.y) || 0,
+      itemId: event.item || 'pale',
+      count: Number(event.n) || 1,
+      life: 48,
+      maxLife: 48,
+      shared: true,
+    });
+    return;
+  }
+  if (event.op !== 'take') return;
+  if (!state.oreClaims) state.oreClaims = new Map();
+  const result = takeClaim(state.oreClaims, event.ore, { id: event.id, t: event.t });
+  if (result === 'lose') return;
+  if (result === 'steal' || (result === 'new' && String(event.id) !== String(selfId))) {
+    if (result === 'steal') revokeGrant(state, event.ore);
+    removeDrop(state, event.ore);
+    if (result === 'steal') {
+      state.status = 'Another pilot reached that ore first.';
+      state.statusTime = 3;
+    }
+  }
+}
+
+function applySpawnWorld(state, event) {
+  if (!event.key || (state.goneRocks && state.goneRocks.has(event.key))) return;
+  if (event.from) {
+    const claim = state.rockClaims && state.rockClaims.get(dieClaimKey(event.from));
+    if (!claim) {
+      if (!state.pendingSpawns) state.pendingSpawns = new Map();
+      state.pendingSpawns.set(event.from, event);
+      return;
+    }
+    if (String(claim.id) !== String(event.id)) return;
+  }
+  addSpawnedRock(state, event);
+}
+
+function addSpawnedRock(state, event) {
+  if (!event || !event.key || (state.goneRocks && state.goneRocks.has(event.key))) return;
+  if (state.asteroids.some((rock) => rock.key === event.key)) return;
+  const size = Number(event.sz) || 140;
+  const question = unpackQuestion(event.q) || {
+    prompt: '1 + 1',
+    answerText: '2',
+    answer: 2,
+    difficulty: 'easy',
+    operation: 'add',
+  };
+  state.asteroids.push({
+    id: state.nextId++,
+    x: Number(event.x) || 0,
+    y: Number(event.y) || 0,
+    sprite: Number(event.sp) || 0,
+    mineral: event.min || 'pale',
+    size,
+    radius: size * 0.34,
+    baseRadius: size * 0.34,
+    extractCount: 0,
+    depleted: false,
+    rot: Number(event.rot) || 0,
+    spin: Number(event.spin) || 0,
+    drift: Number(event.drift) || 0,
+    alive: true,
+    active: false,
+    near: false,
+    question,
+    operation: event.op || question.operation,
+    difficulty: event.diff || question.difficulty,
+    outline: false,
+    key: event.key,
+  });
+}
+
+function applyShotWorld(state, event, selfId) {
+  if (String(event.id) === String(selfId)) return;
+  if (!state.ghostMissiles) state.ghostMissiles = [];
+  const shotId = event.eid || event.id + ':' + event.t;
+  if (state.ghostMissiles.some((missile) => missile.shotId === shotId)) return;
+  state.ghostMissiles.push({
+    shotId,
+    x: Number(event.x) || 0,
+    y: Number(event.y) || 0,
+    vx: Math.cos(Number(event.aim) || 0) * 80,
+    vy: Math.sin(Number(event.aim) || 0) * 80,
+    bend: event.bend >= 0 ? 1 : -1,
+    targetKey: event.key || '',
+    tx: Number(event.tx),
+    ty: Number(event.ty),
+    life: 6,
+    age: 0,
+  });
+}
+
+/** Apply one shared-world event. Layer mismatches and repeated ids are ignored. */
+export function applyWorldEvent(state, event, selfId) {
+  if (!state.seenEvents) state.seenEvents = new Set();
+  if (!shouldApplyEvent(event, state.layer, state.seenEvents)) return false;
+  if (!eventOnLayer(event.layer, state.layer)) return false;
+  if (event.k === 'rock') applyRockWorld(state, event, selfId);
+  else if (event.k === 'ore') applyOreWorld(state, event, selfId);
+  else if (event.k === 'spawn') applySpawnWorld(state, event);
+  else if (event.k === 'shot') applyShotWorld(state, event, selfId);
+  return true;
+}
+
 export function applyFriendlyFire(state, amount, audio) {
   if (!state.ship || state.mode === 'dead' || state.quiet > 0) return;
   state.ship.hp = Math.max(0, state.ship.hp - amount);
@@ -1118,6 +1534,51 @@ function updateParticles(state, dt) {
   state.particles = state.particles.filter((bit) => bit.life > 0);
 }
 
+function grantDrop(state, drop, audio) {
+  const itemId = drop.itemId || 'pale';
+  const count = drop.count != null ? drop.count : drop.amount || 1;
+  const left = addItem(state, itemId, count);
+  const received = count - Math.max(0, left);
+  if (received > 0) {
+    announceCrafts(state);
+    if (!state.oreGranted) state.oreGranted = new Map();
+    state.oreGranted.set(drop.id, { itemId, count: received });
+    if (audio) audio.pickup();
+  }
+  return received;
+}
+
+function revokeGrant(state, oreId) {
+  const granted = state.oreGranted && state.oreGranted.get(oreId);
+  if (!granted) return;
+  state.oreGranted.delete(oreId);
+  const have = countItem(state, granted.itemId);
+  const n = Math.min(have, granted.count);
+  if (n > 0) removeItems(state, granted.itemId, n);
+}
+
+function removeDrop(state, id) {
+  state.drops = state.drops.filter((drop) => drop.id !== id);
+}
+
+function collectSharedDrop(state, drop, audio) {
+  if (!state.oreClaims) state.oreClaims = new Map();
+  const result = takeClaim(state.oreClaims, drop.id, { id: state.playerId || 'local', t: Date.now() });
+  if (result === 'lose') {
+    drop.life = 0;
+    return;
+  }
+  if (result === 'keep' && state.oreGranted && state.oreGranted.has(drop.id)) {
+    drop.life = 0;
+    return;
+  }
+  const received = grantDrop(state, drop, audio);
+  if (received > 0) {
+    queueWorld(state, { k: 'ore', op: 'take', ore: drop.id, x: round1(drop.x), y: round1(drop.y) });
+  }
+  drop.life = received > 0 || result === 'keep' ? 0 : drop.life;
+}
+
 function updateDrops(state, dt, audio) {
   const ship = state.ship;
   for (const drop of state.drops) {
@@ -1125,6 +1586,10 @@ function updateDrops(state, dt, audio) {
     if (drop.life <= 0) continue;
     if (state.mode === 'dead') continue;
     if (Math.hypot(drop.x - ship.x, drop.y - ship.y) < 58) {
+      if (drop.shared && state.shareWorld) {
+        collectSharedDrop(state, drop, audio);
+        continue;
+      }
       const itemId = drop.itemId || 'pale';
       const count = drop.count != null ? drop.count : drop.amount || 1;
       const left = addItem(state, itemId, count);

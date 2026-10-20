@@ -29,7 +29,7 @@ export const ASTEROID_FILES = [
 
 export const MINERAL_FILE = "mineral.png";
 
-export const DEFAULT_SHIP = "AM3 Scout.png";
+export const DEFAULT_SHIP = "Verdant Spire.png";
 
 /** Blaster image folders under public/images/ */
 export const ALIEN_FILES = [

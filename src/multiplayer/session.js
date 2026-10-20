@@ -1,7 +1,13 @@
+import { DEFAULT_SHIP, SHIP_FILES } from '../game/assetsManifest.js';
+import { rememberEvent } from './events.js';
 import {
+  SESSION_FULL_MESSAGE,
+  SHIP_OFFER_COUNT,
   assignPlayerTags,
   createRemoteShip,
+  offerShips,
   pushRemotePose,
+  resolveSessionShips,
   shouldSendPose,
   stepRemoteShip,
 } from './ships.js';
@@ -70,6 +76,11 @@ function emptySnapshot(available) {
     playerCount: 0,
     selfTag: '',
     hostMission: '',
+    ship: '',
+    takenShips: [],
+    shipOffer: [],
+    needsShip: false,
+    sessionFull: false,
     connected: false,
   };
 }
@@ -90,8 +101,17 @@ export function createMultiplayerSession(options = {}) {
   let lastSentX = null;
   let lastSentY = null;
   let lastSentExtracting = false;
+  let lastSentHp = null;
+  let preferredShip = '';
+  let trackingShip = '';
+  let eventSeq = 0;
+  let shipOffer = [];
+  let offerNonce = 0;
+  let offerBuiltFor = -1;
   const gathers = [];
   const rockNotes = [];
+  const worldNotes = [];
+  const seenWorld = new Set();
 
   function notify(patch) {
     snapshot = { ...snapshot, ...patch };
@@ -105,11 +125,12 @@ export function createMultiplayerSession(options = {}) {
       role: snapshot.role === 'host' ? 'host' : 'join',
       missionId: flight.missionId || '',
       layer: flight.layer | 0,
+      ship: trackingShip || '',
     };
   }
 
-  function syncPresence() {
-    if (!channel) return;
+  function readPeers() {
+    if (!channel) return [];
     const state = channel.presenceState() || {};
     const peers = [];
     for (const metas of Object.values(state)) {
@@ -121,8 +142,78 @@ export function createMultiplayerSession(options = {}) {
         role: meta.role === 'host' ? 'host' : 'join',
         missionId: typeof meta.missionId === 'string' ? meta.missionId : '',
         layer: finite(meta.layer, 0),
+        ship: typeof meta.ship === 'string' ? meta.ship : '',
       });
     }
+    return peers;
+  }
+
+  function ensureOffer(free) {
+    const valid =
+      shipOffer.length > 0 &&
+      shipOffer.every((name) => free.includes(name)) &&
+      offerBuiltFor === offerNonce &&
+      shipOffer.length === Math.min(SHIP_OFFER_COUNT, free.length);
+    if (!valid) {
+      shipOffer = offerShips(free, randomUnit, SHIP_OFFER_COUNT);
+      offerBuiltFor = offerNonce;
+    }
+    return shipOffer.slice();
+  }
+
+  function reconcileShips(peers) {
+    const seated = peers.map((peer) => ({
+      id: peer.id,
+      joinedAt: peer.joinedAt,
+      role: peer.role,
+      ship: peer.id === playerId ? preferredShip || '' : peer.ship,
+    }));
+    if (!seated.some((peer) => peer.id === playerId)) {
+      seated.push({
+        id: playerId,
+        joinedAt,
+        role: snapshot.role === 'host' ? 'host' : 'join',
+        ship: preferredShip || '',
+      });
+    }
+    const result = resolveSessionShips(seated, { ships: SHIP_FILES, defaultShip: DEFAULT_SHIP });
+    const mine = result.assignments.get(playerId) || '';
+    const amFull = result.full.includes(playerId);
+    const needsShip = result.pending.includes(playerId);
+    const takenShips = [];
+    for (const [id, ship] of result.assignments) {
+      if (id !== playerId) takenShips.push(ship);
+    }
+    const lostPick = snapshot.role !== 'host' && preferredShip && !mine;
+    if (result.hostId === playerId) preferredShip = mine || DEFAULT_SHIP;
+    else if (lostPick) {
+      preferredShip = '';
+      offerNonce += 1;
+      shipOffer = [];
+    }
+    const nextOffer = needsShip ? ensureOffer(result.free) : [];
+    if (!needsShip) shipOffer = [];
+    const message = amFull
+      ? SESSION_FULL_MESSAGE
+      : snapshot.message === SESSION_FULL_MESSAGE
+        ? ''
+        : snapshot.message;
+    notify({
+      ship: mine,
+      takenShips,
+      shipOffer: nextOffer,
+      needsShip,
+      sessionFull: amFull,
+      message,
+    });
+    if (mine === trackingShip) return;
+    trackingShip = mine;
+    if (channel && snapshot.status === 'connected') channel.track(presencePayload()).catch(() => {});
+  }
+
+  function syncPresence() {
+    if (!channel) return;
+    const peers = readPeers();
     const tags = assignPlayerTags(peers);
     const alive = new Set(peers.map((peer) => peer.id));
     for (const id of remotes.keys()) {
@@ -143,6 +234,7 @@ export function createMultiplayerSession(options = {}) {
       selfTag: tags.get(playerId) || '',
       hostMission,
     });
+    reconcileShips(peers);
   }
 
   function ingestPose(payload, now = typeof performance !== 'undefined' ? performance.now() : Date.now()) {
@@ -160,6 +252,8 @@ export function createMultiplayerSession(options = {}) {
       thrusting: !!payload.thrusting,
       extracting: !!payload.extracting,
       pilot: typeof payload.pilot === 'string' ? payload.pilot : '',
+      hp: finite(payload.hp, 100),
+      maxHp: finite(payload.maxHp, 100),
     };
     if (!Number.isFinite(pose.x) || !Number.isFinite(pose.y) || !Number.isFinite(pose.aim)) return;
     const existing = remotes.get(id);
@@ -287,6 +381,10 @@ export function createMultiplayerSession(options = {}) {
         if (gen !== generation) return;
         ingestFire(payload);
       });
+      ch.on('broadcast', { event: 'world' }, ({ payload }) => {
+        if (gen !== generation) return;
+        ingestWorld(payload);
+      });
       ch.on('presence', { event: 'sync' }, () => {
         if (gen !== generation) return;
         syncPresence();
@@ -322,6 +420,19 @@ export function createMultiplayerSession(options = {}) {
       lastSentX = null;
       lastSentY = null;
       lastSentExtracting = false;
+      lastSentHp = null;
+      eventSeq = 0;
+      seenWorld.clear();
+      worldNotes.length = 0;
+      if (role === 'host') {
+        preferredShip = DEFAULT_SHIP;
+        trackingShip = DEFAULT_SHIP;
+      } else {
+        preferredShip = '';
+        trackingShip = '';
+        shipOffer = [];
+        offerNonce += 1;
+      }
       const synced = waitSync(700);
       await ch.track(presencePayload());
       await synced;
@@ -384,6 +495,12 @@ export function createMultiplayerSession(options = {}) {
     lastSentLayer = null;
     lastSentExtracting = false;
     gathers.length = 0;
+    worldNotes.length = 0;
+    seenWorld.clear();
+    shipOffer = [];
+    preferredShip = '';
+    trackingShip = '';
+    lastSentHp = null;
     notify(emptySnapshot(!!config));
   }
 
@@ -403,16 +520,21 @@ export function createMultiplayerSession(options = {}) {
     const aim = finite(pose.aim, NaN);
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(aim)) return;
     const layer = finite(pose.layer, 0) | 0;
+    if (snapshot.needsShip || snapshot.sessionFull || !snapshot.ship) return;
     const extracting = !!pose.extracting;
+    const hp = Math.max(0, Math.round(finite(pose.hp, 0)));
+    const maxHp = Math.max(1, Math.round(finite(pose.maxHp, 100)));
     const jumped =
       lastSentX == null || Math.hypot(x - lastSentX, y - lastSentY) > JUMP_DISTANCE;
-    const urgent = layer !== lastSentLayer || jumped || extracting !== lastSentExtracting;
+    const urgent =
+      layer !== lastSentLayer || jumped || extracting !== lastSentExtracting || hp !== lastSentHp;
     if (!shouldSendPose(lastSentAt, now, urgent)) return;
     lastSentAt = now;
     lastSentLayer = layer;
     lastSentX = x;
     lastSentY = y;
     lastSentExtracting = extracting;
+    lastSentHp = hp;
     const payload = {
       id: playerId,
       tag: snapshot.selfTag || '',
@@ -420,9 +542,11 @@ export function createMultiplayerSession(options = {}) {
       y: Math.round(y * 10) / 10,
       aim: Math.round(aim * 1000) / 1000,
       layer,
-      sprite: typeof pose.sprite === 'string' ? pose.sprite : '',
+      sprite: snapshot.ship || (typeof pose.sprite === 'string' ? pose.sprite : ''),
       thrusting: !!pose.thrusting,
       extracting,
+      hp,
+      maxHp,
       pilot: typeof pose.pilot === 'string' ? pose.pilot.slice(0, 28) : '',
     };
     channel.send({ type: 'broadcast', event: 'pose', payload }).catch(() => {});
@@ -508,6 +632,69 @@ export function createMultiplayerSession(options = {}) {
     return notes;
   }
 
+  function ingestWorld(payload) {
+    if (!payload || payload.id == null || String(payload.id) === playerId) return;
+    if ((finite(payload.layer, 0) | 0) !== (flight.layer | 0)) return;
+    if (!rememberEvent(seenWorld, payload.eid)) return;
+    worldNotes.push(payload);
+  }
+
+  function publishWorld(event) {
+    if (!channel || snapshot.status !== 'connected' || !event || !snapshot.ship) return;
+    if ((finite(event.layer, flight.layer) | 0) !== (flight.layer | 0)) return;
+    eventSeq += 1;
+    const payload = {
+      id: playerId,
+      layer: flight.layer | 0,
+      t: event.t || Date.now(),
+      eid: playerId + ':' + eventSeq,
+      k: event.k,
+    };
+    const fields = [
+      'op',
+      'key',
+      'ore',
+      'n',
+      'size',
+      'depleted',
+      'x',
+      'y',
+      'item',
+      'aim',
+      'tx',
+      'ty',
+      'bend',
+      'sp',
+      'min',
+      'sz',
+      'rot',
+      'spin',
+      'drift',
+      'diff',
+      'q',
+      'from',
+    ];
+    for (const field of fields) {
+      if (event[field] != null) payload[field] = event[field];
+    }
+    channel.send({ type: 'broadcast', event: 'world', payload }).catch(() => {});
+  }
+
+  function takeWorldNotes() {
+    const notes = worldNotes.slice();
+    worldNotes.length = 0;
+    return notes;
+  }
+
+  function chooseShip(name) {
+    if (!snapshot.connected || snapshot.sessionFull || snapshot.role === 'host') return false;
+    if (typeof name !== 'string' || !snapshot.shipOffer.includes(name)) return false;
+    if ((snapshot.takenShips || []).includes(name)) return false;
+    preferredShip = name;
+    reconcileShips(readPeers());
+    return snapshot.ship === name;
+  }
+
   function publishGather(gather) {
     if (!channel || snapshot.status !== 'connected' || !gather) return;
     const x = finite(gather.x, NaN);
@@ -559,6 +746,9 @@ export function createMultiplayerSession(options = {}) {
     publishGather,
     publishRock,
     publishFire,
+    publishWorld,
+    takeWorldNotes,
+    chooseShip,
     takeRockNotes,
     takeFireNotes,
     step,
