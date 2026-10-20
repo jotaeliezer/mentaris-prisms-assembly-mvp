@@ -33,7 +33,36 @@ export const FIELD_STEP = 720;
 /** How far from the ship the belt keeps rocks ready to extract. */
 export const BELT_RADIUS = 3000;
 
+/** Five rock pictures, rarest last. Weights are out of 100, in the coal-to-diamond sense. */
+export const ASTEROID_TYPES = [
+  { sprite: 0, mineral: 'pale', name: 'Pale rock', weight: 48 },
+  { sprite: 1, mineral: 'slate', name: 'Slate rock', weight: 26 },
+  { sprite: 2, mineral: 'amber', name: 'Amber rock', weight: 14 },
+  { sprite: 3, mineral: 'virid', name: 'Virid rock', weight: 8 },
+  { sprite: 4, mineral: 'glint', name: 'Glint rock', weight: 4 },
+];
+
+export function rollAsteroidType(rng) {
+  const total = ASTEROID_TYPES.reduce((sum, type) => sum + type.weight, 0);
+  let roll = rng() * total;
+  for (const type of ASTEROID_TYPES) {
+    roll -= type.weight;
+    if (roll <= 0) return type;
+  }
+  return ASTEROID_TYPES[0];
+}
+
+/** How many crystals a rock drops. Size sets the band. A hard question adds one, except glint stays tiny. */
+export function mineralYield(type, size, difficulty) {
+  const band = size >= 170 ? 3 : size >= 145 ? 2 : 1;
+  const hard = difficulty === 'hard' ? 1 : 0;
+  if (!type || type.mineral === 'glint') return 1 + hard;
+  if (type.mineral === 'virid') return Math.min(3, band + hard);
+  return Math.min(4, band + hard);
+}
+
 export function placeAsteroidAt(state, operation, difficulty, x, y) {
+  const type = rollAsteroidType(state.rng);
   const question = nextProblem(problemSpec(operation, difficulty || 'easy'), state.rng);
   const size = 120 + state.rng() * 70;
   const radius = size * 0.34;
@@ -41,7 +70,8 @@ export function placeAsteroidAt(state, operation, difficulty, x, y) {
     id: state.nextId++,
     x,
     y,
-    sprite: Math.floor(state.rng() * 5),
+    sprite: type.sprite,
+    mineral: type.mineral,
     size,
     radius,
     baseRadius: radius,
@@ -57,6 +87,7 @@ export function placeAsteroidAt(state, operation, difficulty, x, y) {
     operation,
     difficulty: question.difficulty,
     outline: false,
+    key: Math.round(x) + ':' + Math.round(y),
   });
 }
 
@@ -67,7 +98,7 @@ export function spawnAsteroid(state, operation, difficulty, place) {
   for (let guard = 0; guard < 40; guard++) {
     if (place === 'near' || place === 'mid') {
       const angle = state.rng() * Math.PI * 2;
-      const dist = place === 'near' ? 160 + state.rng() * 90 : 520 + state.rng() * 480;
+      const dist = place === 'near' ? 250 + state.rng() * 40 : 520 + state.rng() * 480;
       x = clamp(state.ship.x + Math.cos(angle) * dist, 160, WORLD.w - 160);
       y = clamp(state.ship.y + Math.sin(angle) * dist, 160, WORLD.h - 160);
     } else {
@@ -78,7 +109,7 @@ export function spawnAsteroid(state, operation, difficulty, place) {
     const shipDist = Math.hypot(x - state.ship.x, y - state.ship.y);
     const clearOfShip =
       place === 'near'
-        ? shipDist > 150 && shipDist < 270
+        ? shipDist > 230 && shipDist < 310
         : place === 'mid'
           ? shipDist > 500 && shipDist < 1100
           : shipDist > minShip;
@@ -155,6 +186,11 @@ export function createState() {
     /** Last accepted extract answer, kept while the answer box is green. */
     correctAnswer: '',
     pendingExtractClose: false,
+    /** Recipe ids already announced, so a craft toast shows once. */
+    knownCrafts: {},
+    notices: [],
+    sharedGathers: [],
+    sharedRocks: [],
     solved: 0,
     wrong: 0,
     targetId: 0,
@@ -178,6 +214,7 @@ export function createState() {
       maxSpeed: 430,
     },
     camera: { x: spawn.x, y: spawn.y },
+    viewZoom: 1,
     mission: null,
     wormhole: null,
     seed: 'belt-7',

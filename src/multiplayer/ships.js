@@ -38,6 +38,8 @@ export function createRemoteShip(pose, now) {
     layer: pose.layer | 0,
     sprite: pose.sprite || '',
     thrusting: !!pose.thrusting,
+    extracting: !!pose.extracting,
+    pilot: pose.pilot || '',
     hasPose: true,
     x,
     y,
@@ -65,6 +67,8 @@ export function pushRemotePose(ship, pose, now, blendMs = POSE_BLEND_MS) {
   ship.layer = pose.layer | 0;
   if (pose.sprite) ship.sprite = pose.sprite;
   ship.thrusting = !!pose.thrusting;
+  ship.extracting = !!pose.extracting;
+  if (pose.pilot) ship.pilot = pose.pilot;
   if (pose.tag) ship.tag = pose.tag;
   ship.hasPose = true;
   return ship;

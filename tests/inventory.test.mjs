@@ -1,4 +1,5 @@
-import { createState } from '../src/game/state.js';
+import { createState, mineralYield, rollAsteroidType } from '../src/game/state.js';
+import { makeRng } from '../src/game/util.js';
 import {
   CARGO_COLS,
   CARGO_ROWS,
@@ -7,6 +8,7 @@ import {
   addItem,
   countItem,
   inventoryClick,
+  inventoryDrag,
   moveCargoToHotbar,
 } from '../src/game/items.js';
 import {
@@ -19,7 +21,11 @@ import {
   hasJumper,
   idle,
   openExtract,
+  rockTouchDistance,
+  updateFly,
+  updatePhysics,
   populateField,
+  applySharedRock,
   respawnShip,
   selectHotbar,
   setCargoOpen,
@@ -97,6 +103,13 @@ assert(shrink.fxGreen > 0, 'a correct answer flashes green');
 assert(shrink.correctAnswer === '7', 'the correct answer stays visible in the green box');
 assert(shrink.buffer === '', 'the live buffer clears so the next problem can be typed');
 assert(shrink.mode === 'extract', 'extract stays open while the answer is green');
+const spilled = shrink.drops[shrink.drops.length - 1];
+assert(spilled, 'a correct answer leaves a mineral in space');
+assert(
+  Math.hypot(spilled.x - shrink.ship.x, spilled.y - shrink.ship.y) > 90,
+  'the mineral stays by the asteroid until the ship flies to it'
+);
+assert(countItem(shrink, 'pale') === 0, 'the mineral is not in the hotbar yet');
 const greenSnap = buildSnapshotPatch(shrink, false);
 assert(
   greenSnap.fxGreen && greenSnap.correctAnswer === '7',
@@ -162,7 +175,9 @@ assert(!hasJumper(locked), 'a new flight has no jumper');
 changeLayer(locked, 1, null);
 assert(locked.layer === lockedLayer && !locked.transition, 'Q and E do nothing without a jumper');
 assert(addItem(locked, 'pale', 4) === 0, 'pale ore for the placeholder jumper');
-assert(craftItem(locked, 'jumper', null), 'the jumper is manufactured from a count');
+assert(!craftItem(locked, 'jumper', null), 'the jumper stays closed until a bench is carried');
+assert(addItem(locked, 'bench', 1) === 0, 'the fabrication bench is the crafting table');
+assert(craftItem(locked, 'jumper', null), 'the jumper is manufactured once the bench is carried');
 assert(hasJumper(locked), 'the jumper is carried');
 changeLayer(locked, 1, null);
 assert(locked.transition && locked.transition.kind === 'layer', 'a carried jumper unlocks the shift');
@@ -173,5 +188,112 @@ emptyField.ship.x = 4000;
 emptyField.ship.y = 4000;
 populateField(emptyField);
 assert(emptyField.asteroids.length >= 40, 'an open belt is populated more densely');
+
+const gather = createState();
+gather.mode = 'fly';
+gather.drops.push({
+  id: 99,
+  x: gather.ship.x + 20,
+  y: gather.ship.y,
+  itemId: 'pale',
+  count: 2,
+  life: 20,
+  maxLife: 20,
+});
+idle(gather, 0.05, null);
+assert(countItem(gather, 'pale') === 2, 'flying onto a mineral puts it in the hotbar');
+assert(
+  gather.notices.some((note) => note.text.includes('Prism glass') && note.text.includes('Press F')),
+  'a new recipe toasts and points at F'
+);
+
+const drag = createState();
+addItem(drag, 'amber', 3);
+assert(inventoryDrag(drag, 'hotbar', 0, 'cargo', 0), 'a drag moves a stack into cargo');
+assert(drag.cargoSlots[0] && drag.cargoSlots[0].id === 'amber', 'cargo received the dragged stack');
+assert(inventoryDrag(drag, 'cargo', 0, 'hotbar', 3), 'a drag moves a stack back to the hotbar');
+assert(drag.hotbar[3] && drag.hotbar[3].id === 'amber', 'the hotbar received the dragged stack');
+
+const reverse = createState();
+reverse.mode = 'fly';
+reverse.ship.aim = 0;
+reverse.ship.vx = 0;
+reverse.ship.vy = 0;
+const brakeInput = {
+  thrust: () => false,
+  brake: () => true,
+  strafe: () => 0,
+  mouse: { touch: false, held: false },
+};
+for (let step = 0; step < 50; step++) updatePhysics(reverse, 0.05, brakeInput);
+const backward = -(
+  reverse.ship.vx * Math.cos(reverse.ship.aim) + reverse.ship.vy * Math.sin(reverse.ship.aim)
+);
+assert(backward > 60, 'reverse is a bit faster, got ' + Math.round(backward));
+
+const bump = createState();
+startMission(bump, 'roam', 'bump-seed', null);
+const struck = bump.asteroids.find((item) => item.alive);
+const touch = rockTouchDistance(struck);
+bump.ship.x = struck.x + touch - 8;
+bump.ship.y = struck.y;
+bump.ship.vx = 0;
+bump.ship.vy = 0;
+bump.bumpCooldown = 0;
+const beforeHp = bump.ship.hp;
+updateFly(bump, 0.05, {
+  input: {
+    mouse: { x: 0, y: 0, worldX: bump.ship.x, worldY: bump.ship.y, touch: false, held: false },
+    thrust: () => false,
+    brake: () => false,
+    strafe: () => 0,
+    takeClicks: () => [],
+  },
+  audio: null,
+  view: { w: 1280, h: 720 },
+});
+assert(bump.ship.hp < beforeHp, 'the hull is hit when the ship touches the rock');
+
+const miss = createState();
+startMission(miss, 'roam', 'miss-bump', null);
+const aside = miss.asteroids.find((item) => item.alive);
+for (const rock of miss.asteroids) {
+  if (rock !== aside) rock.alive = false;
+}
+const outside = rockTouchDistance(aside) + 36;
+miss.ship.x = aside.x + outside;
+miss.ship.y = aside.y;
+miss.ship.vx = 0;
+miss.ship.vy = 0;
+miss.bumpCooldown = 0;
+const safeHp = miss.ship.hp;
+updateFly(miss, 0.05, {
+  input: {
+    mouse: { x: 0, y: 0, worldX: miss.ship.x, worldY: miss.ship.y, touch: false, held: false },
+    thrust: () => false,
+    brake: () => false,
+    strafe: () => 0,
+    takeClicks: () => [],
+  },
+  audio: null,
+  view: { w: 1280, h: 720 },
+});
+assert(miss.ship.hp === safeHp, 'a gap outside the painted rock does not count as a hit');
+
+const shared = createState();
+const marked = shared.asteroids.find((item) => item.alive);
+const beforeSize = marked.size;
+applySharedRock(shared, { key: marked.key, size: beforeSize * 0.83, alive: true, depleted: false, extractCount: 1 });
+assert(marked.sizeTarget < beforeSize, 'another pilot shrinking a rock sets the same shrink here');
+
+const oreRng = makeRng('ore-ladder');
+const tallies = { pale: 0, slate: 0, amber: 0, virid: 0, glint: 0 };
+for (let n = 0; n < 800; n++) tallies[rollAsteroidType(oreRng).mineral] += 1;
+assert(tallies.pale > tallies.slate && tallies.slate > tallies.amber, 'common rocks outnumber richer rocks');
+assert(tallies.amber > tallies.virid && tallies.virid > tallies.glint, 'glint is the rare rock');
+assert(mineralYield({ mineral: 'pale' }, 180, 'hard') === 4, 'a large hard pale rock drops four');
+assert(mineralYield({ mineral: 'pale' }, 120, 'easy') === 1, 'a small easy pale rock drops one');
+assert(mineralYield({ mineral: 'glint' }, 180, 'easy') === 1, 'glint stays one unless the question is hard');
+assert(mineralYield({ mineral: 'glint' }, 180, 'hard') === 2, 'a hard glint rock drops two');
 
 console.log('inventory tests ok');

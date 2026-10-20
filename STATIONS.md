@@ -2,7 +2,7 @@
 
 Fabrication stays a list of counts. There is no crafting grid. A station is the thing you build first, and building it is what unlocks the next list of recipes. That is the whole idea. It works the way a crafting table does: the table is an item you make, and only then can you make the things that need a table.
 
-This is a plan, not a build. The layer jumper is the only piece already in the game, and its ingredients are a stand-in.
+The Fabrication bench is in the game. By hand you can make Prism glass and the bench. Carrying the bench opens the rest of the bay. Losing the bench hides those recipes again. The notes below are the original plan for anything past that first bench. The jumper’s ingredients are still a stand-in.
 
 ## What is in the game now
 

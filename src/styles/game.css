@@ -311,12 +311,120 @@ button:disabled,
 .hotbar-slot.selected:hover,
 .hotbar-slot.selected:focus-visible,
 .hotbar-slot.selected:active {
-  transform: none;
+  transform: translateY(-10px) scale(1.14);
+  z-index: 3;
   border-color: #f4fbff;
   background: rgba(10, 36, 52, 0.96);
   box-shadow:
+    0 10px 18px rgba(0, 0, 0, 0.35),
     0 0 0 1px #f4fbff,
     0 0 14px rgba(0, 215, 255, 0.72);
+}
+
+.hotbar-slot.lifting {
+  transform: translateY(-8px) scale(1.08);
+  z-index: 4;
+  border-color: #fff6d0;
+}
+
+.slot-tip {
+  position: fixed;
+  z-index: 40;
+  transform: translate(-50%, -140%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(8, 12, 24, 0.94);
+  border: 1px solid rgba(126, 231, 255, 0.45);
+  color: #f4fbff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.hull-drawer {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(8, 12, 24, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  pointer-events: auto;
+}
+
+.hull-title {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(232, 236, 255, 0.72);
+}
+
+.hull-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hull-slot {
+  width: 168px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.hull-slot-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(232, 236, 255, 0.72);
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 40;
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  margin-top: -28px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  transform: scale(1.12);
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.45));
+}
+
+.craft-toasts {
+  position: fixed;
+  right: 88px;
+  bottom: 28px;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.craft-toast {
+  max-width: 280px;
+  padding: 10px 14px;
+  border-radius: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: rgba(16, 16, 16, 0.92);
+  color: #f4fbff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.35);
 }
 
 .hotbar-slot.empty {
@@ -691,8 +799,48 @@ button:disabled,
   color: var(--accent);
 }
 
-.fab-recipes .btn {
+.fab-readout {
+  min-height: 72px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(126, 231, 255, 0.28);
+  background: rgba(6, 12, 22, 0.72);
+}
+
+.fab-readout-name {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f4fbff;
+}
+
+.fab-readout-body {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.fab-recipes .fab-card {
   min-height: 64px;
+  overflow: hidden;
+}
+
+.fab-recipes .fab-card.is-short {
+  opacity: 0.55;
+}
+
+.fab-recipes .fab-card.is-hot {
+  border-color: rgba(126, 231, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(126, 231, 255, 0.45);
+}
+
+.fab-recipes .fab-name,
+.fab-recipes .fab-cost {
+  display: block;
 }
 
 .fab-cats {
@@ -1229,6 +1377,49 @@ button:disabled {
 }
 
 /* In-flight settings. The gear sits in the top-right corner of the screen. */
+.pilot-name {
+  pointer-events: none;
+  color: #f4fbff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
+}
+
+.pilot-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px auto 0;
+  width: min(360px, 100%);
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(232, 236, 255, 0.72);
+}
+
+.pilot-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  background: rgba(8, 12, 24, 0.72);
+  color: #f4fbff;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.intro-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: #05060a;
+  pointer-events: none;
+}
+
 .flight-tools {
   position: absolute;
   top: 0;

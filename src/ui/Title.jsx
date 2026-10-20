@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { readPilotName, writePilotName } from '../game/pilot.js';
 import SettingsPanel, { DEFAULT_MISSION, DEFAULT_SEED, GearIcon } from './SettingsPanel.jsx';
 import { useMultiplayer } from './SessionControls.jsx';
 
@@ -16,6 +17,7 @@ const FLOATERS = [
 ];
 
 export default function Title({ bridge }) {
+  const [pilot, setPilot] = useState(readPilotName);
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [mission, setMission] = useState(DEFAULT_MISSION);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -119,6 +121,22 @@ export default function Title({ bridge }) {
             <span className="menuTitleMain">Mentaris</span>
             <span className="menuTitleSub">Prisms of Assembly</span>
           </h1>
+          <label className="pilot-field" htmlFor="pilot-name">
+            Pilot name
+            <input
+              id="pilot-name"
+              value={pilot}
+              maxLength={28}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => {
+                const next = event.target.value;
+                setPilot(next);
+                writePilotName(next);
+              }}
+              onBlur={() => setPilot(writePilotName(pilot))}
+            />
+          </label>
           <div className="home-launch-row">
             <button id="launch" className="btn btn-primary home-launch" type="button" onClick={launch}>
               Launch

@@ -15,13 +15,13 @@ function parseColor(color, fallback = 0xd7f4ff) {
  * Screen-space starfield with camera parallax — matches legacy js/render.js drawStars.
  * gfx should use scrollFactor(0).
  */
-export function syncStars(gfx, stars, camera, w, h) {
+export function syncStars(gfx, stars, camera, w, h, fade = 1) {
   gfx.clear();
-  if (!stars || !camera) return;
+  if (!stars || !camera || fade <= 0.01) return;
   for (const star of stars) {
     const sx = mod(star.x - camera.x * star.parallax, w + 40) - 20;
     const sy = mod(star.y - camera.y * star.parallax, h + 40) - 20;
-    gfx.fillStyle(parseColor(star.color), star.a);
+    gfx.fillStyle(parseColor(star.color), star.a * fade);
     gfx.fillRect(sx, sy, star.size, star.size);
   }
 }
@@ -30,9 +30,10 @@ export function syncStars(gfx, stars, camera, w, h) {
  * Thruster flame in ship-local space — matches legacy js/render.js drawFlame.
  * Sets gfx position/rotation/scale to the ship; call near ship draw.
  */
-export function syncFlame(gfx, ship, shipScale = 1) {
+export function syncFlame(gfx, ship, shipScale = 1, time = 0) {
   gfx.clear();
-  if (!ship || !ship.thrusting) {
+  const burn = ship && ship.thrust ? ship.thrust : 0;
+  if (!ship || !ship.thrusting || burn < 0.04) {
     gfx.setVisible(false);
     return;
   }
@@ -41,13 +42,17 @@ export function syncFlame(gfx, ship, shipScale = 1) {
   gfx.setRotation(ship.aim + Math.PI / 2);
   gfx.setScale(shipScale);
 
-  const flicker = 0.75 + Math.random() * 0.4;
-  const length = 26 + (ship.thrust || 0) * 18;
-  // Approximate canvas linear gradient with nested triangles
-  gfx.fillStyle(0x7ee7ff, flicker * 0.8);
-  gfx.fillTriangle(-7, 20, 0, 20 + length, 7, 20);
-  gfx.fillStyle(0xfff4d6, flicker * 0.95);
-  gfx.fillTriangle(-4, 20, 0, 20 + length * 0.55, 4, 20);
+  const wag = Math.sin(time * 28) * 3.5 * burn;
+  const flick = 0.86 + Math.sin(time * 46) * 0.08 + Math.sin(time * 17) * 0.05;
+  const length = (22 + burn * 54) * flick;
+  gfx.fillStyle(0x7ee7ff, 0.22 * burn);
+  gfx.fillTriangle(-16, 16, wag, 18 + length * 1.15, 16, 16);
+  gfx.fillStyle(0x5fd8ff, 0.55 * flick);
+  gfx.fillTriangle(-9, 18, wag * 0.6, 18 + length, 9, 18);
+  gfx.fillStyle(0xbff6ff, 0.9);
+  gfx.fillTriangle(-4.5, 16, wag * 0.3, 16 + length * 0.72, 4.5, 16);
+  gfx.fillStyle(0xfff8e4, 0.95);
+  gfx.fillTriangle(-2, 14, 0, 14 + length * 0.38, 2, 14);
 }
 
 /** Direction-specific rock/ship envelopes for kind:"layer" only. */
@@ -101,8 +106,9 @@ export function rockDisplayScale(rock, envelopeScale = 1) {
  */
 export function applyCameraPolish(cam, state) {
   const { scaleX, scaleY, shift } = worldSquash(state);
-  cam.zoomX = scaleX;
-  cam.zoomY = scaleY;
+  const zoom = state.viewZoom || 1;
+  cam.zoomX = scaleX * zoom;
+  cam.zoomY = scaleY * zoom;
   cam.centerOn(state.camera.x, state.camera.y - shift);
   if (state.shakeTime > 0) {
     const amp = state.shakeMag || 64;

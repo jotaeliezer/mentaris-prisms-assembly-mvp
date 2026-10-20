@@ -89,6 +89,9 @@ export function createMultiplayerSession(options = {}) {
   let lastSentLayer = null;
   let lastSentX = null;
   let lastSentY = null;
+  let lastSentExtracting = false;
+  const gathers = [];
+  const rockNotes = [];
 
   function notify(patch) {
     snapshot = { ...snapshot, ...patch };
@@ -155,6 +158,8 @@ export function createMultiplayerSession(options = {}) {
       layer: finite(payload.layer, 0),
       sprite: typeof payload.sprite === 'string' ? payload.sprite : '',
       thrusting: !!payload.thrusting,
+      extracting: !!payload.extracting,
+      pilot: typeof payload.pilot === 'string' ? payload.pilot : '',
     };
     if (!Number.isFinite(pose.x) || !Number.isFinite(pose.y) || !Number.isFinite(pose.aim)) return;
     const existing = remotes.get(id);
@@ -270,6 +275,18 @@ export function createMultiplayerSession(options = {}) {
         if (gen !== generation) return;
         ingestPose(payload);
       });
+      ch.on('broadcast', { event: 'gather' }, ({ payload }) => {
+        if (gen !== generation) return;
+        ingestGather(payload);
+      });
+      ch.on('broadcast', { event: 'rock' }, ({ payload }) => {
+        if (gen !== generation) return;
+        ingestRock(payload);
+      });
+      ch.on('broadcast', { event: 'fire' }, ({ payload }) => {
+        if (gen !== generation) return;
+        ingestFire(payload);
+      });
       ch.on('presence', { event: 'sync' }, () => {
         if (gen !== generation) return;
         syncPresence();
@@ -304,6 +321,7 @@ export function createMultiplayerSession(options = {}) {
       lastSentLayer = null;
       lastSentX = null;
       lastSentY = null;
+      lastSentExtracting = false;
       const synced = waitSync(700);
       await ch.track(presencePayload());
       await synced;
@@ -364,6 +382,8 @@ export function createMultiplayerSession(options = {}) {
     joinedAt = 0;
     lastSentAt = 0;
     lastSentLayer = null;
+    lastSentExtracting = false;
+    gathers.length = 0;
     notify(emptySnapshot(!!config));
   }
 
@@ -383,14 +403,16 @@ export function createMultiplayerSession(options = {}) {
     const aim = finite(pose.aim, NaN);
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(aim)) return;
     const layer = finite(pose.layer, 0) | 0;
+    const extracting = !!pose.extracting;
     const jumped =
       lastSentX == null || Math.hypot(x - lastSentX, y - lastSentY) > JUMP_DISTANCE;
-    const urgent = layer !== lastSentLayer || jumped;
+    const urgent = layer !== lastSentLayer || jumped || extracting !== lastSentExtracting;
     if (!shouldSendPose(lastSentAt, now, urgent)) return;
     lastSentAt = now;
     lastSentLayer = layer;
     lastSentX = x;
     lastSentY = y;
+    lastSentExtracting = extracting;
     const payload = {
       id: playerId,
       tag: snapshot.selfTag || '',
@@ -400,12 +422,117 @@ export function createMultiplayerSession(options = {}) {
       layer,
       sprite: typeof pose.sprite === 'string' ? pose.sprite : '',
       thrusting: !!pose.thrusting,
+      extracting,
+      pilot: typeof pose.pilot === 'string' ? pose.pilot.slice(0, 28) : '',
     };
     channel.send({ type: 'broadcast', event: 'pose', payload }).catch(() => {});
   }
 
+  function ingestGather(payload, now = typeof performance !== 'undefined' ? performance.now() : Date.now()) {
+    if (!payload || payload.id == null) return;
+    const id = String(payload.id);
+    if (id === playerId) return;
+    const x = finite(payload.x, NaN);
+    const y = finite(payload.y, NaN);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    gathers.push({
+      key: id + ':' + now,
+      shipId: id,
+      x,
+      y,
+      itemId: typeof payload.itemId === 'string' ? payload.itemId : 'pale',
+      layer: finite(payload.layer, 0) | 0,
+      t0: now,
+      dur: 700,
+    });
+  }
+
+  function ingestRock(payload) {
+    if (!payload || payload.id == null || String(payload.id) === playerId) return;
+    if (!payload.key) return;
+    rockNotes.push({
+      key: String(payload.key),
+      size: finite(payload.size, NaN),
+      depleted: !!payload.depleted,
+      alive: payload.alive !== false,
+      extractCount: finite(payload.extractCount, 0),
+    });
+  }
+
+  function publishRock(rock) {
+    if (!channel || snapshot.status !== 'connected' || !rock || !rock.key) return;
+    channel
+      .send({
+        type: 'broadcast',
+        event: 'rock',
+        payload: {
+          id: playerId,
+          key: rock.key,
+          size: rock.size,
+          depleted: !!rock.depleted,
+          alive: rock.alive !== false,
+          extractCount: rock.extractCount || 0,
+        },
+      })
+      .catch(() => {});
+  }
+
+  function takeRockNotes() {
+    const notes = rockNotes.slice();
+    rockNotes.length = 0;
+    return notes;
+  }
+
+  const fireNotes = [];
+
+  function ingestFire(payload) {
+    if (!payload || String(payload.targetId) !== playerId) return;
+    if (String(payload.id) === playerId) return;
+    fireNotes.push(finite(payload.amount, 14));
+  }
+
+  function publishFire(targetId, amount) {
+    if (!channel || snapshot.status !== 'connected' || !targetId) return;
+    channel
+      .send({
+        type: 'broadcast',
+        event: 'fire',
+        payload: { id: playerId, targetId: String(targetId), amount: amount || 14 },
+      })
+      .catch(() => {});
+  }
+
+  function takeFireNotes() {
+    const notes = fireNotes.slice();
+    fireNotes.length = 0;
+    return notes;
+  }
+
+  function publishGather(gather) {
+    if (!channel || snapshot.status !== 'connected' || !gather) return;
+    const x = finite(gather.x, NaN);
+    const y = finite(gather.y, NaN);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    channel
+      .send({
+        type: 'broadcast',
+        event: 'gather',
+        payload: {
+          id: playerId,
+          x: Math.round(x * 10) / 10,
+          y: Math.round(y * 10) / 10,
+          itemId: gather.itemId || 'pale',
+          layer: flight.layer | 0,
+        },
+      })
+      .catch(() => {});
+  }
+
   function step(now = typeof performance !== 'undefined' ? performance.now() : Date.now()) {
     for (const ship of remotes.values()) stepRemoteShip(ship, now);
+    for (let i = gathers.length - 1; i >= 0; i--) {
+      if (now - gathers[i].t0 > gathers[i].dur) gathers.splice(i, 1);
+    }
   }
 
   function subscribe(listener) {
@@ -429,10 +556,18 @@ export function createMultiplayerSession(options = {}) {
     leave,
     noteFlight,
     publishPose,
+    publishGather,
+    publishRock,
+    publishFire,
+    takeRockNotes,
+    takeFireNotes,
     step,
     subscribe,
     getSnapshot,
     remoteShips,
+    remoteGathers() {
+      return gathers;
+    },
     playerId,
   };
 }

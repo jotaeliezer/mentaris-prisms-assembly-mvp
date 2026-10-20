@@ -91,6 +91,8 @@ assert(Math.abs(ship.x - 50) < 0.001, 'midpoint of the blend is halfway');
 assert(ship.layer === 2, 'pose carries the layer');
 stepRemoteShip(ship, 100);
 assert(ship.x === 100, 'blend arrives at the next pose');
+pushRemotePose(ship, { x: 100, y: 0, aim: 0, layer: 2, extracting: true }, 100, 100);
+assert(ship.extracting === true, 'pose carries an extract so others can show the drill');
 const wrapped = lerpAngle(3, -3, 1);
 assert(Math.abs(Math.sin(wrapped) - Math.sin(-3)) < 0.0001, 'aim takes the short wrap');
 

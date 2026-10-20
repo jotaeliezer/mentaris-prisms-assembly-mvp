@@ -8,17 +8,18 @@ function placeExtractPanel(anchor) {
   }
   const vw = anchor.vw;
   const vh = anchor.vh;
+  const bottomGap = 78;
   const width = Math.min(PANEL_W, vw - 108);
-  const height = Math.min(PANEL_H, vh - 24);
+  const height = Math.min(PANEL_H, vh - bottomGap - 16);
   const spots = [
     [16, 16],
-    [16, vh - height - 16],
+    [16, vh - height - bottomGap],
     [vw - width - 96, 16],
-    [vw - width - 96, vh - height - 16],
+    [vw - width - 96, vh - height - bottomGap],
     [16, (vh - height) / 2],
     [vw - width - 96, (vh - height) / 2],
     [(vw - width) / 2, 16],
-    [(vw - width) / 2, vh - height - 16],
+    [(vw - width) / 2, vh - height - bottomGap],
   ];
   function hitsRock(left, top) {
     const nearestX = Math.max(left, Math.min(anchor.x, left + width));
@@ -38,7 +39,7 @@ function placeExtractPanel(anchor) {
   const [left, top] = ranked[0];
   return {
     left: Math.max(8, Math.min(left, vw - width - 8)),
-    top: Math.max(8, Math.min(top, vh - height - 8)),
+    top: Math.max(8, Math.min(top, vh - height - bottomGap)),
   };
 }
 

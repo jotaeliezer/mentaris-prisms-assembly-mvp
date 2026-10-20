@@ -16,9 +16,12 @@ import {
 } from '../display.js';
 import { createInput } from '../input.js';
 import { multiplayer } from '../../multiplayer/session.js';
-import { inventoryClick, itemTint } from '../items.js';
+import { inventoryClick, inventoryDrag, itemTint } from '../items.js';
+import { readPilotName } from '../pilot.js';
 import { createState, WORLD } from '../state.js';
 import {
+  applyFriendlyFire,
+  applySharedRock,
   buildSnapshotPatch,
   cancelExtract,
   changeLayer,
@@ -28,6 +31,8 @@ import {
   extractBackspace,
   hotbarIndex,
   idle,
+  introAlphas,
+  missilesHitPlayers,
   HOTBAR_SIZE,
   moveCargoToHotbar,
   moveHotbarToCargo,
@@ -35,11 +40,13 @@ import {
   respawnShip,
   selectHotbar,
   setCargoOpen,
+  setHullOpen,
   setFab,
   setPaused,
   startMission,
   submitExtract,
   typeChar,
+  tickIntro,
   updateFly,
   updateTransition,
 } from '../systems.js';
@@ -129,7 +136,6 @@ export default class PlayScene extends Phaser.Scene {
     this.wireDigits();
     this.wireLayerKeys();
 
-    // T7: decorative presence only — no AI/combat; keep clear of ship start.
     this.spawnPresenceSprites();
 
     this.events.once('shutdown', this.shutdown, this);
@@ -139,12 +145,11 @@ export default class PlayScene extends Phaser.Scene {
     this.publishSnapshot(true);
   }
 
-  /** One alien, one powerup, one bullet — visible textures, no gameplay hooks. */
+  /** Decorative props only. Aliens stay out until a spawn clock exists. */
   spawnPresenceSprites() {
     const cx = this.state.ship.x;
     const cy = this.state.ship.y;
     const specs = [
-      { key: 'alien_saucer.png', x: cx + 720, y: cy - 480, size: 64 },
       { key: 'powerup_shield.png', x: cx - 640, y: cy + 520, size: 40 },
       { key: 'bullet_single.png', x: cx + 420, y: cy + 680, size: 24 },
     ];
@@ -254,6 +259,14 @@ export default class PlayScene extends Phaser.Scene {
     );
 
     this.unsubs.push(
+      bridge.on('setHull', (open) => {
+        setHullOpen(this.state, !!open);
+        this.clearFlightInput();
+        this.publishSnapshot(true);
+      })
+    );
+
+    this.unsubs.push(
       bridge.on('cargoToHotbar', (payload) => {
         const cargoIndex = payload && payload.cargoIndex != null ? payload.cargoIndex : payload;
         moveCargoToHotbar(this.state, Number(cargoIndex), hotbarIndex(this.state));
@@ -276,6 +289,20 @@ export default class PlayScene extends Phaser.Scene {
         const index = payload && payload.index != null ? Number(payload.index) : NaN;
         inventoryClick(this.state, area, index);
         if (area === 'hotbar') selectHotbar(this.state, index);
+        this.publishSnapshot(true);
+      })
+    );
+
+    this.unsubs.push(
+      bridge.on('inventoryDrag', (payload) => {
+        if (!payload) return;
+        inventoryDrag(
+          this.state,
+          payload.fromArea,
+          Number(payload.fromIndex),
+          payload.toArea,
+          Number(payload.toIndex)
+        );
         this.publishSnapshot(true);
       })
     );
@@ -403,7 +430,7 @@ export default class PlayScene extends Phaser.Scene {
         return;
       }
 
-      if (mode === 'cargo') {
+      if (mode === 'cargo' || mode === 'hull') {
         const heldDigit = digitFromEvent(event);
         if (heldDigit != null) {
           const slot = heldDigit === '0' ? HOTBAR_SIZE - 1 : Number(heldDigit) - 1;
@@ -467,7 +494,11 @@ export default class PlayScene extends Phaser.Scene {
       missionId: this.state.mission ? this.state.mission.id : '',
       layer: this.state.layer,
     });
-    if (!multiplayer.getSnapshot().connected || this.state.mode === 'title') return;
+    if (!multiplayer.getSnapshot().connected || this.state.mode === 'title') {
+      if (this.state.sharedRocks) this.state.sharedRocks.length = 0;
+      if (this.state.sharedGathers) this.state.sharedGathers.length = 0;
+      return;
+    }
     multiplayer.publishPose({
       x: ship.x,
       y: ship.y,
@@ -475,7 +506,26 @@ export default class PlayScene extends Phaser.Scene {
       layer: this.state.layer,
       sprite: ship.sprite,
       thrusting: !!ship.thrusting,
+      extracting: this.state.mode === 'extract',
+      pilot: readPilotName(),
     });
+    const rocks = this.state.sharedRocks;
+    if (rocks && rocks.length) {
+      const latest = new Map();
+      for (const rock of rocks) latest.set(rock.key, rock);
+      for (const rock of latest.values()) multiplayer.publishRock(rock);
+      rocks.length = 0;
+    }
+    for (const note of multiplayer.takeRockNotes()) applySharedRock(this.state, note);
+    for (const amount of multiplayer.takeFireNotes()) applyFriendlyFire(this.state, amount, this.audio);
+    for (const id of missilesHitPlayers(this.state, multiplayer.remoteShips())) {
+      multiplayer.publishFire(id, 14);
+    }
+    const gathers = this.state.sharedGathers;
+    if (gathers && gathers.length) {
+      for (const gather of gathers) multiplayer.publishGather(gather);
+      gathers.length = 0;
+    }
   }
 
   syncRemoteShips() {
@@ -502,7 +552,9 @@ export default class PlayScene extends Phaser.Scene {
         label.setDepth(12);
         this.refreshUiIgnore(sprite);
         this.refreshUiIgnore(label);
-        view = { sprite, label };
+        const drill = this.add.graphics().setDepth(11);
+        this.refreshUiIgnore(drill);
+        view = { sprite, label, drill };
         this.remoteViews.set(remote.id, view);
       } else if (view.sprite.texture.key !== key) {
         view.sprite.setTexture(key);
@@ -511,25 +563,97 @@ export default class PlayScene extends Phaser.Scene {
       view.sprite.setRotation(remote.aim + Math.PI / 2);
       view.sprite.setDisplaySize(SHIP_BASE, SHIP_BASE);
       view.sprite.setVisible(visible);
-      const tag = remote.tag || '';
+      const tag = remote.pilot || remote.tag || '';
       if (view.label.text !== tag) view.label.setText(tag);
       view.label.setPosition(remote.x, remote.y - 48);
       view.label.setVisible(visible && tag.length > 0);
+      this.syncRemoteDrill(view.drill, remote, visible);
     }
     for (const [id, view] of this.remoteViews) {
       if (seen.has(id)) continue;
       view.sprite.destroy();
       view.label.destroy();
+      if (view.drill) view.drill.destroy();
       this.remoteViews.delete(id);
     }
+    this.syncRemoteGathers(showAny, layer);
+  }
+
+  /** Spinning bit just ahead of another player's ship while they extract. */
+  syncRemoteDrill(gfx, remote, visible) {
+    gfx.clear();
+    if (!visible || !remote.extracting) {
+      gfx.setVisible(false);
+      return;
+    }
+    gfx.setVisible(true);
+    const reach = 46;
+    const tipX = remote.x + Math.cos(remote.aim) * reach;
+    const tipY = remote.y + Math.sin(remote.aim) * reach;
+    gfx.lineStyle(3, 0x7ee7ff, 0.85);
+    gfx.lineBetween(remote.x, remote.y, tipX, tipY);
+    const spin = this.state.clock * 14;
+    gfx.fillStyle(0xd7f6ff, 0.95);
+    for (let i = 0; i < 3; i++) {
+      const a = spin + (i * Math.PI * 2) / 3;
+      gfx.fillCircle(tipX + Math.cos(a) * 8, tipY + Math.sin(a) * 8, 3);
+    }
+    gfx.fillStyle(0xfff4d6, 1);
+    gfx.fillCircle(tipX, tipY, 4);
+  }
+
+  syncRemoteGathers(showAny, layer) {
+    if (!this.gatherSprites) this.gatherSprites = new Map();
+    const seen = new Set();
+    for (const gather of multiplayer.remoteGathers()) {
+      seen.add(gather.key);
+      const remote = [...multiplayer.remoteShips()].find((ship) => ship.id === gather.shipId);
+      const visible = showAny && gather.layer === layer && remote && remote.layer === layer;
+      let sprite = this.gatherSprites.get(gather.key);
+      if (!sprite) {
+        const tex = this.textures.exists(MINERAL_FILE) ? MINERAL_FILE : null;
+        sprite = tex
+          ? this.add.image(gather.x, gather.y, tex).setDisplaySize(22, 22)
+          : this.add.circle(gather.x, gather.y, 8, 0x7ad7ff, 0.95);
+        sprite.setDepth(11);
+        if (typeof sprite.setTint === 'function') sprite.setTint(itemTint(gather.itemId));
+        this.refreshUiIgnore(sprite);
+        this.gatherSprites.set(gather.key, sprite);
+      }
+      const u = Math.min(1, Math.max(0, (performance.now() - gather.t0) / gather.dur));
+      const shipX = remote ? remote.x : gather.x;
+      const shipY = remote ? remote.y : gather.y;
+      sprite.setPosition(gather.x + (shipX - gather.x) * u, gather.y + (shipY - gather.y) * u);
+      sprite.setAlpha(1 - u * 0.35);
+      sprite.setVisible(visible);
+    }
+    for (const [key, sprite] of this.gatherSprites) {
+      if (seen.has(key)) continue;
+      sprite.destroy();
+      this.gatherSprites.delete(key);
+    }
+  }
+
+  flightInput() {
+    const live = introAlphas(this.state).live;
+    if (live) return this.inputCtl;
+    return {
+      mouse: this.inputCtl ? this.inputCtl.mouse : { x: 0, y: 0, worldX: 0, worldY: 0, touch: false, held: false },
+      thrust: () => false,
+      brake: () => false,
+      strafe: () => 0,
+      takeClicks: () => [],
+    };
   }
 
   update(_time, delta) {
     if (!this.ready) return;
     const dt = Math.min(0.033, delta / 1000);
+    tickIntro(this.state, dt);
     const mode = this.state.mode;
+    const controls = introAlphas(this.state).live;
 
-    if (this.inputCtl && (mode === 'fly' || mode === 'cargo')) {
+    if (this.inputCtl && controls && (mode === 'fly' || mode === 'cargo' || mode === 'hull')) {
       const wheel = this.inputCtl.takeWheel();
       if (wheel) {
         cycleHotbar(this.state, wheel);
@@ -542,7 +666,7 @@ export default class PlayScene extends Phaser.Scene {
     if (mode === 'fly') {
       this.syncPointerWorld();
       updateFly(this.state, dt, {
-        input: this.inputCtl,
+        input: this.flightInput(),
         audio: this.audio,
         view: this.viewSize(),
       });
@@ -757,7 +881,8 @@ export default class PlayScene extends Phaser.Scene {
   applyRockEnvelope(sprite, rock, envelope) {
     const envScale = envelope && envelope.scale != null ? envelope.scale : 1;
     const envAlpha = envelope && envelope.alpha != null ? envelope.alpha : 1;
-    const baseAlpha = rock.active ? 1 : rock.near ? 0.95 : 0.85;
+    const introRock = introAlphas(this.state).rock;
+    const baseAlpha = (rock.active ? 1 : rock.near ? 0.95 : 0.85) * introRock;
     sprite.setPosition(rock.x, rock.y);
     sprite.setRotation(rock.rot);
     sprite.setScale(rockDisplayScale(rock, envScale));
@@ -825,7 +950,8 @@ export default class PlayScene extends Phaser.Scene {
     const shipScale = fx ? fx.shipScale : 1;
     const { w, h } = this.viewSize();
 
-    if (this.starGfx) syncStars(this.starGfx, this.state.stars, this.state.camera, w, h);
+    const intro = introAlphas(this.state);
+    if (this.starGfx) syncStars(this.starGfx, this.state.stars, this.state.camera, w, h, intro.star);
 
     if (this.shipSprite) {
       const key = this.textures.exists(ship.sprite) ? ship.sprite : DEFAULT_SHIP;
@@ -833,10 +959,14 @@ export default class PlayScene extends Phaser.Scene {
       this.shipSprite.setPosition(ship.x, ship.y);
       this.shipSprite.setRotation(ship.aim + Math.PI / 2);
       this.shipSprite.setDisplaySize(SHIP_BASE * shipScale, SHIP_BASE * shipScale);
-      this.shipSprite.setVisible(this.state.mode !== 'title' && this.state.mode !== 'dead');
+      this.shipSprite.setAlpha(intro.ship);
+      this.shipSprite.setVisible(
+        intro.ship > 0.02 && this.state.mode !== 'title' && this.state.mode !== 'dead'
+      );
     }
+    if (this.flameGfx) this.flameGfx.setAlpha(intro.ship);
 
-    if (this.flameGfx) syncFlame(this.flameGfx, ship, shipScale);
+    if (this.flameGfx) syncFlame(this.flameGfx, ship, shipScale, this.state.clock);
 
     applyCameraPolish(this.cameras.main, this.state);
     this.syncLayerRocks(fx);

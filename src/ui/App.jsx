@@ -96,8 +96,20 @@ export default function App({ bridge }) {
         bridge.emit('setCargo', false);
         return;
       }
+      if (event.code === 'KeyR' && mode === 'fly') {
+        bridge.emit('setHull', true);
+        return;
+      }
+      if (event.code === 'KeyR' && mode === 'hull') {
+        bridge.emit('setHull', false);
+        return;
+      }
       if ((event.code === 'Escape' || event.code === 'KeyF') && mode === 'cargo') {
         if (event.code === 'Escape') bridge.emit('setCargo', false);
+        return;
+      }
+      if (event.code === 'Escape' && mode === 'hull') {
+        bridge.emit('setHull', false);
         return;
       }
       if (event.code === 'KeyF' && mode === 'fly') {
@@ -176,6 +188,18 @@ export default function App({ bridge }) {
       {mode === 'dead' && <GameOver bridge={bridge} />}
       {mode === 'paused' && !flightSettingsOpen && <Pause bridge={bridge} />}
       {mode === 'clear' && <Clear bridge={bridge} snapshot={snapshot} />}
+      {snapshot.intro && snapshot.intro.black > 0.02 && (
+        <div className="intro-cover" style={{ opacity: snapshot.intro.black }} />
+      )}
+      {(snapshot.notices || []).length > 0 && (
+        <div className="craft-toasts" aria-live="polite">
+          {snapshot.notices.map((note) => (
+            <div key={note.id} className="craft-toast">
+              {note.text}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

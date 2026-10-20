@@ -127,6 +127,9 @@ export function createAudio(scene) {
       playFirst(["session_start", "ship_advance"]);
       api.unlock();
     },
+    dash() {
+      playKey("dash", { volume: 0.72 });
+    },
     lock() {
       playKey("menu_beep");
     },
