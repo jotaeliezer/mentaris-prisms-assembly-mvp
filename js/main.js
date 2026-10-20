@@ -162,7 +162,7 @@ function createState() {
       vx: 0,
       vy: 0,
       aim: -Math.PI / 2,
-      sprite: "AM3 Scout.png",
+      sprite: "Verdant Spire.png",
       thrusting: false,
       thrust: 0,
       hp: 100,
