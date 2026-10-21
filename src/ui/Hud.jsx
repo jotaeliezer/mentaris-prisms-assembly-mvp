@@ -95,8 +95,12 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const [tip, setTip] = useState(null);
   const hull = snapshot.hullRack;
   const hullSlots = hull && Array.isArray(hull.slots) ? hull.slots : [];
-  const hullOpen = !!snapshot.hullOpen;
+  const showHull = !!(hull && hull.visible);
   const [pointer, setPointer] = useState(null);
+
+  function inventoryGesture(area) {
+    return cargoOpen || !!snapshot.held || area === 'hull';
+  }
 
   useEffect(() => {
     function onMove(event) {
@@ -108,7 +112,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
 
   function beginDrag(event, area, index, slot) {
     if (!slot.available) {
-      if (cargoOpen || hullOpen) bridge.emit('inventoryClick', { area, index });
+      if (inventoryGesture(area)) bridge.emit('inventoryClick', { area, index });
       else if (area === 'hotbar') bridge.emit('selectHotbar', index);
       return;
     }
@@ -150,7 +154,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
         });
       }
     } else if (!moved) {
-      if (cargoOpen || hullOpen) {
+      if (inventoryGesture(drag.area)) {
         bridge.emit('inventoryClick', { area: drag.area, index: drag.index });
       } else if (drag.area === 'hotbar') {
         bridge.emit('selectHotbar', drag.index);
@@ -247,25 +251,58 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
         </div>
       </div>
       <HintBar text={hud.hint || ''} besideMap={!!snapshot.mapUnlocked} />
-      {hullOpen && (
-        <div id="hull" className="hull-drawer" role="dialog" aria-label="Hull">
+      {showHull && (
+        <div id="hull" className="hull-drawer" aria-label="Hull">
           <p className="hull-title">Hull</p>
           <div className="hull-grid">
             {hullSlots.map((slot) => (
-              <button
+              <div
                 key={slot.accept}
-                type="button"
-                className={`hotbar-slot hull-slot${slot.available ? '' : ' empty'}${
-                  drag && drag.area === 'hull' && drag.index === slot.index ? ' lifting' : ''
-                }`}
-                aria-label={slot.available ? slot.name : slot.slotLabel}
-                {...slotProps('hull', slot)}
+                className={`hull-slot-row${slot.canLevel ? ' has-raise' : ''}`}
+                data-slot-area="hull"
+                data-slot-index={slot.index}
               >
-                <span className="hull-slot-label">{slot.slotLabel}</span>
-                {slot.available ? (
-                  <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
+                <button
+                  type="button"
+                  className={`hotbar-slot hull-slot${slot.available ? ' lit' : ' empty'}${
+                    drag && drag.area === 'hull' && drag.index === slot.index ? ' lifting' : ''
+                  }`}
+                  aria-label={
+                    slot.available
+                      ? slot.levelLabel
+                        ? slot.name + ', ' + slot.levelLabel
+                        : slot.name
+                      : slot.slotLabel
+                  }
+                  {...slotProps('hull', slot)}
+                >
+                  <span className="hull-slot-label">{slot.slotLabel}</span>
+                  {slot.available ? (
+                    <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
+                  ) : null}
+                  {slot.levelLabel ? <span className="hull-level">{slot.levelLabel}</span> : null}
+                </button>
+                {slot.canLevel ? (
+                  <button
+                    type="button"
+                    className={`hull-level-btn${slot.levelReady ? '' : ' is-short'}`}
+                    aria-label={
+                      'Raise ' +
+                      slot.slotLabel +
+                      ' to level ' +
+                      (Number(slot.level) + 1) +
+                      '. Costs 3 Pale ore. Stand-in.'
+                    }
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      bridge.emit('raiseBow');
+                    }}
+                  >
+                    {slot.levelAction}
+                  </button>
                 ) : null}
-              </button>
+              </div>
             ))}
           </div>
         </div>

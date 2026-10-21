@@ -448,12 +448,14 @@ button:disabled,
 .hull-drawer {
   position: absolute;
   left: 18px;
-  bottom: 18px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 4;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px;
+  width: max-content;
   background: rgba(8, 12, 24, 0.9);
   border: 2px solid rgba(255, 255, 255, 0.16);
   border-radius: 6px;
@@ -474,8 +476,14 @@ button:disabled,
   gap: 6px;
 }
 
+.hull-slot-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .hull-slot {
-  width: 168px;
+  width: 232px;
   height: 48px;
   display: flex;
   align-items: center;
@@ -484,11 +492,70 @@ button:disabled,
   padding: 0 8px;
 }
 
+.hull-slot.empty {
+  opacity: 0.38;
+  filter: saturate(0.25);
+  background: rgba(6, 8, 16, 0.55);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.hull-slot.lit {
+  opacity: 1;
+  filter: none;
+  border-color: rgba(198, 240, 255, 0.98);
+  background: rgba(14, 52, 74, 0.98);
+  box-shadow:
+    0 0 10px rgba(126, 231, 255, 0.9),
+    0 0 22px rgba(126, 231, 255, 0.45),
+    inset 0 0 14px rgba(186, 236, 255, 0.38);
+}
+
 .hull-slot-label {
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(232, 236, 255, 0.72);
+}
+
+.hull-slot.lit .hull-slot-label {
+  color: #f4fbff;
+}
+
+.hull-level {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #f4fbff;
+  text-shadow: 0 0 8px rgba(126, 231, 255, 0.95);
+  pointer-events: none;
+}
+
+.hull-level-btn {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: #061018;
+  background: rgba(213, 230, 255, 0.95);
+  border: 1px solid rgba(244, 251, 255, 0.85);
+  box-shadow: 0 0 10px rgba(126, 231, 255, 0.35);
+}
+
+.hull-level-btn.is-short {
+  opacity: 0.55;
+}
+
+.hull-level-btn:hover,
+.hull-level-btn:focus-visible,
+.hull-level-btn:active {
+  transform: none;
+  color: #061018;
+  background: #e7f2ff;
 }
 
 .drag-ghost {
@@ -1168,6 +1235,12 @@ button:disabled {
   h1 { font-size: 34px; }
   .hull-meter { width: 220px; }
   .hotbar-dock { right: 10px; bottom: 10px; }
+  .hull-drawer {
+    top: 72px;
+    transform: none;
+    left: 8px;
+  }
+  .hull-slot { width: min(220px, 52vw); }
   .hotbar-slot { width: 48px; height: 48px; }
   .hotbar-slot img,
   .drag-ghost img { width: 30px; height: 30px; }

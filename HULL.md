@@ -1,16 +1,16 @@
 # Hull improvements
 
-The R key opens a hull drawer on the bottom left, the way C opens cargo on the bottom right. The drawer is where hull pieces are worn and improved. This is a plan, not a build. Do not add the key, the slots, or the levels until this plan is accepted.
+The hull panel stays on screen during flight, on the left edge, clear of the hull bar, the hotbar, and the middle of the view. It is where hull pieces are worn and improved. Bow plating is worn there now. The other three armor slots are still a plan.
 
 ## What is in the game now
 
-The hull is a single number. Colliding with an asteroid takes 14 points, and reaching 0 is a hull breach: the ship drops what it was carrying and waits for respawn.
+Colliding with an asteroid takes 14 points, and less when bow plating is worn. Reaching 0 is a hull breach: the ship drops what it was carrying, including worn pieces, and waits for respawn.
 
-Fabrication is a list of counts. Results go to the hotbar, then the cargo. There is no place to wear a part, and nothing on the ship can be improved after it is made. `STATIONS.md` describes a fabrication bench that unlocks more counts. That bench is also not built yet.
+Fabrication is a list of counts. Results go to the hotbar, then the cargo. The hull panel wears the layer jumper, the fabrication bench, the layer compass, and bow plating. Bow plating can be raised from level 1 to 3. The other three armor slots are still a plan.
 
 ## The drawer
 
-R toggles the drawer while flying. Esc closes it. It sits on the bottom left and uses the same slot size as the hotbar, so it reads as a panel sliding out of the bar rather than a new screen.
+The panel is on screen while flying. It sits on the left edge and uses the same slot size as the hotbar, so it reads as part of the flight HUD rather than a screen you open.
 
 Keep four fixed slots, in this order:
 
@@ -19,7 +19,7 @@ Keep four fixed slots, in this order:
 3. Shield
 4. Thruster housing
 
-Each slot holds one piece. The piece is made in the fabrication bay as a count recipe, then moved from the hotbar or cargo into the slot, the same click-to-pick-up used by cargo. A filled slot can be clicked back into the hotbar or cargo. Closing the drawer returns a held piece to the slot it came from.
+Each slot holds one piece. The piece is made in the fabrication bay as a count recipe, then moved from the hotbar or cargo into the slot, the same click-to-pick-up used by cargo. A filled slot can be clicked back into the hotbar or cargo. If a piece is still in hand when cargo closes, it returns to the slot it came from.
 
 Empty slots show the slot name. Filled slots show the piece and its level.
 

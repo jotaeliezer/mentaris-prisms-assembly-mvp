@@ -42,9 +42,9 @@ import {
   openExtract,
   rockTouchDistance,
   respawnShip,
+  raiseBow,
   selectHotbar,
   setCargoOpen,
-  setHullOpen,
   setFab,
   setPaused,
   captureProgress,
@@ -298,9 +298,8 @@ export default class PlayScene extends Phaser.Scene {
     );
 
     this.unsubs.push(
-      bridge.on('setHull', (open) => {
-        setHullOpen(this.state, !!open);
-        this.clearFlightInput();
+      bridge.on('raiseBow', () => {
+        raiseBow(this.state, this.audio);
         this.publishSnapshot(true);
       })
     );
@@ -510,7 +509,7 @@ export default class PlayScene extends Phaser.Scene {
         return;
       }
 
-      if (mode === 'cargo' || mode === 'hull') {
+      if (mode === 'cargo') {
         const heldDigit = digitFromEvent(event);
         if (heldDigit != null) {
           const slot = heldDigit === '0' ? HOTBAR_SIZE - 1 : Number(heldDigit) - 1;
@@ -775,7 +774,7 @@ export default class PlayScene extends Phaser.Scene {
     const mode = this.state.mode;
     const controls = introAlphas(this.state).live;
 
-    if (this.inputCtl && controls && (mode === 'fly' || mode === 'cargo' || mode === 'hull')) {
+    if (this.inputCtl && controls && (mode === 'fly' || mode === 'cargo')) {
       const wheel = this.inputCtl.takeWheel();
       if (wheel) {
         cycleHotbar(this.state, wheel);

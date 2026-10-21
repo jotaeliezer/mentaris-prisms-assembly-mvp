@@ -29,10 +29,13 @@ import {
   CARGO_COLS,
   CARGO_ROWS,
   CARGO_SIZE,
+  BOW_ID,
+  BOW_LEVEL_COST,
   HULL_FITS,
   ITEMS,
   addItem,
   RECIPES,
+  bowLevel,
   canAfford,
   costLabel,
   countItem,
@@ -41,6 +44,7 @@ import {
   ensureInventory,
   hullHas,
   itemById,
+  raiseBowPlating,
   slotIcon,
   moveCargoToHotbar,
   moveHotbarToCargo,
@@ -497,7 +501,7 @@ export function changeLayer(state, dir, audio) {
   const next = state.layer + dir;
   if (next < LAYER_MIN || next > LAYER_MAX || state.transition) return;
   if (!hasJumper(state)) {
-    state.status = 'Layer travel is locked. Install a layer jumper with R.';
+    state.status = 'Layer travel is locked. Wear a layer jumper in the hull panel.';
     state.statusTime = 3.4;
     if (audio && typeof audio.wrong === 'function') audio.wrong();
     return;
@@ -1280,7 +1284,7 @@ function containShip(state) {
 }
 
 function spillStack(state, stack, x, y) {
-  state.drops.push({
+  const drop = {
     id: state.nextId++,
     x,
     y,
@@ -1288,7 +1292,17 @@ function spillStack(state, stack, x, y) {
     count: stack.count,
     life: 90,
     maxLife: 90,
-  });
+  };
+  if (stack.id === BOW_ID) drop.level = bowLevel(stack);
+  state.drops.push(drop);
+}
+
+/** A rock hit. Bow plating, worn, takes a little off the base 14. One level, one step. */
+export function rockHitDamage(state) {
+  const base = 14;
+  if (!hullHas(state, BOW_ID)) return base;
+  const worn = state.hullSlots.find((stack) => stack && stack.id === BOW_ID);
+  return Math.max(1, base - bowLevel(worn) * 2);
 }
 
 /** Hull hits zero. Items stay in the world at the wreck until the player respawns and picks them up. */
@@ -1404,7 +1418,7 @@ function separateFromRocks(state, audio) {
         state.bumpCooldown = 1.1;
         state.hurt = 0.4;
         if (!(state.quiet > 0)) {
-          ship.hp = Math.max(0, ship.hp - 14);
+          ship.hp = Math.max(0, ship.hp - rockHitDamage(state));
           punchCamera(state);
           state.fxFlash = 0.22;
           if (audio) {
@@ -1812,7 +1826,7 @@ function updateParticles(state, dt) {
 function grantDrop(state, drop, audio) {
   const itemId = drop.itemId || 'pale';
   const count = drop.count != null ? drop.count : drop.amount || 1;
-  const left = addItem(state, itemId, count);
+  const left = addItem(state, itemId, count, drop.level);
   const received = count - Math.max(0, left);
   if (received > 0) {
     announceCrafts(state);
@@ -1868,7 +1882,7 @@ function updateDrops(state, dt, audio) {
       }
       const itemId = drop.itemId || 'pale';
       const count = drop.count != null ? drop.count : drop.amount || 1;
-      const left = addItem(state, itemId, count);
+      const left = addItem(state, itemId, count, drop.level);
       if (left < count) {
         announceCrafts(state);
         if (!state.sharedGathers) state.sharedGathers = [];
@@ -2295,27 +2309,45 @@ export function setCargoOpen(state, open) {
   state.mode = 'fly';
 }
 
-export function setHullOpen(state, open) {
-  if (open) {
-    if (state.mode !== 'fly') return;
-    ensureHull(state);
-    state.mode = 'hull';
-    return;
-  }
-  if (state.mode !== 'hull') return;
-  returnHeld(state);
-  state.mode = 'fly';
+/** The panel stays up in flight. It is not a mode and it has no key. */
+export function hullPanelVisible(mode) {
+  return mode === 'fly' || mode === 'cargo' || mode === 'extract' || mode === 'paused' || mode === 'transition';
 }
 
 export function buildHull(state) {
   ensureHull(state);
   return {
-    open: state.mode === 'hull',
+    visible: hullPanelVisible(state.mode),
     slots: HULL_FITS.map((fit, index) => {
-      const view = stackView(state.hullSlots[index], index, false, '');
-      return { ...view, slotLabel: fit.label, accept: fit.accept };
+      const stack = state.hullSlots[index];
+      const view = stackView(stack, index, false, '');
+      const level = fit.accept === BOW_ID && stack ? bowLevel(stack) : 0;
+      const canLevel = fit.accept === BOW_ID && !!stack && level < 3;
+      return {
+        ...view,
+        slotLabel: fit.label,
+        accept: fit.accept,
+        level,
+        levelLabel: level ? 'Lv ' + level : '',
+        canLevel,
+        levelReady: canLevel && canAfford(state, BOW_LEVEL_COST),
+        levelAction: canLevel ? 'Raise · 3 Pale stand-in' : '',
+      };
     }),
   };
+}
+
+export function raiseBow(state, audio) {
+  const result = raiseBowPlating(state);
+  if (result === 'empty' || result === 'max') return false;
+  if (result === 'short') {
+    noteStatus(state, 'Bow plating needs 3 Pale ore. That cost is a stand-in.');
+    if (audio && typeof audio.wrong === 'function') audio.wrong();
+    return false;
+  }
+  noteStatus(state, 'Bow plating is level ' + result + '. A rock hit does a little less.');
+  if (audio && typeof audio.correct === 'function') audio.correct();
+  return true;
 }
 
 export function craftItem(state, recipeId, audio) {
@@ -2568,7 +2600,7 @@ function RECIPES_FOR_FAB(state) {
     category: recipe.category,
     name: ITEMS[recipe.result] ? ITEMS[recipe.result].name : recipe.result,
     about: ITEMS[recipe.result] && ITEMS[recipe.result].about ? ITEMS[recipe.result].about : '',
-    costText: costLabel(recipe.costs),
+    costText: costLabel(recipe.costs) + (recipe.standIn ? ' (stand-in)' : ''),
     ready: canAfford(state, recipe.costs),
     costs: recipe.costs.map((cost) => ({ id: cost.id, n: cost.n })),
   }));
@@ -2612,7 +2644,6 @@ export function buildSnapshotPatch(state, muted) {
     fxFlash: state.fxFlash > 0,
     cargoOpen: state.mode === 'cargo',
     cargoHold: buildCargo(state),
-    hullOpen: state.mode === 'hull',
     hullRack: buildHull(state),
     held: heldView(state),
     notices: (state.notices || []).map((note) => ({ id: note.id, text: note.text })),

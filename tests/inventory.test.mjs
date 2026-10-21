@@ -5,6 +5,7 @@ import {
   CARGO_COLS,
   CARGO_ROWS,
   CARGO_SIZE,
+  HULL_FITS,
   RECIPES,
   addItem,
   countItem,
@@ -29,7 +30,9 @@ import {
   updatePhysics,
   populateField,
   applySharedRock,
+  raiseBow,
   respawnShip,
+  rockHitDamage,
   selectHotbar,
   setCargoOpen,
   startMission,
@@ -258,6 +261,10 @@ const lockedLayer = locked.layer;
 assert(!hasJumper(locked), 'a new flight has no jumper');
 changeLayer(locked, 1, null);
 assert(locked.layer === lockedLayer && !locked.transition, 'Q and E do nothing without a jumper');
+assert(
+  locked.status.includes('hull panel') && !locked.status.includes(' R'),
+  'the lock points at the hull panel'
+);
 assert(addItem(locked, 'pale', 4) === 0, 'pale ore for the placeholder jumper');
 assert(!craftItem(locked, 'jumper', null), 'the jumper stays closed until a bench is carried');
 assert(addItem(locked, 'bench', 1) === 0, 'the fabrication bench is the crafting table');
@@ -471,6 +478,108 @@ assert(inventoryClick(heldOre, 'hotbar', 0), 'pick up the pale ore');
 assert(
   buildSnapshotPatch(heldOre, false).held.icon === '/assets/asteroids/asteroid1.png',
   'a held ore stack keeps its picture'
+);
+assert(
+  HULL_FITS.map((slot) => slot.accept).join(',') === 'jumper,bench,compass,bow',
+  'bow plating is the only armor slot'
+);
+const bowRecipe = RECIPES.find((recipe) => recipe.id === 'bow');
+assert(
+  bowRecipe && bowRecipe.station === 'bench' && bowRecipe.standIn && bowRecipe.costs[0].id === 'pale' && bowRecipe.costs[0].n === 3,
+  'bow plating is a short stand-in count behind the bench'
+);
+
+const plate = createState();
+plate.mode = 'fly';
+assert(rockHitDamage(plate) === 14, 'a bare hull still loses 14 to a rock');
+assert(addItem(plate, 'pale', 3) === 0, 'pale ore for bow plating');
+assert(!craftItem(plate, 'bow', null), 'bow plating stays closed until a bench is carried');
+assert(addItem(plate, 'bench', 1) === 0, 'the bench wears');
+assert(craftItem(plate, 'bow', null), 'bow plating is manufactured');
+assert(countItem(plate, 'pale') === 0, 'the recipe spends the pale ore');
+const wornBow = plate.hullSlots.find((stack) => stack && stack.id === 'bow');
+assert(wornBow && wornBow.level === 1, 'bow plating wears at level 1');
+assert(rockHitDamage(plate) === 12, 'level 1 takes a little off a rock hit');
+const bowView = buildSnapshotPatch(plate, false);
+assert(bowView.mode === 'fly' && bowView.hullRack.visible, 'the hull panel is up during flight');
+assert(bowView.hullOpen == null, 'flight does not use a hull mode');
+const bowSlotView = bowView.hullRack.slots.find((slot) => slot.accept === 'bow');
+assert(bowSlotView && bowSlotView.levelLabel === 'Lv 1' && bowSlotView.canLevel, 'the slot shows level 1');
+assert(
+  bowView.recipes.some((recipe) => recipe.id === 'bow' && recipe.costText.includes('stand-in')),
+  'the recipe card labels the stand-in cost'
+);
+
+const platedRock = plate.asteroids.find((item) => item.alive);
+const platedTouch = rockTouchDistance(platedRock);
+plate.ship.x = platedRock.x + platedTouch - 8;
+plate.ship.y = platedRock.y;
+plate.ship.vx = 0;
+plate.ship.vy = 0;
+plate.bumpCooldown = 0;
+const platedHp = plate.ship.hp;
+updateFly(plate, 0.05, {
+  input: {
+    mouse: { x: 0, y: 0, worldX: plate.ship.x, worldY: plate.ship.y, touch: false, held: false },
+    thrust: () => false,
+    brake: () => false,
+    strafe: () => 0,
+    takeClicks: () => [],
+  },
+  audio: null,
+  view: { w: 1280, h: 720 },
+});
+assert(platedHp - plate.ship.hp === 12, 'the ship loses 12 hull when level 1 plating is worn');
+
+addItem(plate, 'pale', 1);
+plate.cargoSlots[0] = { id: 'pale', count: 2 };
+assert(raiseBow(plate, null), 'the first raise spends pale ore');
+assert(plate.hullSlots.find((stack) => stack && stack.id === 'bow').level === 2, 'the piece is level 2');
+assert(rockHitDamage(plate) === 10, 'level 2 takes more off the rock hit');
+assert(!plate.hotbar.some((stack) => stack && stack.id === 'pale'), 'the raise spends the hotbar first');
+assert(plate.cargoSlots[0] == null, 'the raise then spends the cargo');
+addItem(plate, 'pale', 3);
+assert(raiseBow(plate, null), 'the second raise reaches the cap');
+assert(plate.hullSlots.find((stack) => stack && stack.id === 'bow').level === 3, 'level 3 is the cap');
+assert(rockHitDamage(plate) === 8, 'level 3 is the smallest rock hit');
+assert(!raiseBow(plate, null), 'level 3 does not raise again');
+const capped = buildSnapshotPatch(plate, false).hullRack.slots.find((slot) => slot.accept === 'bow');
+assert(capped.levelLabel === 'Lv 3' && !capped.canLevel, 'the level button goes away at level 3');
+
+const bowIndex = plate.hullSlots.findIndex((stack) => stack && stack.id === 'bow');
+addItem(plate, 'pale', 3);
+assert(craftItem(plate, 'bow', null), 'a second plate can be made while one is worn');
+const spare = plate.hotbar.findIndex((stack) => stack && stack.id === 'bow');
+assert(spare >= 0 && plate.hotbar[spare].level === 1, 'the second plate sits in the hotbar at level 1');
+assert(inventoryDrag(plate, 'hotbar', spare, 'hull', bowIndex), 'a hotbar plate drags onto the bow slot');
+assert(plate.hullSlots[bowIndex].level === 1, 'the dragged plate is the one now worn');
+assert(plate.held && plate.held.level === 3, 'the plate that was worn stays in hand with its level');
+assert(inventoryClick(plate, 'hotbar', spare), 'the held plate goes back to the hotbar');
+assert(plate.hotbar[spare].level === 3 && !plate.held, 'the hotbar keeps that level');
+assert(inventoryDrag(plate, 'hotbar', spare, 'hull', bowIndex), 'the leveled plate drags back onto the slot');
+assert(plate.hullSlots[bowIndex].level === 3, 'wearing it again restores the level');
+assert(plate.held && plate.held.level === 1, 'the other plate is in hand');
+assert(inventoryClick(plate, 'cargo', 0), 'the held plate goes into cargo');
+assert(plate.cargoSlots[0] && plate.cargoSlots[0].level === 1 && !plate.held, 'cargo keeps the plate level');
+plate.cargoSlots[0] = null;
+const emptyHot = spare;
+assert(inventoryDrag(plate, 'hull', bowIndex, 'hotbar', emptyHot), 'the plate drags off the hull');
+assert(plate.hotbar[emptyHot].level === 3, 'the level stays on the stack in the hotbar');
+assert(rockHitDamage(plate) === 14, 'an unworn plate does not soften a rock');
+assert(!inventoryClick(plate, 'cargo', 1), 'an empty cargo slot does not pick anything up');
+assert(plate.hullSlots[bowIndex].level === 3, 'the empty bow slot wears the plate again');
+assert(rockHitDamage(plate) === 8, 'the restored plate softens the next rock');
+
+breachHull(plate, null);
+const spilled = plate.drops.find((drop) => drop.itemId === 'bow');
+assert(spilled && spilled.level === 3, 'a breach drops the plate with its level');
+respawnShip(plate, null);
+plate.ship.x = spilled.x;
+plate.ship.y = spilled.y;
+idle(plate, 0.05, null);
+assert(
+  plate.hullSlots.some((stack) => stack && stack.id === 'bow' && stack.level === 3),
+  'picking the plate up wears it at the same level'
 );
 
 console.log('inventory tests ok');

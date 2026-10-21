@@ -112,20 +112,8 @@ export default function App({ bridge }) {
         bridge.emit('setCargo', false);
         return;
       }
-      if (event.code === 'KeyR' && mode === 'fly') {
-        bridge.emit('setHull', true);
-        return;
-      }
-      if (event.code === 'KeyR' && mode === 'hull') {
-        bridge.emit('setHull', false);
-        return;
-      }
       if ((event.code === 'Escape' || event.code === 'KeyF') && mode === 'cargo') {
         if (event.code === 'Escape') bridge.emit('setCargo', false);
-        return;
-      }
-      if (event.code === 'Escape' && mode === 'hull') {
-        bridge.emit('setHull', false);
         return;
       }
       if (event.code === 'KeyF' && mode === 'fly') {
