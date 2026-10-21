@@ -41,6 +41,7 @@ import {
   ensureInventory,
   hullHas,
   itemById,
+  slotIcon,
   moveCargoToHotbar,
   moveHotbarToCargo,
   recipeById,
@@ -2241,7 +2242,7 @@ function stackView(stack, index, selected, key) {
     name: item ? item.name : '',
     label: item ? item.name : 'Empty',
     available: !!item,
-    icon: '',
+    icon: item ? slotIcon(stack.id) : '',
     color: item ? item.color : '',
     mark: item ? item.mark : '',
     badge: stack && stack.count > 1 ? String(stack.count) : '',
@@ -2581,6 +2582,7 @@ function heldView(state) {
     count: state.held.count,
     color: item ? item.color : '#9be7ff',
     mark: item ? item.mark : '',
+    icon: item ? slotIcon(state.held.id) : '',
   };
 }
 

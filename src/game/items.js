@@ -1,5 +1,30 @@
 /** Stacks, count-based recipes, and hotbar/cargo moves. No crafting grid. */
 
+import { ASTEROID_FILES } from './assetsManifest.js';
+
+/** Same order as the five rock pictures. A slot shows that picture, smaller. */
+const ORE_SPRITE = { pale: 0, slate: 1, amber: 2, virid: 3, glint: 4 };
+
+/** Bullet pictures already under public/images/bullets. */
+const WEAPON_BULLET = {
+  'arc-missile': 'bullet_missile.png',
+  'pulse-lance': 'bullet_laser.png',
+  flare: 'bullet_fire1.png',
+};
+
+/**
+ * Picture for a hotbar or cargo slot.
+ * Ores copy their asteroid. Weapons reuse a bullet. Alloys and abilities stay letters.
+ */
+export function slotIcon(id) {
+  if (Object.prototype.hasOwnProperty.call(ORE_SPRITE, id)) {
+    const file = ASTEROID_FILES[ORE_SPRITE[id]];
+    return file ? '/assets/asteroids/' + file : '';
+  }
+  const bullet = WEAPON_BULLET[id];
+  return bullet ? '/images/bullets/' + bullet : '';
+}
+
 export const STACK_MAX = 64;
 /** Four across and ten down, so the hold is as tall as the hotbar. */
 export const CARGO_COLS = 4;
