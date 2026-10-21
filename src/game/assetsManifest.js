@@ -43,6 +43,19 @@ export const ALIEN_FILES = [
   "alien_spider.png",
 ];
 
+/** Drop pictures for alien parts and the core cannon. Keys match the file names. */
+export const ITEM_ICON_FILES = [
+  "spark-gland.png",
+  "grip-fiber.png",
+  "hull-shard.png",
+  "cold-lamp.png",
+  "servo-joint.png",
+  "spike-crystal.png",
+  "alien-chart.png",
+  "alien-core.png",
+  "core-cannon.png",
+];
+
 export const BULLET_FILES = [
   "bullet_bola.png",
   "bullet_electric.png",
@@ -183,6 +196,9 @@ export function listPhaserImages() {
   });
   for (const name of ALIEN_FILES) {
     entries.push({ key: name, url: assetUrl("images/aliens", name) });
+  }
+  for (const name of ITEM_ICON_FILES) {
+    entries.push({ key: name, url: assetUrl("images/items", name) });
   }
   for (const name of BULLET_FILES) {
     entries.push({ key: name, url: assetUrl("images/bullets", name) });

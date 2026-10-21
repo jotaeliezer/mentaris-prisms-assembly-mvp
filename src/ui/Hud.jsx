@@ -227,6 +227,26 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
             </div>
           </div>
         ) : null}
+        {hud.mainStar ? (
+          <div
+            className="main-star"
+            aria-label={
+              'Main star ' +
+              hud.mainStar.name +
+              '. ' +
+              (hud.mainStar.up ? 'Up. The lair is open.' : 'Down. The lair is shut.')
+            }
+          >
+            <div className="main-star-arc" aria-hidden="true">
+              <span className="main-star-horizon" />
+              <span
+                className={`main-star-body${hud.mainStar.up ? '' : ' is-down'}`}
+                style={{ left: hud.mainStar.x + '%', top: hud.mainStar.y + '%' }}
+              />
+            </div>
+            <span className="main-star-name">{hud.mainStar.label}</span>
+          </div>
+        ) : null}
         <div className="flight-tools">
           <span className="pilot-name">{readPilotName()}</span>
           {showFlightGear ? (

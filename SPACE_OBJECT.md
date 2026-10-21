@@ -2,7 +2,7 @@
 
 Large things that occupy a layer besides asteroids, planets, and stars. The ship can fly among them. Some pull, some hide the way back, some can be looted.
 
-This is a plan. Nothing here is built.
+This is a plan. Nothing in this file is placed in the belt. The main star's name and arc are already on the flight view. That sun is described in `ALIENS.md`. It is not one of the objects below.
 
 Planets are `PLANETS.md`. Stars, star dust, and light rays are `STARS.md`. The floating station is `CONSTRUCT.md`. The wormhole that leaves a cluster is already in the game. It is a gate, not one of the objects below.
 
@@ -58,7 +58,17 @@ What can be looted is alien-related only. It does not drop Pale, Slate, Amber, V
 
 Each container in the ruin holds one of those, once. A second pilot on the same seed finds it already taken if the first pilot took it. The ruin stays. It does not respawn a full set of loot on a timer in the first version.
 
-The stronghold is abandoned, so it does not shoot. A later alien spawn clock may still send an alien near it. The building itself stays quiet. Looting does not open the zoom duel in `ALIEN_COMBAT.md`.
+The stronghold is abandoned, so it does not shoot. A saucer prefers the ruin, from `ALIENS.md`. The building itself stays quiet. Looting does not open the zoom duel in `ALIEN_COMBAT.md`.
+
+## Alien lair
+
+A lair is the mouth the aliens leave. It is not the abandoned stronghold. The stronghold is a ruin you loot. The lair is occupied.
+
+Each cluster has one lair, on one layer, rolled from the seed. It sits fixed. It is larger than a stronghold and smaller than a small planet. A dark mouth, with no bay to dock in. It does not shoot, and it does not drop ore.
+
+The main star in `ALIENS.md` is the clock, and every cluster shares that star. When the star is up, every lair is open together. When the star is down, every lair is shut together. Aliens come out of the open mouth and go back when it shuts. The brain stays by that mouth. The other seven leave it for the place named as their source.
+
+The lair is not placed yet. The star's arc is already on the flight view. The arc does not let an alien out.
 
 ## What else belongs here
 
@@ -72,7 +82,7 @@ These are the other objects worth having in the same set. Each one is fixed on a
 | Relay buoy | A dead marker with a faint blink. Flying close to it points a heading toward the nearest wormhole, stronghold, or planet on that layer. It is not loot. One use per visit, then it rests. |
 | Prism ring | A thin ring of light in open space, with nothing in the middle. Flying through the ring once grants a single soft ray, from `STARS.md`. The ring then goes dark until it rests. It is not a wormhole and does not change layer. |
 
-That is the full set for this plan: black hole, nebula, stronghold, comet, debris field, ion stream, relay buoy, prism ring.
+That is the full set for this plan: black hole, nebula, stronghold, alien lair, comet, debris field, ion stream, relay buoy, prism ring.
 
 ## How rare
 
@@ -87,14 +97,15 @@ Rarity is per layer, rolled when that layer is first filled, from the same kind 
 | Prism ring | Uncommon. |
 | Comet | Uncommon. It is an event on a timer, not a fixed landmark. |
 | Stronghold | Rare. A few in a cluster, not one on every layer. |
+| Alien lair | One per cluster, on one layer. Not on every layer. |
 | Black hole | The rarest. Some clusters may have only one. |
 
 None of these spawn on top of the ship. None of them cover the wormhole. A black hole's rim must not cover a planet or a station anchor.
 
 ## What this is not
 
-- Not planets, stars, or asteroids. Those have their own files.
+- Not planets, layer stars, or asteroids. Those have their own files. The main star in `ALIENS.md` is the session sun, shared by every cluster. It is not one of these objects, and it is not a star you fly to.
+- Not built yet, except the main star's name and its arc. No pull, no cloud depth, no ruin, and no lair in the belt.
 - Not the cluster wormhole. A black hole does not advance the cluster. A prism ring does not either.
 - Not a damage zone the pilot cannot leave. The black hole can be flown out of. The nebula can be flown out of. The ion stream can be flown against.
 - Not a second combat mode. Strongholds are looted, not sieges.
-- Not built yet. No pull, no cloud depth, and no ruin.

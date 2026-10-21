@@ -51,7 +51,7 @@ Esc during Incoming counts as a wrong answer. Esc during Open closes the fight a
 
 The alien breaks after three hits, or it breaks off. The zoom eases back, slow motion ends, and flight controls return.
 
-A broken alien does not drop Pale ore or Amber ore. It drops one alien part: an Alien core, a Hull shard, or a Spark gland. The ship picks that part up like a mineral. Strong weapons, made at the Fabrication bench, spend those parts. The same drops apply if the free-roam fight in `FREE_COMBAT.md` is the one that gets built.
+A broken alien does not drop Pale ore or Amber ore. It drops the part named for that picture in `ALIENS.md`. The ship picks that part up like a mineral. The Core cannon, made at the Fabrication bench, spends an Alien core. The same drops apply if the free-roam fight in `FREE_COMBAT.md` is the one that gets built.
 
 The spawn clock may bring another alien later. Never two at once.
 
@@ -59,5 +59,5 @@ The spawn clock may bring another alien later. Never two at once.
 
 - No second question UI. The extract numpad is the combat numpad.
 - No timer on the question in this version.
-- No Pale ore or Amber ore from an alien. The drop is one alien part, used for strong weapons.
+- No Pale ore or Amber ore from an alien. The drop is the part named in `ALIENS.md`.
 - No alien on screen until the spawn clock is actually built.

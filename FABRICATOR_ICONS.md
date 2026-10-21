@@ -83,3 +83,17 @@ An amber horseshoe magnet shape, faceted, open toward the top, with a small cyan
 
 ### Quiet running
 A grey rounded hull chip with a dim cyan slit, quieter than the other icons: less glow, same outline. It stops bump damage for a few seconds.
+
+## Alien parts
+
+These pictures are already in `public/images/items`. Each one is drawn from the alien that drops it. See `ALIENS.md`.
+
+- `spark-gland.png` from the scout. A green faceted gland.
+- `grip-fiber.png` from the spider. A coil of grey cable with a red thread.
+- `hull-shard.png` from the dartwing. A blue-green armor shard.
+- `cold-lamp.png` from the eye. A silver ring with a cold blue lamp.
+- `servo-joint.png` from the pincer. A dark hinge with a yellow lens.
+- `spike-crystal.png` from the golem. A grey spike with a blue base.
+- `alien-chart.png` from the saucer. A silver plaque with a red jewel.
+- `alien-core.png` from the brain. A pink core in a metal ring.
+- `core-cannon.png` is the heavy weapon. Nose up, dark metal, the pink core set in the body.

@@ -18,7 +18,7 @@ import {
 import { createInput } from '../input.js';
 import { multiplayer } from '../../multiplayer/session.js';
 import { saveAssembly } from '../../save/cloud.js';
-import { inventoryClick, inventoryDrag, itemTint } from '../items.js';
+import { dropSpriteKey, inventoryClick, inventoryDrag, itemTint } from '../items.js';
 import { readPilotName } from '../pilot.js';
 import { createState, WORLD } from '../state.js';
 import {
@@ -69,6 +69,13 @@ function destroyOutline(entry) {
   if (!entry) return;
   if (Array.isArray(entry)) entry.forEach((sprite) => sprite.destroy());
   else entry.destroy();
+}
+
+function itemSprite(scene, itemId) {
+  const key = dropSpriteKey(itemId);
+  if (key && scene.textures.exists(key)) return { key, tint: false };
+  if (scene.textures.exists(MINERAL_FILE)) return { key: MINERAL_FILE, tint: true };
+  return null;
 }
 
 export default class PlayScene extends Phaser.Scene {
@@ -732,12 +739,12 @@ export default class PlayScene extends Phaser.Scene {
       const visible = showAny && gather.layer === layer && remote && remote.layer === layer;
       let sprite = this.gatherSprites.get(gather.key);
       if (!sprite) {
-        const tex = this.textures.exists(MINERAL_FILE) ? MINERAL_FILE : null;
-        sprite = tex
-          ? this.add.image(gather.x, gather.y, tex).setDisplaySize(22, 22)
+        const face = itemSprite(this, gather.itemId);
+        sprite = face
+          ? this.add.image(gather.x, gather.y, face.key).setDisplaySize(22, 22)
           : this.add.circle(gather.x, gather.y, 8, 0x7ad7ff, 0.95);
         sprite.setDepth(11);
-        if (typeof sprite.setTint === 'function') sprite.setTint(itemTint(gather.itemId));
+        if (face && face.tint && typeof sprite.setTint === 'function') sprite.setTint(itemTint(gather.itemId));
         this.refreshUiIgnore(sprite);
         this.gatherSprites.set(gather.key, sprite);
       }
@@ -1115,11 +1122,12 @@ export default class PlayScene extends Phaser.Scene {
         sprite = null;
       }
       if (!sprite) {
-        const tex = this.textures.exists(MINERAL_FILE) ? MINERAL_FILE : null;
-        sprite = tex
-          ? this.add.image(drop.x, drop.y, tex).setDisplaySize(28, 28)
+        const face = itemSprite(this, drop.itemId);
+        sprite = face
+          ? this.add.image(drop.x, drop.y, face.key).setDisplaySize(28, 28)
           : this.add.circle(drop.x, drop.y, 10, 0x7ad7ff, 0.9);
         sprite.setDepth(6);
+        if (face && !face.tint && typeof sprite.clearTint === 'function') sprite.clearTint();
         this.refreshUiIgnore(sprite);
         this.dropSprites.set(key, sprite);
       } else {
@@ -1129,7 +1137,11 @@ export default class PlayScene extends Phaser.Scene {
       const scale = Number.isFinite(raw) && raw > 0 ? raw : 1;
       const draw = Math.max(8, 28 * scale);
       if (sprite.frame && typeof sprite.setDisplaySize === 'function') sprite.setDisplaySize(draw, draw);
-      if (typeof sprite.setTint === 'function') sprite.setTint(itemTint(drop.itemId || 'pale'));
+      const face = itemSprite(this, drop.itemId);
+      if (typeof sprite.setTint === 'function') {
+        if (face && face.tint) sprite.setTint(itemTint(drop.itemId || 'pale'));
+        else if (typeof sprite.clearTint === 'function') sprite.clearTint();
+      }
     }
     for (const [key, sprite] of this.dropSprites) {
       if (!seenDrops.has(key)) {
@@ -1143,14 +1155,12 @@ export default class PlayScene extends Phaser.Scene {
 
     if (this.missileGfx) {
       this.missileGfx.clear();
-      this.missileGfx.fillStyle(0xb9f3ff, 0.95);
-      for (const m of this.state.missiles) {
-        this.missileGfx.fillCircle(m.x, m.y, 4);
-      }
-      this.missileGfx.fillStyle(0xffd27a, 0.95);
-      for (const m of this.state.ghostMissiles || []) {
-        this.missileGfx.fillCircle(m.x, m.y, 4);
-      }
+      const paintShot = (missile) => {
+        this.missileGfx.fillStyle(missile.heavy ? 0xffb7de : 0xb9f3ff, 0.95);
+        this.missileGfx.fillCircle(missile.x, missile.y, missile.heavy ? 7 : 4);
+      };
+      for (const m of this.state.missiles) paintShot(m);
+      for (const m of this.state.ghostMissiles || []) paintShot(m);
     }
 
     if (this.particleGfx) syncParticles(this.particleGfx, this.state.particles);

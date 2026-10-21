@@ -117,6 +117,55 @@ button, input {
   transform: translate(-50%, -50%);
 }
 
+.main-star {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  pointer-events: none;
+}
+
+.main-star-arc {
+  position: relative;
+  width: 92px;
+  height: 36px;
+  flex: none;
+}
+
+.main-star-horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(126, 231, 255, 0.45);
+}
+
+.main-star-body {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  border-radius: 50%;
+  background: #ffe27a;
+  box-shadow: 0 0 8px rgba(255, 226, 122, 0.95);
+  transform: translate(-50%, -50%);
+}
+
+.main-star-body.is-down {
+  background: #8ea4b8;
+  box-shadow: 0 0 6px rgba(142, 164, 184, 0.55);
+}
+
+.main-star-name {
+  color: #ffe27a;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
+}
+
 .hull-meter {
   width: 260px;
   max-width: calc(100vw - 36px);
