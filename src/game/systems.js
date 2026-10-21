@@ -51,8 +51,6 @@ import {
 } from './items.js';
 
 const EXTRACT_SHRINK = 0.83;
-const EXTRACT_TOAST = 'Extraction Initiation';
-const EXTRACT_TOAST_DUR = 1.2;
 /** World pixels of size lost per second while a rock eases toward its target. */
 const SHRINK_RATE = 42;
 /** Seconds after the explosion before the first crystal leaves. */
@@ -67,21 +65,40 @@ function queueShrink(rock, factor) {
   rock.radiusTarget = radiusBase * factor;
 }
 
+function oreLanding(state, rock, index, count) {
+  const ownRim = Math.max(36, rockTouchDistance(rock) - 24);
+  const close = ownRim + 22;
+  const away = Math.atan2(rock.y - state.ship.y, rock.x - state.ship.x);
+  const base = away + (index - (count - 1) / 2) * 0.4;
+  for (let attempt = 0; attempt < 18; attempt += 1) {
+    const turn = Math.ceil(attempt / 2) * 0.38 * (attempt % 2 === 0 ? 1 : -1);
+    const dist = close + (attempt > 10 ? 16 : 0);
+    const angle = base + turn;
+    const x = clamp(rock.x + Math.cos(angle) * dist, 80, WORLD.w - 80);
+    const y = clamp(rock.y + Math.sin(angle) * dist, 80, WORLD.h - 80);
+    const blocked = state.asteroids.some((other) => {
+      if (!other.alive || other.id === rock.id) return false;
+      return Math.hypot(other.x - x, other.y - y) < rockTouchDistance(other) + 36;
+    });
+    if (!blocked) return { x, y };
+  }
+  return {
+    x: clamp(rock.x + Math.cos(base) * close, 80, WORLD.w - 80),
+    y: clamp(rock.y + Math.sin(base) * close, 80, WORLD.h - 80),
+  };
+}
+
 function queueExtractPops(state, rock, mineral, count) {
   if (!state.oreBursts) state.oreBursts = [];
   const pieces = [];
-  const spill = rockTouchDistance(rock) + 48;
-  const away = Math.atan2(rock.y - state.ship.y, rock.x - state.ship.x);
   for (let i = 0; i < count; i += 1) {
-    const spread = (i - (count - 1) / 2) * 0.62;
-    const angle = away + spread;
-    const dist = spill + i * 26;
+    const land = oreLanding(state, rock, i, count);
     pieces.push({
       itemId: mineral,
       fromX: rock.x,
       fromY: rock.y,
-      toX: clamp(rock.x + Math.cos(angle) * dist, 80, WORLD.w - 80),
-      toY: clamp(rock.y + Math.sin(angle) * dist, 80, WORLD.h - 80),
+      toX: land.x,
+      toY: land.y,
       shared: !!state.shareWorld,
       step: rock.extractCount + ':' + i,
       rockKey: rock.key,
@@ -708,6 +725,8 @@ export function startMission(state, id, seed, audio, assemblyId) {
   state.sharedRocks = [];
   state.intro = { t: 0 };
   state.taught = {};
+  state.tutorialStep = 0;
+  state.tutorialTime = 0;
   state.idleFly = 0;
   state.fxFlash = 0;
   state.shakeTime = 0;
@@ -1031,8 +1050,6 @@ function acceptAnswer(state, rock, audio) {
   }
 
   if (audio) audio.correct();
-  state.extractToast = EXTRACT_TOAST;
-  state.extractToastTime = EXTRACT_TOAST_DUR;
   state.fxGreen = 1.15;
   state.solved += 1;
   if (claim === 'new') {
@@ -1903,6 +1920,29 @@ function updateWormhole(state, audio) {
   }
 }
 
+const FLIGHT_TUTORIAL = [
+  'Hold W to fly. S reverses. A and D strafe. The mouse aims.',
+  'Click a rock with the cyan rim to extract it.',
+  'Answer the question. Three answers destroy the rock. Fly over the crystals.',
+  'Press F to fabricate. Press C to open cargo.',
+];
+const TUTORIAL_STEP_SEC = 10;
+
+function tutorialHint(state) {
+  if (hullHas(state, 'jumper')) return 'Q and E change layers.';
+  const step = Math.max(0, Math.min(FLIGHT_TUTORIAL.length - 1, state.tutorialStep || 0));
+  return FLIGHT_TUTORIAL[step];
+}
+
+function tickTutorial(state, dt) {
+  if (state.tutorialStep == null) state.tutorialStep = 0;
+  if (state.tutorialStep >= FLIGHT_TUTORIAL.length - 1) return;
+  state.tutorialTime = (state.tutorialTime || 0) + dt;
+  if (state.tutorialTime < TUTORIAL_STEP_SEC) return;
+  state.tutorialTime = 0;
+  state.tutorialStep += 1;
+}
+
 function teachOnce(state, key, text) {
   if (!state.taught) state.taught = {};
   if (state.taught[key]) return;
@@ -1910,22 +1950,13 @@ function teachOnce(state, key, text) {
   pushNotice(state, text);
 }
 
-function teachFlight(state, dt, input) {
+function teachFlight(state, dt) {
   if (!state.taught) state.taught = {};
   if (state.intro || state.mode !== 'fly') return;
+  tickTutorial(state, dt);
   if (!state.taught.jumper && hullHas(state, 'jumper')) {
     teachOnce(state, 'jumper', 'Layer jumper installed. Q and E change layers.');
   }
-  if (state.taught.fly) return;
-  const speed = Math.hypot(state.ship.vx, state.ship.vy);
-  const thrusting = input && input.thrust && input.thrust();
-  if (speed > 12 || thrusting) {
-    state.taught.fly = true;
-    state.idleFly = 0;
-    return;
-  }
-  state.idleFly = (state.idleFly || 0) + dt;
-  if (state.idleFly > 8) teachOnce(state, 'fly', 'Hold W to fly.');
 }
 
 function pushNotice(state, text) {
@@ -2073,7 +2104,7 @@ export function updateFly(state, dt, ctx) {
   tickShrink(state, dt);
   tickOrePops(state, dt, audio);
   tickFx(state, dt);
-  teachFlight(state, dt, input);
+  teachFlight(state, dt);
   state.clock += dt;
   easeCamera(state, dt);
 }
@@ -2489,7 +2520,7 @@ export function buildHudFields(state) {
       ? state.hint
       : state.statusTime > 0 && state.status
         ? state.status
-        : 'Scroll the wheel to change slots. C opens cargo. Q and E need a layer jumper.',
+        : tutorialHint(state),
     hotbar: buildHotbar(state),
     compass: hullHas(state, 'compass')
       ? {
