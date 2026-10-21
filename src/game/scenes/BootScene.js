@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { listPhaserAudio, listPhaserImages } from '../assetsManifest.js';
+import { listPhaserAudio, listPhaserImages, SHIP_FILES } from '../assetsManifest.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -16,6 +16,11 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
+    // Nearest keeps hull panel lines from blending as the camera scrolls. Other textures stay linear.
+    for (const name of SHIP_FILES) {
+      if (!this.textures.exists(name)) continue;
+      this.textures.get(name).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
     const bridge = this.registry.get('bridge');
     this.scene.start('PlayScene', { bridge });
   }

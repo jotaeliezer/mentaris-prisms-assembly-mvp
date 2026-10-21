@@ -15,6 +15,17 @@ import ShipChoice from './ShipChoice.jsx';
 const FLIGHT_SETTINGS_NOTE =
   'The same seed builds the same belt. Close resumes this flight. A changed seed or mission starts that flight.';
 
+const heardNoticeIds = new Set();
+
+function beepFreshNotices(bridge, notices) {
+  if (!bridge || !Array.isArray(notices)) return;
+  for (const note of notices) {
+    if (!note || note.id == null || heardNoticeIds.has(note.id)) continue;
+    heardNoticeIds.add(note.id);
+    bridge.emit('uiBeep');
+  }
+}
+
 export default function App({ bridge }) {
   const [snapshot, setSnapshot] = useState(() => bridge.getSnapshot());
   const [flightSettingsOpen, setFlightSettingsOpen] = useState(false);
@@ -23,6 +34,10 @@ export default function App({ bridge }) {
   const live = useMultiplayer();
 
   useEffect(() => bridge.subscribe(setSnapshot), [bridge]);
+
+  useEffect(() => {
+    beepFreshNotices(bridge, snapshot.notices);
+  }, [bridge, snapshot.notices]);
 
   useEffect(() => {
     if (!flightSettingsOpen) return;
@@ -186,7 +201,9 @@ export default function App({ bridge }) {
       )}
       {showExtractUi && <Extract bridge={bridge} snapshot={snapshot} />}
       {mode === 'fab' && <Fab bridge={bridge} snapshot={snapshot} />}
-      {mode === 'dead' && <GameOver bridge={bridge} />}
+      {mode === 'dead' && !(snapshot.deathReveal > 0) && (
+        <GameOver bridge={bridge} snapshot={snapshot} />
+      )}
       {mode === 'paused' && !flightSettingsOpen && <Pause bridge={bridge} snapshot={snapshot} />}
       {mode === 'clear' && <Clear bridge={bridge} snapshot={snapshot} />}
       {snapshot.intro && snapshot.intro.black > 0.02 && (

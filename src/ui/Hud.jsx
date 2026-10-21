@@ -3,6 +3,75 @@ import { readPilotName } from '../game/pilot.js';
 import { GearIcon } from './SettingsPanel.jsx';
 import SessionControls from './SessionControls.jsx';
 
+const HINT_TICK_MS = 32;
+const HINT_CAP_MS = 1400;
+
+function typewriterPlan(length) {
+  if (length <= 1 || length * HINT_TICK_MS <= HINT_CAP_MS) {
+    return { interval: HINT_TICK_MS, chunk: 1 };
+  }
+  const perChar = Math.floor(HINT_CAP_MS / length);
+  if (perChar >= 16) return { interval: perChar, chunk: 1 };
+  const ticks = Math.max(1, Math.floor(HINT_CAP_MS / 28));
+  return { interval: 28, chunk: Math.ceil(length / ticks) };
+}
+
+function HintBar({ text, besideMap }) {
+  const full = text || '';
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!full) {
+      setCount(0);
+      return undefined;
+    }
+    const reduce =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      setCount(full.length);
+      return undefined;
+    }
+    const { interval, chunk } = typewriterPlan(full.length);
+    setCount(0);
+    let shown = 0;
+    let timer = 0;
+    const started = performance.now();
+    const tick = () => {
+      shown = Math.min(full.length, shown + chunk);
+      setCount(shown);
+      if (shown >= full.length) return;
+      timer = window.setTimeout(tick, interval);
+    };
+    const begin = () => {
+      const hud = document.getElementById('hud');
+      const opacity = hud ? Number.parseFloat(getComputedStyle(hud).opacity) : 1;
+      if (opacity < 0.45 && performance.now() - started < 5000) {
+        timer = window.setTimeout(begin, 80);
+        return;
+      }
+      tick();
+    };
+    begin();
+    return () => window.clearTimeout(timer);
+  }, [full]);
+
+  if (!full) return <p id="hint" className="hint" hidden />;
+
+  const typing = count < full.length;
+  return (
+    <p
+      id="hint"
+      className={`hint${besideMap ? ' hint-beside-map' : ''}${typing ? ' hint-typing' : ''}`}
+    >
+      <span className="hint-full" role="status">
+        {full}
+      </span>
+      <span aria-hidden="true">{full.slice(0, count)}</span>
+      {typing ? <span className="hint-caret" aria-hidden="true" /> : null}
+    </p>
+  );
+}
+
 export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOpen, onFlightGear }) {
   const hud = snapshot.hud || {};
   const hullPct = Number.isFinite(hud.hullPct) ? hud.hullPct : 100;
@@ -167,9 +236,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
           />
         </div>
       </div>
-      <p id="hint" className={`hint${snapshot.mapUnlocked ? ' hint-beside-map' : ''}`}>
-        {hud.hint || ''}
-      </p>
+      <HintBar text={hud.hint || ''} besideMap={!!snapshot.mapUnlocked} />
       {hullOpen && (
         <div id="hull" className="hull-drawer" role="dialog" aria-label="Hull">
           <p className="hull-title">Hull</p>

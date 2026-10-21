@@ -5,6 +5,7 @@ import {
   applyCameraPolish,
   layerTransitionFx,
   rockDisplayScale,
+  snapSpriteToScreenPixel,
   syncAimArc,
   syncBeacons,
   syncFlame,
@@ -59,6 +60,8 @@ import {
 
 const SNAPSHOT_INTERVAL_MS = 80;
 const SHIP_BASE = 72;
+/** Player hull draw size. 5% above SHIP_BASE; asteroids and remote ships are unchanged. */
+const SHIP_DRAW = SHIP_BASE * 1.05;
 const RIM_PAD = 18;
 const RIM_RADIUS = 16;
 
@@ -114,7 +117,8 @@ export default class PlayScene extends Phaser.Scene {
     this.starGfx = this.add.graphics().setDepth(0).setScrollFactor(0);
 
     this.shipSprite = this.add.image(this.state.ship.x, this.state.ship.y, DEFAULT_SHIP);
-    this.shipSprite.setDisplaySize(SHIP_BASE, SHIP_BASE);
+    this.shipSprite.setDisplaySize(SHIP_DRAW, SHIP_DRAW);
+    this.shipSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
     this.shipSprite.setDepth(10);
 
     this.flameGfx = this.add.graphics().setDepth(9);
@@ -753,7 +757,7 @@ export default class PlayScene extends Phaser.Scene {
   }
 
   flightInput() {
-    const live = introAlphas(this.state).live;
+    const live = introAlphas(this.state).live && !this.state.orePopping;
     if (live) return this.inputCtl;
     return {
       mouse: this.inputCtl ? this.inputCtl.mouse : { x: 0, y: 0, worldX: 0, worldY: 0, touch: false, held: false },
@@ -1077,10 +1081,13 @@ export default class PlayScene extends Phaser.Scene {
 
     if (this.shipSprite) {
       const key = this.textures.exists(ship.sprite) ? ship.sprite : DEFAULT_SHIP;
-      if (this.shipSprite.texture.key !== key) this.shipSprite.setTexture(key);
+      if (this.shipSprite.texture.key !== key) {
+        this.shipSprite.setTexture(key);
+        this.shipSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
       this.shipSprite.setPosition(ship.x, ship.y);
       this.shipSprite.setRotation(ship.aim + Math.PI / 2);
-      this.shipSprite.setDisplaySize(SHIP_BASE * shipScale, SHIP_BASE * shipScale);
+      this.shipSprite.setDisplaySize(SHIP_DRAW * shipScale, SHIP_DRAW * shipScale);
       this.shipSprite.setAlpha(intro.ship);
       this.shipSprite.setVisible(
         intro.ship > 0.02 && this.state.mode !== 'title' && this.state.mode !== 'dead'
@@ -1088,16 +1095,26 @@ export default class PlayScene extends Phaser.Scene {
     }
     if (this.flameGfx) this.flameGfx.setAlpha(intro.ship);
 
-    if (this.flameGfx) syncFlame(this.flameGfx, ship, shipScale, this.state.clock);
+    if (this.flameGfx) syncFlame(this.flameGfx, ship, shipScale * (SHIP_DRAW / SHIP_BASE), this.state.clock);
 
     applyCameraPolish(this.cameras.main, this.state);
+    if (this.shipSprite) snapSpriteToScreenPixel(this.shipSprite, this.cameras.main);
+    if (this.flameGfx && this.shipSprite) {
+      this.flameGfx.x = this.shipSprite.x;
+      this.flameGfx.y = this.shipSprite.y;
+    }
     this.syncLayerRocks(fx);
 
     const seenDrops = new Set();
     for (const drop of this.state.drops) {
+      if (drop.id == null || Number.isNaN(drop.id)) continue;
       const key = drop.id;
       seenDrops.add(key);
       let sprite = this.dropSprites.get(key);
+      if (sprite && !sprite.scene) {
+        this.dropSprites.delete(key);
+        sprite = null;
+      }
       if (!sprite) {
         const tex = this.textures.exists(MINERAL_FILE) ? MINERAL_FILE : null;
         sprite = tex
@@ -1109,6 +1126,10 @@ export default class PlayScene extends Phaser.Scene {
       } else {
         sprite.setPosition(drop.x, drop.y);
       }
+      const raw = drop.popping ? Number(drop.popScale) : 1;
+      const scale = Number.isFinite(raw) && raw > 0 ? raw : 1;
+      const draw = Math.max(8, 28 * scale);
+      if (sprite.frame && typeof sprite.setDisplaySize === 'function') sprite.setDisplaySize(draw, draw);
       if (typeof sprite.setTint === 'function') sprite.setTint(itemTint(drop.itemId || 'pale'));
     }
     for (const [key, sprite] of this.dropSprites) {

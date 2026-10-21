@@ -120,6 +120,21 @@ export function applyCameraPolish(cam, state) {
   }
 }
 
+/**
+ * Pin a world sprite to a whole screen pixel after the camera scroll is final.
+ * Phaser draws at (world - scroll) * zoom, so a fractional phase makes scaled art crawl.
+ * Rewrites only this sprite's draw position; gameplay coordinates stay unchanged.
+ */
+export function snapSpriteToScreenPixel(sprite, cam) {
+  if (!sprite || !cam) return;
+  const zoomX = cam.zoomX || 1;
+  const zoomY = cam.zoomY || 1;
+  const phaseX = (sprite.x - cam.scrollX) * zoomX;
+  const phaseY = (sprite.y - cam.scrollY) * zoomY;
+  sprite.x = Math.round(phaseX) / zoomX + cam.scrollX;
+  sprite.y = Math.round(phaseY) / zoomY + cam.scrollY;
+}
+
 /** Small fading dots/sparks — matches legacy js/render.js drawParticles. */
 export function syncParticles(gfx, particles) {
   gfx.clear();

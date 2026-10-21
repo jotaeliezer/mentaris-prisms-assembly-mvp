@@ -1,12 +1,13 @@
-export default function GameOver({ bridge }) {
+export default function GameOver({ bridge, snapshot }) {
+  const reason =
+    (snapshot && snapshot.deathReason) || 'The hull reached zero.';
   return (
     <div id="game-over" className="overlay gameover-overlay">
       <div className="panel gameover-panel">
-        <p className="eyebrow">Hull breach</p>
-        <h2>Game over</h2>
+        <h2 className="gameover-title">Game over</h2>
+        <p className="gameover-reason">{reason}</p>
         <p className="lede">
-          The ship came apart on this layer. Everything you were carrying is floating at the wreck.
-          Respawn and fly back to pick it up.
+          Everything you were carrying is floating at the wreck. Respawn and fly back to pick it up.
         </p>
         <button
           id="respawn"

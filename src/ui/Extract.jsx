@@ -68,6 +68,11 @@ export default function Extract({ bridge, snapshot }) {
     bridge.emit('cancelExtract');
   }
 
+  function onOverlayClick(event) {
+    if (event.target !== event.currentTarget) return;
+    cancel();
+  }
+
   const place = placeExtractPanel(snapshot.extractAnchor);
   const shownAnswer = hud.buffer
     ? hud.buffer
@@ -78,8 +83,12 @@ export default function Extract({ bridge, snapshot }) {
   return (
     <>
       {extractMode && (
-        <div id="extract" className="overlay extract-overlay">
-          <div className="extract-panel" style={{ left: place.left, top: place.top }}>
+        <div id="extract" className="overlay extract-overlay" onClick={onOverlayClick}>
+          <div
+            className="extract-panel"
+            style={{ left: place.left, top: place.top }}
+            onClick={(event) => event.stopPropagation()}
+          >
             <p className="eyebrow">{snapshot.extractRockName || 'Extraction'}</p>
             <h2 id="extract-question" className="extract-question">
               {snapshot.extractQuestion || 'Solve to extract'}

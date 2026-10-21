@@ -111,6 +111,12 @@ export function createAudio(scene) {
     wrong() {
       playFirst(["wrong_asteroid", "missed_answer"]);
     },
+    pop() {
+      playKey("powerup_emerges", { volume: 0.62 });
+    },
+    explode() {
+      playKey("explosion", { volume: 0.7 });
+    },
     pickup() {
       playKey("mineral_collected");
     },

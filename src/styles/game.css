@@ -235,18 +235,62 @@ button:disabled,
 
 .hint {
   align-self: center;
-  max-width: calc(100vw - 140px);
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: var(--panel);
-  border: 1px solid rgba(126, 231, 255, 0.2);
-  color: var(--muted);
-  font-size: 13px;
+  position: relative;
+  z-index: 2;
+  max-width: min(1040px, calc(100vw - 240px));
+  margin: 0 0 8px;
+  padding: 16px 28px;
+  border-radius: 16px;
+  background: rgba(3, 14, 6, 0.84);
+  border: 1px solid rgba(57, 255, 20, 0.55);
+  color: #39ff14;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
   text-align: center;
+  text-shadow:
+    0 0 6px rgba(57, 255, 20, 0.95),
+    0 0 16px rgba(57, 255, 20, 0.55);
+  box-shadow:
+    0 0 18px rgba(57, 255, 20, 0.22),
+    inset 0 0 14px rgba(57, 255, 20, 0.08);
 }
 
 .hint-beside-map {
-  max-width: calc(100vw - 320px);
+  align-self: flex-start;
+  max-width: min(1040px, calc(100vw - 340px));
+}
+
+.hint-full {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.hint-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.85em;
+  margin-left: 3px;
+  vertical-align: -0.08em;
+  background: #39ff14;
+  box-shadow: 0 0 8px #39ff14;
+  animation: hintCaret 0.75s steps(1) infinite;
+}
+
+@keyframes hintCaret {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hint-caret { animation: none; }
 }
 
 /* Vertical hotbar with the cargo drawer sliding out beside it. */
@@ -478,26 +522,48 @@ button:disabled,
 
 .craft-toasts {
   position: fixed;
-  right: 88px;
-  bottom: 28px;
-  z-index: 14;
+  top: 14px;
+  left: 50%;
+  z-index: 16;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
+  align-items: center;
   gap: 8px;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 32px));
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
 .craft-toast {
-  max-width: 280px;
-  padding: 10px 14px;
-  border-radius: 4px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  background: rgba(16, 16, 16, 0.92);
-  color: #f4fbff;
-  font-size: 14px;
+  max-width: min(640px, calc(100vw - 32px));
+  padding: 14px 22px;
+  border-radius: 8px;
+  border: 1px solid rgba(80, 230, 255, 0.8);
+  background: rgba(4, 16, 32, 0.9);
+  color: #5cefff;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1.35;
-  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.35);
+  text-align: center;
+  text-shadow:
+    0 0 8px rgba(0, 220, 255, 0.95),
+    0 0 18px rgba(0, 190, 255, 0.55);
+  box-shadow:
+    0 0 18px rgba(0, 200, 255, 0.35),
+    inset 0 0 14px rgba(0, 200, 255, 0.08);
+  animation: craft-toast-drop 0.42s cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+
+@keyframes craft-toast-drop {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-100% - 28px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .hotbar-slot.empty {
@@ -606,7 +672,8 @@ button:disabled,
   align-items: end;
   justify-content: center;
   padding: 0 96px 16px 16px;
-  pointer-events: none;
+  /* Full-screen hit target while the numpad is open. Unmounted after cancel, so flight clicks pass. */
+  pointer-events: auto;
 }
 
 .extract-panel {
@@ -620,29 +687,44 @@ button:disabled,
   border-radius: 20px;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
   text-align: center;
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-weight: 400;
+  font-synthesis: none;
+}
+
+.extract-panel .eyebrow {
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-size: 10px;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
 }
 
 .extract-question {
   margin: 0 0 14px;
-  font-family: "Segoe UI", "Avenir Next", "Helvetica Neue", sans-serif;
-  font-size: clamp(26px, 4.5vw, 36px);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-size: 13px;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+  line-height: 1.7;
   color: var(--ink);
 }
 
 .extract-buffer {
   margin: 0 auto 16px;
-  min-height: 44px;
-  padding: 8px 14px;
+  min-height: 52px;
+  padding: 14px 10px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(8, 24, 36, 0.85);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-size: 16px;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0.06em;
+  line-height: 1.6;
   color: var(--accent);
 }
 
@@ -669,9 +751,14 @@ button:disabled,
 
 .extract-key {
   min-height: 52px;
-  font-size: 22px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
+  padding: 12px 6px;
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-size: 13px;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
 .extract-key:not(.extract-key-wide) {
@@ -687,8 +774,11 @@ button:disabled,
 
 .extract-key-wide {
   grid-column: span 1;
-  font-size: 15px;
-  letter-spacing: 0.04em;
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-size: 10px;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
 }
 
 .extract-key-wide:nth-last-child(2) {
@@ -702,7 +792,14 @@ button:disabled,
 .extract-cancel {
   width: 100%;
   color: var(--muted);
-  font-size: 13px;
+  padding: 12px 8px;
+  font-family: "Press Start 2P", "Oxanium", monospace;
+  font-size: 10px;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .extract-toast {
@@ -750,7 +847,7 @@ button:disabled,
   display: block;
   padding: 0;
   background: transparent;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .overlay[hidden], .hud[hidden] { display: none; }
@@ -779,11 +876,31 @@ button:disabled,
 
 .gameover-panel {
   width: min(460px, 100%);
-  text-align: left;
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gameover-title {
+  margin: 0 0 10px;
+  color: #ff3b3b;
+  font-size: 40px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(255, 59, 59, 0.45);
+}
+
+.gameover-reason {
+  margin: 0 0 12px;
+  color: #f4fbff;
+  font-size: 16px;
 }
 
 #respawn {
   min-width: 180px;
+  margin-top: 8px;
 }
 
 .panel {
@@ -1040,6 +1157,12 @@ button:disabled {
 
 @media (max-width: 800px) {
   .hud { padding: 10px; }
+  .hint {
+    font-size: 20px;
+    padding: 12px 16px;
+    max-width: calc(100vw - 220px);
+  }
+  .hint-beside-map { max-width: calc(100vw - 300px); }
   .panel { padding: 22px 18px; }
   h1 { font-size: 34px; }
   .hull-meter { width: 220px; }

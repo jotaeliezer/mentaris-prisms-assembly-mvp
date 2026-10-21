@@ -51,18 +51,129 @@ import {
 } from './items.js';
 
 const EXTRACT_SHRINK = 0.83;
-/** Extra shrink once a rock is fully depleted so it reads as a tiny husk. */
-const EXTRACT_DEPLETE_SHRINK = 0.55;
 const EXTRACT_TOAST = 'Extraction Initiation';
 const EXTRACT_TOAST_DUR = 1.2;
 /** World pixels of size lost per second while a rock eases toward its target. */
 const SHRINK_RATE = 42;
+/** Seconds after the explosion before the first crystal leaves. */
+const ORE_POP_LEAD = 0.28;
+/** Seconds between crystals. */
+const ORE_POP_GAP = 0.36;
 
 function queueShrink(rock, factor) {
   const sizeBase = rock.sizeTarget != null ? rock.sizeTarget : rock.size;
   const radiusBase = rock.radiusTarget != null ? rock.radiusTarget : rock.radius;
   rock.sizeTarget = sizeBase * factor;
   rock.radiusTarget = radiusBase * factor;
+}
+
+function queueExtractPops(state, rock, mineral, count) {
+  if (!state.oreBursts) state.oreBursts = [];
+  const pieces = [];
+  const spill = rockTouchDistance(rock) + 48;
+  const away = Math.atan2(rock.y - state.ship.y, rock.x - state.ship.x);
+  for (let i = 0; i < count; i += 1) {
+    const spread = (i - (count - 1) / 2) * 0.62;
+    const angle = away + spread;
+    const dist = spill + i * 26;
+    pieces.push({
+      itemId: mineral,
+      fromX: rock.x,
+      fromY: rock.y,
+      toX: clamp(rock.x + Math.cos(angle) * dist, 80, WORLD.w - 80),
+      toY: clamp(rock.y + Math.sin(angle) * dist, 80, WORLD.h - 80),
+      shared: !!state.shareWorld,
+      step: rock.extractCount + ':' + i,
+      rockKey: rock.key,
+      rockId: rock.id,
+    });
+  }
+  state.oreBursts.push({ rockId: rock.id, pieces, next: 0 });
+  state.orePopping = true;
+  state.orePopClock = ORE_POP_LEAD;
+}
+
+function releasePop(state, piece, audio) {
+  const id = piece.shared ? oreIdForRock(piece.rockKey, piece.step) : state.nextId++;
+  if (state.drops.some((drop) => drop.id === id)) return;
+  state.drops.push({
+    id,
+    x: piece.fromX,
+    y: piece.fromY,
+    fromX: piece.fromX,
+    fromY: piece.fromY,
+    toX: piece.toX,
+    toY: piece.toY,
+    itemId: piece.itemId,
+    count: 1,
+    life: 48,
+    maxLife: 48,
+    shared: !!piece.shared,
+    popping: true,
+    popT: 0,
+    popDur: 0.42,
+    popScale: 0.15,
+    burstRockId: piece.rockId,
+  });
+  if (audio && typeof audio.pop === 'function') audio.pop();
+}
+
+function tickOrePops(state, dt, audio) {
+  if (!state.oreBursts) state.oreBursts = [];
+  let waiting = false;
+  const ready = [];
+  for (const burst of state.oreBursts) {
+    const rock = state.asteroids.find((item) => item.id === burst.rockId);
+    const shrinking =
+      rock && rock.sizeTarget != null && Math.abs(rock.size - rock.sizeTarget) > 0.8;
+    if (shrinking) waiting = true;
+    else if (burst.next < burst.pieces.length) ready.push(burst);
+  }
+  if (ready.length) {
+    state.orePopClock = (state.orePopClock || 0) - dt;
+    if (state.orePopClock <= 0) {
+      const burst = ready[0];
+      releasePop(state, burst.pieces[burst.next], audio);
+      burst.next += 1;
+      state.orePopClock = ORE_POP_GAP;
+    }
+  }
+  let flying = false;
+  for (const drop of state.drops) {
+    if (!drop.popping) continue;
+    flying = true;
+    if (!Number.isFinite(drop.popT)) drop.popT = 0;
+    const dur = Number.isFinite(drop.popDur) && drop.popDur > 0 ? drop.popDur : 0.42;
+    drop.popT += dt / dur;
+    const u = Math.min(1, drop.popT);
+    const ease = 1 - (1 - u) * (1 - u) * (1 - u);
+    drop.x = drop.fromX + (drop.toX - drop.fromX) * ease;
+    drop.y = drop.fromY + (drop.toY - drop.fromY) * ease;
+    drop.popScale = u < 1 ? 0.15 + ease * 1.2 : 1;
+    if (u >= 1) {
+      drop.popping = false;
+      drop.x = drop.toX;
+      drop.y = drop.toY;
+      drop.popScale = 1;
+      if (drop.shared) {
+        queueWorld(state, {
+          k: 'ore',
+          op: 'spawn',
+          ore: drop.id,
+          x: round1(drop.x),
+          y: round1(drop.y),
+          item: drop.itemId,
+          n: 1,
+        });
+      }
+    }
+  }
+  state.oreBursts = state.oreBursts.filter((burst) => burst.next < burst.pieces.length);
+  state.orePopping = waiting || state.oreBursts.length > 0 || flying;
+  if (state.orePopping) {
+    state.ship.vx = 0;
+    state.ship.vy = 0;
+  }
 }
 
 function tickShrink(state, dt) {
@@ -103,6 +214,8 @@ function tickFx(state, dt) {
 /** Green answer box ended: drop the kept answer, and close a finished rock. */
 function finishGreen(state) {
   state.correctAnswer = '';
+  state.closingRockName = '';
+  state.asteroids = state.asteroids.filter((rock) => rock.alive && !rock.exploded);
   if (!state.pendingExtractClose) return;
   state.pendingExtractClose = false;
   if (state.mode !== 'extract') return;
@@ -148,7 +261,9 @@ function ensureRockExtractFields(rock) {
 
 function extractRock(state) {
   if (!state.extractRockId) return null;
-  const rock = state.asteroids.find((item) => item.alive && item.id === state.extractRockId);
+  const rock = state.asteroids.find(
+    (item) => item.id === state.extractRockId && (item.alive || item.exploded)
+  );
   return rock ? ensureRockExtractFields(rock) : null;
 }
 
@@ -640,7 +755,7 @@ export function bankCargo(state, audio) {
   if (state.cargo <= 0) return;
   state.bank += state.cargo;
   state.cargo = 0;
-  if (audio) audio.pickup();
+  playPickup(audio);
 }
 
 export function fabricateDrive(state, audio) {
@@ -858,7 +973,44 @@ function launchMissile(state, rock, audio) {
   if (audio) audio.shot();
 }
 
-/** Correct extract answer: shrink, ore, quota progress — no missile / destroy. */
+function rockYieldSize(rock) {
+  if (rock.baseRadius) return rock.baseRadius / 0.34;
+  return rock.size;
+}
+
+/** Same particle list the belt already uses, packed so the hit reads as an explosion. */
+function burstExplosion(state, x, y) {
+  for (let i = 0; i < 26; i += 1) {
+    const angle = state.rng() * Math.PI * 2;
+    const speed = 90 + state.rng() * 260;
+    state.particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.4 + state.rng() * 0.45,
+      size: 4 + state.rng() * 7,
+      color: i % 3 === 0 ? '#fff4d2' : i % 3 === 1 ? '#ffb15a' : '#7ee7ff',
+    });
+  }
+}
+
+/** Drop the rock from the belt the way a destroy does, without spawning ore. */
+function forgetAsteroid(state, rock) {
+  if (!rock) return;
+  rock.alive = false;
+  rock.depleted = true;
+  rock.exploded = true;
+  if (!state.goneRocks) state.goneRocks = new Set();
+  if (rock.key) state.goneRocks.add(rock.key);
+  state.asteroids = state.asteroids.filter((item) => item !== rock && item.alive);
+}
+
+function playPickup(audio) {
+  if (audio && typeof audio.pickup === 'function') audio.pickup();
+}
+
+/** Correct extract: two shrinks, then the third answer destroys the rock and spills its ore. */
 function acceptAnswer(state, rock, audio) {
   if (state.mode !== 'extract') return;
   if (!rock || !rock.alive) return;
@@ -889,53 +1041,35 @@ function acceptAnswer(state, rock, audio) {
   }
 
   const before = copyRock(rock);
-  queueShrink(rock, EXTRACT_SHRINK);
   rock.extractCount += 1;
 
-  const mineral = rock.mineral || 'pale';
-  const spillRng = state.shareWorld ? makeRng(rock.key + ':' + step) : state.rng;
-  const away = Math.atan2(rock.y - state.ship.y, rock.x - state.ship.x);
-  const spill = rockTouchDistance(rock) + 36;
-  const angle = state.shareWorld ? spillRng() * Math.PI * 2 : away + (spillRng() - 0.5) * 1.1;
-  const dropX = rock.x + Math.cos(angle) * spill;
-  const dropY = rock.y + Math.sin(angle) * spill;
-  const count = mineralYield({ mineral }, rock.size, rock.difficulty);
-  if (state.shareWorld) {
-    const oreId = dropSharedOre(state, rock, dropX, dropY, count, step);
-    if (!state.rockUndo) state.rockUndo = new Map();
-    state.rockUndo.set(claimKey, { before, oreId });
-  } else {
-    state.drops.push({
-      id: state.nextId++,
-      x: dropX,
-      y: dropY,
-      itemId: mineral,
-      count,
-      life: 48,
-      maxLife: 48,
-    });
-  }
-
-  for (let i = 0; i < 16; i++) {
-    const angle = state.rng() * Math.PI * 2;
-    const speed = 40 + state.rng() * 160;
-    state.particles.push({
-      x: rock.x,
-      y: rock.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 0.55 + state.rng() * 0.4,
-      size: 3 + state.rng() * 3.5,
-      color: i % 2 === 0 ? '#ffb15a' : '#d7f6ff',
-    });
-  }
-
   if (rock.extractCount >= 3) {
-    rock.depleted = true;
-    queueShrink(rock, EXTRACT_DEPLETE_SHRINK);
+    const mineral = rock.mineral || 'pale';
+    const count = Math.max(1, mineralYield({ mineral }, rockYieldSize(rock), rock.difficulty));
+    burstExplosion(state, rock.x, rock.y);
+    if (audio && typeof audio.explode === 'function') audio.explode();
+    queueExtractPops(state, rock, mineral, count);
+    state.closingRockName = rockTypeName(rock);
     state.pendingExtractClose = true;
     state.extractAvailable = null;
+    state.targetId = 0;
+    if (state.shareWorld) {
+      if (!state.rockUndo) state.rockUndo = new Map();
+      state.rockUndo.set(claimKey, {
+        before,
+        rock,
+        oreId: oreIdForRock(rock.key, rock.extractCount + ':0'),
+      });
+      queueWorld(state, {
+        k: 'rock',
+        op: 'die',
+        key: rock.key,
+        t: Date.now(),
+      });
+    }
+    forgetAsteroid(state, rock);
   } else {
+    queueShrink(rock, EXTRACT_SHRINK);
     const operation =
       rock.operation ||
       (state.mission && state.mission.operation
@@ -952,17 +1086,19 @@ function acceptAnswer(state, rock, audio) {
     rock.question = next;
     rock.difficulty = rock.question.difficulty;
     state.hint = '';
-  }
-  if (state.shareWorld) {
-    queueWorld(state, {
-      k: 'rock',
-      op: 'mine',
-      key: rock.key,
-      n: rock.extractCount,
-      size: round1(rock.sizeTarget != null ? rock.sizeTarget : rock.size),
-      depleted: !!rock.depleted,
-      q: packQuestion(rock.question),
-    });
+    if (state.shareWorld) {
+      if (!state.rockUndo) state.rockUndo = new Map();
+      state.rockUndo.set(claimKey, { before, rock, oreId: '' });
+      queueWorld(state, {
+        k: 'rock',
+        op: 'mine',
+        key: rock.key,
+        n: rock.extractCount,
+        size: round1(rock.sizeTarget != null ? rock.sizeTarget : rock.size),
+        depleted: false,
+        q: packQuestion(rock.question),
+      });
+    }
   }
 }
 
@@ -1138,7 +1274,7 @@ function spillStack(state, stack, x, y) {
 }
 
 /** Hull hits zero. Items stay in the world at the wreck until the player respawns and picks them up. */
-export function breachHull(state, audio) {
+export function breachHull(state, audio, reason) {
   if (state.mode === 'dead') return;
   const ship = state.ship;
   ensureInventory(state);
@@ -1163,6 +1299,8 @@ export function breachHull(state, audio) {
   ship.vy = 0;
   ship.thrusting = false;
   state.mode = 'dead';
+  state.deathReason = reason || 'The hull reached zero.';
+  state.deathReveal = 1.35;
   clearExtractSession(state);
   state.mode = 'dead';
   for (let i = 0; i < 28; i++) {
@@ -1182,9 +1320,8 @@ export function breachHull(state, audio) {
   state.fxFlash = 0.28;
   state.status = 'Hull breached.';
   state.statusTime = 4.5;
-  if (audio) {
-    if (typeof audio.hit === 'function') audio.hit();
-  }
+  if (audio && typeof audio.explode === 'function') audio.explode();
+  else if (audio && typeof audio.hit === 'function') audio.hit();
   if (audio && typeof audio.syncMotionLoops === 'function') {
     audio.syncMotionLoops(false, false);
   }
@@ -1256,7 +1393,7 @@ function separateFromRocks(state, audio) {
             if (typeof audio.damaged === 'function') audio.damaged();
             else audio.hit();
           }
-          if (ship.hp <= 0) breachHull(state, audio);
+          if (ship.hp <= 0) breachHull(state, audio, 'The hull broke on an asteroid.');
         }
       }
     }
@@ -1364,9 +1501,12 @@ export function applySharedRock(state, msg) {
   const rock = state.asteroids.find((item) => item.key === msg.key);
   if (!rock) return;
   ensureRockExtractFields(rock);
-  if (!msg.alive) {
+  if (msg.alive === false || msg.depleted) {
     rock.alive = false;
     rock.depleted = true;
+    if (!state.goneRocks) state.goneRocks = new Set();
+    if (rock.key) state.goneRocks.add(rock.key);
+    state.asteroids = state.asteroids.filter((item) => item.alive);
     return;
   }
   const nextSize = Number(msg.size);
@@ -1403,7 +1543,10 @@ function applyMineVisual(rock, event) {
     rock.radiusTarget = Math.max(8, nextSize * 0.34);
   }
   if (Number(event.n) > (rock.extractCount || 0)) rock.extractCount = Number(event.n);
-  if (event.depleted) rock.depleted = true;
+  if (event.depleted) {
+    rock.depleted = true;
+    rock.alive = false;
+  }
   const question = unpackQuestion(event.q);
   if (question && !rock.depleted) rock.question = question;
 }
@@ -1417,7 +1560,13 @@ function undoMineCredit(state, claimKey) {
   const undo = state.rockUndo && state.rockUndo.get(claimKey);
   if (!undo) return;
   state.rockUndo.delete(claimKey);
-  const rock = state.asteroids.find((item) => item.key === undo.before.key);
+  let rock = state.asteroids.find((item) => item.key === undo.before.key);
+  if (!rock && undo.rock) {
+    rock = undo.rock;
+    rock.alive = true;
+    if (!state.asteroids.includes(rock)) state.asteroids.push(rock);
+    if (state.goneRocks && rock.key) state.goneRocks.delete(rock.key);
+  }
   if (rock) {
     const winnerAhead = rock.extractCount > undo.before.extractCount;
     if (!winnerAhead) {
@@ -1427,7 +1576,17 @@ function undoMineCredit(state, claimKey) {
       rock.radiusTarget = undo.before.radiusTarget;
       rock.extractCount = undo.before.extractCount;
       rock.depleted = undo.before.depleted;
+      rock.alive = undo.before.alive !== false;
+      rock.exploded = false;
       rock.question = undo.before.question;
+      if (state.oreBursts) {
+        state.oreBursts = state.oreBursts.filter((burst) => burst.rockId !== rock.id);
+      }
+      if (state.drops) {
+        state.drops = state.drops.filter(
+          (drop) => drop.burstRockId !== rock.id || (state.oreGranted && state.oreGranted.has(drop.id))
+        );
+      }
     }
   }
 }
@@ -1469,6 +1628,11 @@ function applyRockWorld(state, event, selfId) {
   });
   const rock = state.asteroids.find((item) => item.key === event.key && item.alive);
   if (rock) applyMineVisual(rock, event);
+  if (event.depleted) {
+    if (!state.goneRocks) state.goneRocks = new Set();
+    if (event.key) state.goneRocks.add(event.key);
+    state.asteroids = state.asteroids.filter((item) => item.alive);
+  }
 }
 
 function applyOreWorld(state, event, selfId) {
@@ -1596,7 +1760,7 @@ export function applyFriendlyFire(state, amount, audio) {
     if (typeof audio.damaged === 'function') audio.damaged();
     else if (typeof audio.hit === 'function') audio.hit();
   }
-  if (state.ship.hp <= 0) breachHull(state, audio);
+  if (state.ship.hp <= 0) breachHull(state, audio, "Another pilot's shot broke the hull.");
 }
 
 export function introAlphas(state) {
@@ -1636,7 +1800,7 @@ function grantDrop(state, drop, audio) {
     announceCrafts(state);
     if (!state.oreGranted) state.oreGranted = new Map();
     state.oreGranted.set(drop.id, { itemId, count: received });
-    if (audio) audio.pickup();
+    playPickup(audio);
   }
   return received;
 }
@@ -1675,6 +1839,7 @@ function collectSharedDrop(state, drop, audio) {
 function updateDrops(state, dt, audio) {
   const ship = state.ship;
   for (const drop of state.drops) {
+    if (drop.popping) continue;
     drop.life -= dt;
     if (drop.life <= 0) continue;
     if (state.mode === 'dead') continue;
@@ -1690,7 +1855,7 @@ function updateDrops(state, dt, audio) {
         announceCrafts(state);
         if (!state.sharedGathers) state.sharedGathers = [];
         state.sharedGathers.push({ x: drop.x, y: drop.y, itemId });
-        if (audio) audio.pickup();
+        playPickup(audio);
       }
       if (left <= 0) {
         drop.life = 0;
@@ -1850,8 +2015,10 @@ export function updateFly(state, dt, ctx) {
     audio.syncMotionLoops(!!ship.thrusting, state.mode === 'fly');
   }
   separateFromRocks(state, audio);
-  if (state.mode === 'dead') {
+    if (state.mode === 'dead') {
+    if (state.deathReveal > 0) state.deathReveal = Math.max(0, state.deathReveal - dt);
     tickShrink(state, dt);
+    tickOrePops(state, dt, audio);
     tickFx(state, dt);
     updateParticles(state, dt);
     updateDrops(state, dt, audio);
@@ -1904,6 +2071,7 @@ export function updateFly(state, dt, ctx) {
   if (state.wrong > 0) state.wrong -= dt;
   tickExtractToast(state, dt);
   tickShrink(state, dt);
+  tickOrePops(state, dt, audio);
   tickFx(state, dt);
   teachFlight(state, dt, input);
   state.clock += dt;
@@ -1927,12 +2095,16 @@ export function updateTransition(state, dt) {
 
 export function idle(state, dt, audio) {
   state.clock += dt;
+  if (state.mode === 'dead' && state.deathReveal > 0) {
+    state.deathReveal = Math.max(0, state.deathReveal - dt);
+  }
   state.ship.aim += dt * 0.15;
   for (const rock of state.asteroids) rock.rot += rock.spin * dt;
   updateParticles(state, dt);
   if (state.mode !== 'dead') updateDrops(state, dt, audio);
   tickExtractToast(state, dt);
   tickShrink(state, dt);
+  tickOrePops(state, dt, audio);
   tickFx(state, dt);
   if (state.wrong > 0) state.wrong -= dt;
   if (state.statusTime > 0) state.statusTime -= dt;
@@ -2376,6 +2548,8 @@ function heldView(state) {
 export function buildSnapshotPatch(state, muted) {
   return {
     mode: state.mode,
+    deathReason: state.deathReason || '',
+    deathReveal: state.deathReveal || 0,
     seed: state.seed,
     missionId: state.mission ? state.mission.id : '',
     muted: !!muted,
@@ -2385,7 +2559,10 @@ export function buildSnapshotPatch(state, muted) {
     extractAvailable: state.extractAvailable || null,
     extractMode: state.mode === 'extract',
     extractQuestion: extractQuestionReadout(state),
-    extractRockName: state.mode === 'extract' ? rockTypeName(extractRock(state)) : '',
+    extractRockName:
+      state.mode === 'extract'
+        ? rockTypeName(extractRock(state)) || state.closingRockName || ''
+        : '',
     rockTip: state.rockTip || null,
     extractToast: state.extractToast || '',
     extractRockId: state.extractRockId || null,

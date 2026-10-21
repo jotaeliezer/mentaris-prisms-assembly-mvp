@@ -115,13 +115,11 @@ assert(shrink.fxGreen > 0, 'a correct answer flashes green');
 assert(shrink.correctAnswer === '7', 'the correct answer stays visible in the green box');
 assert(shrink.buffer === '', 'the live buffer clears so the next problem can be typed');
 assert(shrink.mode === 'extract', 'extract stays open while the answer is green');
-const spilled = shrink.drops[shrink.drops.length - 1];
-assert(spilled, 'a correct answer leaves a mineral in space');
-assert(
-  Math.hypot(spilled.x - shrink.ship.x, spilled.y - shrink.ship.y) > 90,
-  'the mineral stays by the asteroid until the ship flies to it'
-);
-assert(countItem(shrink, 'pale') === 0, 'the mineral is not in the hotbar yet');
+assert(!shrink.orePopping, 'one answer does not release ore');
+assert(!shrink.drops.length, 'one correct extract does not put ore in space');
+assert(rock.extractCount === 1, 'the first answer counts');
+assert(rock.alive, 'the rock is still there after one answer');
+assert(rock.question.prompt !== '3 + 4', 'the next question is a different prompt');
 const greenSnap = buildSnapshotPatch(shrink, false);
 assert(
   greenSnap.fxGreen && greenSnap.correctAnswer === '7',
@@ -130,13 +128,82 @@ assert(
 idle(shrink, 0.4, null);
 assert(rock.size < before, 'the rock keeps shrinking');
 assert(rock.size > rock.sizeTarget, 'the shrink is still in progress');
+assert(!shrink.drops.length, 'shrinking still does not drop ore');
 
 shrink.buffer = '';
-rock.question = { ...rock.question, answerText: '12' };
+rock.question = { ...rock.question, answerText: '12', prompt: '8 + 4' };
 shrink.mode = 'extract';
 shrink.extractRockId = rock.id;
 typeChar(shrink, '9', null);
 assert(shrink.shakeTime > 0, 'a wrong answer shakes the camera');
+
+const sfx = {
+  pops: 0,
+  explosions: 0,
+  pickups: 0,
+  correct() {},
+  wrong() {},
+  pop() {
+    sfx.pops += 1;
+  },
+  explode() {
+    sfx.explosions += 1;
+  },
+  pickup() {
+    sfx.pickups += 1;
+  },
+};
+
+function answerExtract(state, target, audio) {
+  state.mode = 'extract';
+  state.extractRockId = target.id;
+  state.extractAvailable = target.id;
+  const answer = String(target.question.answerText);
+  for (const ch of answer) typeChar(state, ch, audio);
+}
+
+answerExtract(shrink, rock, sfx);
+assert(rock.extractCount === 2, 'the second answer counts');
+assert(rock.alive && !rock.depleted, 'two answers do not finish the rock');
+assert(!shrink.drops.length, 'the second answer does not release ore');
+assert(!shrink.orePopping, 'the second answer does not pop ore');
+assert(rock.question.prompt !== '8 + 4', 'the third question is a different prompt');
+
+const mineral = rock.mineral || 'pale';
+const rockId = rock.id;
+const expectN = mineralYield({ mineral }, rock.baseRadius / 0.34, rock.difficulty);
+answerExtract(shrink, rock, sfx);
+assert(!shrink.asteroids.some((item) => item.id === rockId), 'the third answer removes the rock');
+assert(rock.alive === false && rock.depleted, 'the finished rock is dead');
+assert(!shrink.drops.length, 'ore is not in space until the pops begin');
+assert(shrink.particles.length > 0, 'the finish plays an explosion burst');
+assert(sfx.explosions === 1, 'the finish plays the explosion cue');
+assert(shrink.orePopping, 'the ship stays locked while the ore is coming out');
+for (let step = 0; step < 160 && (shrink.orePopping || shrink.drops.length < expectN); step += 1) {
+  idle(shrink, 0.1, sfx);
+}
+assert(shrink.drops.length === expectN, 'the explosion releases mineralYield crystals');
+assert(
+  shrink.drops.every((drop) => drop.count === 1 && !drop.popping),
+  'each crystal is its own settled drop'
+);
+assert(sfx.pops === expectN, 'each crystal plays the pop');
+for (const drop of shrink.drops) {
+  assert(
+    Math.hypot(drop.x - shrink.ship.x, drop.y - shrink.ship.y) > 90,
+    'minerals sit away from the ship'
+  );
+}
+assert(countItem(shrink, mineral) === 0, 'minerals are not in the hotbar until flown over');
+assert(!shrink.orePopping, 'flight can resume once every mineral has popped');
+
+const landed = shrink.drops[0];
+shrink.mode = 'fly';
+shrink.ship.x = landed.x;
+shrink.ship.y = landed.y;
+idle(shrink, 0.05, sfx);
+assert(countItem(shrink, mineral) === 1, 'flying over a settled mineral adds one to the hotbar');
+assert(sfx.pickups === 1, 'flying over a settled mineral plays pickup');
 
 const spent = createState();
 const host = spent.asteroids.find((item) => item.alive);
@@ -147,6 +214,7 @@ host.question = { ...host.question, answerText: '4', prompt: '2 + 2' };
 openExtract(spent, host.id, null);
 typeChar(spent, '4', null);
 assert(host.depleted, 'the third answer spends the rock');
+assert(!spent.asteroids.some((item) => item.id === host.id), 'the spent rock is gone');
 assert(spent.mode === 'extract', 'the last answer stays on screen');
 assert(spent.correctAnswer === '4', 'the last answer is kept while the box is green');
 idle(spent, 1.2, null);
@@ -165,6 +233,8 @@ const wreckX = wreck.ship.x;
 const wreckY = wreck.ship.y;
 breachHull(wreck, null);
 assert(wreck.mode === 'dead', 'losing the hull opens game over');
+assert(wreck.deathReveal > 1, 'the overlay waits for the explosion');
+assert(wreck.deathReason === 'The hull reached zero.', 'a breach states why the ship was lost');
 assert(wreck.ship.hp === 0, 'hull stays at zero until respawn');
 assert(wreck.layer === layer && wreck.asteroids.length === rocks, 'the world is not reset');
 assert(
@@ -214,6 +284,20 @@ gather.drops.push({
 });
 idle(gather, 0.05, null);
 assert(countItem(gather, 'pale') === 2, 'flying onto a mineral puts it in the hotbar');
+
+const barePickup = createState();
+barePickup.mode = 'fly';
+barePickup.drops.push({
+  id: 42,
+  x: barePickup.ship.x,
+  y: barePickup.ship.y,
+  itemId: 'slate',
+  count: 1,
+  life: 30,
+  maxLife: 30,
+});
+idle(barePickup, 0.05, { correct() {}, pop() {}, explode() {} });
+assert(countItem(barePickup, 'slate') === 1, 'a settled mineral is collected even if pickup is missing');
 assert(
   gather.notices.some((note) => note.text.includes('Prism glass') && note.text.includes('Press F')),
   'a new recipe toasts and points at F'
@@ -307,5 +391,31 @@ assert(mineralYield({ mineral: 'pale' }, 180, 'hard') === 4, 'a large hard pale 
 assert(mineralYield({ mineral: 'pale' }, 120, 'easy') === 1, 'a small easy pale rock drops one');
 assert(mineralYield({ mineral: 'glint' }, 180, 'easy') === 1, 'glint stays one unless the question is hard');
 assert(mineralYield({ mineral: 'glint' }, 180, 'hard') === 2, 'a hard glint rock drops two');
+
+const finished = createState();
+const oreRock = finished.asteroids.find((item) => item.alive);
+const finishedMineral = oreRock.mineral || 'pale';
+finished.mode = 'fly';
+finished.extractAvailable = oreRock.id;
+openExtract(finished, oreRock.id, null);
+for (let n = 0; n < 3; n += 1) {
+  oreRock.question = { ...oreRock.question, answerText: '4', prompt: '1 + ' + n };
+  typeChar(finished, '4', null);
+}
+const finishedYield = mineralYield(
+  { mineral: finishedMineral },
+  oreRock.baseRadius / 0.34,
+  oreRock.difficulty
+);
+assert(oreRock.exploded && !oreRock.alive, 'the third answer destroys the rock');
+assert(!finished.asteroids.some((item) => item.id === oreRock.id), 'the destroyed rock leaves the belt');
+assert(!finished.drops.length, 'ore waits until the explosion starts the pop');
+for (let step = 0; step < 160 && finished.orePopping; step += 1) idle(finished, 0.1, null);
+assert(
+  finished.drops.length === finishedYield,
+  'a finished rock releases mineralYield crystals'
+);
+assert(finished.drops.every((drop) => !drop.popping), 'the crystals finish popping');
+assert(!finished.orePopping, 'flight resumes after the crystals land');
 
 console.log('inventory tests ok');
