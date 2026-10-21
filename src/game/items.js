@@ -1,9 +1,46 @@
 /** Stacks, count-based recipes, and hotbar/cargo moves. No crafting grid. */
 
-import { ASTEROID_FILES } from './assetsManifest.js';
-
 /** Same order as the five rock pictures. A slot shows that picture, smaller. */
 const ORE_SPRITE = { pale: 0, slate: 1, amber: 2, virid: 3, glint: 4 };
+
+/** World drops use mineral.png tinted. Slots must use that crystal, not the asteroid picture. */
+const ORE_FILTER = {
+  pale: 'none',
+  slate: 'grayscale(0.55) brightness(0.95)',
+  amber: 'hue-rotate(-55deg) saturate(1.6)',
+  virid: 'hue-rotate(70deg) saturate(1.3)',
+  glint: 'hue-rotate(-25deg) saturate(1.8) brightness(1.15)',
+};
+
+const MADE_ICON = {
+  glass: 'glass.svg',
+  iron: 'iron.svg',
+  resin: 'resin.svg',
+  filament: 'filament.svg',
+  wire: 'wire.svg',
+  foil: 'foil.svg',
+  gem: 'gem.svg',
+  drive: 'drive.svg',
+  hull: 'hull.svg',
+  hint: 'hint.svg',
+  jumper: 'jumper.svg',
+  bench: 'bench.svg',
+  map: 'map.svg',
+  compass: 'compass.svg',
+  ping: 'ping.svg',
+  gate: 'gate.svg',
+  repair: 'repair.svg',
+  blink: 'blink.svg',
+  tractor: 'tractor.svg',
+  quiet: 'quiet.svg',
+  bow: 'bow.svg',
+  wall: 'wall.svg',
+  panel: 'panel.svg',
+};
+
+export function iconFilter(id) {
+  return ORE_FILTER[id] || 'none';
+}
 
 /** Bullet pictures already under public/images/bullets. */
 const WEAPON_BULLET = {
@@ -30,10 +67,9 @@ const ALIEN_ICON = {
  * Ores copy their asteroid. Weapons reuse a bullet. Alien parts use their own picture. Alloys and abilities stay letters.
  */
 export function slotIcon(id) {
-  if (Object.prototype.hasOwnProperty.call(ORE_SPRITE, id)) {
-    const file = ASTEROID_FILES[ORE_SPRITE[id]];
-    return file ? '/assets/asteroids/' + file : '';
-  }
+  if (Object.prototype.hasOwnProperty.call(ORE_SPRITE, id)) return '/assets/asteroids/mineral.png';
+  const made = MADE_ICON[id];
+  if (made) return '/images/items/' + made;
   const bullet = WEAPON_BULLET[id];
   if (bullet) return '/images/bullets/' + bullet;
   const alien = ALIEN_ICON[id];
@@ -93,6 +129,18 @@ export const ITEMS = {
   chart: { id: 'chart', name: 'Alien chart', mark: 'Ac', color: '#e7eef5', tint: 0xe7eef5, kind: 'alien', about: 'A one-use note from a saucer. When strongholds exist, using it shows the layer and the direction of another stronghold, or of a black hole, in this cluster. Store it until then.' },
   core: { id: 'core', name: 'Alien core', mark: 'Co', color: '#ff7ab8', tint: 0xff7ab8, kind: 'alien', about: 'The heart of a brain. The Core cannon spends one, and the mega drill spends one. Store it, then fabricate the cannon at the bench.' },
   'core-cannon': { id: 'core-cannon', name: 'Core cannon', mark: 'Cn', color: '#ff8ec8', tint: 0xff8ec8, kind: 'weapon', use: 'core', about: 'The heavy weapon. Select it and left click. It reaches farther than the Arc missile, and one shot breaks one rock. On an alien it counts as two of the three hits. The recipe spends an Alien core and stays hidden until a core is in the hold.' },
+  wall: { id: 'wall', name: 'Wall', mark: 'Wa', color: '#d5e2ec', tint: 0xd5e2ec, kind: 'construction', about: 'A thin bar. It is placed from the hotbar by clicking in space.' },
+  panel: { id: 'panel', name: 'Panel', mark: 'Pn', color: '#9eb6c8', tint: 0x9eb6c8, kind: 'construction', about: 'A quadrilateral plane. It is placed from the hotbar by clicking in space.' },
+  corner: { id: 'corner', name: 'Corner', mark: 'Cr', color: '#e7d3b0', tint: 0xe7d3b0, kind: 'construction', about: 'A turn off a straight run. It is placed from the hotbar by clicking in space.' },
+  bunker: { id: 'bunker', name: 'Bunker', mark: 'Bk', color: '#7f97ab', tint: 0x7f97ab, kind: 'construction', about: 'A closed room on the station. It is placed from the hotbar by clicking in space.' },
+  telescope: { id: 'telescope', name: 'Telescope', mark: 'Ts', color: '#8ecfff', tint: 0x8ecfff, kind: 'construction', about: 'A scope pointed along the belt. It is placed from the hotbar by clicking in space.' },
+  satellite: { id: 'satellite', name: 'Satellite', mark: 'Sa', color: '#c4b4ef', tint: 0xc4b4ef, kind: 'construction', about: 'A small dish. It is placed from the hotbar by clicking in space.' },
+  dock: { id: 'dock', name: 'Fueling dock', mark: 'Dk', color: '#ffd27a', tint: 0xffd27a, kind: 'construction', about: 'A fueling dock. It is placed from the hotbar by clicking in space.' },
+  gunship: { id: 'gunship', name: 'Gunship', mark: 'Gs', color: '#ff9ec8', tint: 0xff9ec8, kind: 'construction', about: 'A turret housing fixed to the station. It is placed from the hotbar by clicking in space.' },
+  drill: { id: 'drill', name: 'Mega drill', mark: 'Dl', color: '#e8a05a', tint: 0xe8a05a, kind: 'construction', about: 'A drill head fixed to the station. It is placed from the hotbar by clicking in space.' },
+  extension: { id: 'extension', name: 'Layer extension', mark: 'Ex', color: '#7ee0d0', tint: 0x7ee0d0, kind: 'construction', about: 'An extension module. It is placed from the hotbar by clicking in space.' },
+  vault: { id: 'vault', name: 'Ore vault', mark: 'Vt', color: '#b7c4ce', tint: 0xb7c4ce, kind: 'construction', about: 'A heavy store room. It is placed from the hotbar by clicking in space.' },
+  beacon: { id: 'beacon', name: 'Beacon', mark: 'Bc', color: '#fff1b8', tint: 0xfff1b8, kind: 'construction', about: 'A lamp. It is placed from the hotbar by clicking in space.' },
 };
 
 /** Each recipe is a result plus how many of each material it takes. station: 'bench' waits until that item is carried. */
@@ -122,6 +170,18 @@ export const RECIPES = [
   { id: 'blink', category: 'abilities', result: 'blink', station: 'bench', count: 1, costs: [{ id: 'filament', n: 1 }] },
   { id: 'tractor', category: 'abilities', result: 'tractor', station: 'bench', count: 1, costs: [{ id: 'resin', n: 1 }, { id: 'pale', n: 1 }] },
   { id: 'quiet', category: 'abilities', result: 'quiet', station: 'bench', count: 1, costs: [{ id: 'amber', n: 1 }, { id: 'pale', n: 2 }] },
+  { id: 'wall', category: 'construction', result: 'wall', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }, { id: 'slate', n: 2 }] },
+  { id: 'panel', category: 'construction', result: 'panel', station: 'bench', count: 1, costs: [{ id: 'pale', n: 2 }, { id: 'slate', n: 4 }] },
+  { id: 'corner', category: 'construction', result: 'corner', count: 1, costs: [{ id: 'pale', n: 4 }, { id: 'slate', n: 2 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
+  { id: 'bunker', category: 'construction', result: 'bunker', count: 1, costs: [{ id: 'pale', n: 8 }, { id: 'slate', n: 4 }, { id: 'wall', n: 2 }, { id: 'panel', n: 1 }] },
+  { id: 'telescope', category: 'construction', result: 'telescope', count: 1, costs: [{ id: 'pale', n: 6 }, { id: 'slate', n: 2 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
+  { id: 'satellite', category: 'construction', result: 'satellite', count: 1, costs: [{ id: 'pale', n: 6 }, { id: 'slate', n: 4 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
+  { id: 'dock', category: 'construction', result: 'dock', station: 'bench', count: 1, costs: [{ id: 'pale', n: 40 }, { id: 'slate', n: 24 }, { id: 'amber', n: 16 }, { id: 'glass', n: 8 }, { id: 'iron', n: 4 }, { id: 'wall', n: 2 }, { id: 'panel', n: 2 }] },
+  { id: 'gunship', category: 'construction', result: 'gunship', station: 'bench', count: 1, costs: [{ id: 'pale', n: 30 }, { id: 'amber', n: 20 }, { id: 'virid', n: 10 }, { id: 'iron', n: 6 }, { id: 'filament', n: 4 }, { id: 'gland', n: 1 }, { id: 'wall', n: 2 }, { id: 'panel', n: 1 }] },
+  { id: 'drill', category: 'construction', result: 'drill', station: 'bench', count: 1, costs: [{ id: 'pale', n: 36 }, { id: 'slate', n: 18 }, { id: 'amber', n: 12 }, { id: 'virid', n: 8 }, { id: 'glint', n: 4 }, { id: 'iron', n: 6 }, { id: 'core', n: 1 }, { id: 'wall', n: 2 }, { id: 'panel', n: 2 }] },
+  { id: 'extension', category: 'construction', result: 'extension', station: 'bench', count: 1, costs: [{ id: 'pale', n: 28 }, { id: 'slate', n: 16 }, { id: 'amber', n: 12 }, { id: 'virid', n: 6 }, { id: 'glass', n: 4 }, { id: 'resin', n: 4 }, { id: 'wall', n: 2 }, { id: 'panel', n: 1 }] },
+  { id: 'vault', category: 'construction', result: 'vault', station: 'bench', count: 1, costs: [{ id: 'pale', n: 24 }, { id: 'amber', n: 16 }, { id: 'virid', n: 8 }, { id: 'glint', n: 4 }, { id: 'iron', n: 8 }, { id: 'wall', n: 2 }, { id: 'panel', n: 2 }] },
+  { id: 'beacon', category: 'construction', result: 'beacon', station: 'bench', count: 1, costs: [{ id: 'pale', n: 20 }, { id: 'slate', n: 10 }, { id: 'amber', n: 6 }, { id: 'glass', n: 4 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
 ];
 
 /** A recipe with no station is hand work. The rest need that item in the hotbar or cargo. */
@@ -298,7 +358,7 @@ export function canAfford(state, costs) {
   return costs.every((cost) => countItem(state, cost.id) >= cost.n);
 }
 
-/** Leveling spends the hotbar first, then the cargo. Recipes keep removeItems. */
+/** Hotbar first, then cargo. Bow leveling and construction recipes use this. Other recipes use removeItems. */
 function spendHotbarThenCargo(state, id, count) {
   let left = count;
   for (const list of [state.hotbar, state.cargoSlots]) {
@@ -312,6 +372,15 @@ function spendHotbarThenCargo(state, id, count) {
     }
   }
   return left === 0;
+}
+
+/** Construction spends hotbar then cargo. Every other recipe still spends with removeItems, in cost order. */
+export function payCraftCosts(state, recipe) {
+  if (recipe.category === 'construction') {
+    for (const cost of recipe.costs) spendHotbarThenCargo(state, cost.id, cost.n);
+    return;
+  }
+  for (const cost of recipe.costs) removeItems(state, cost.id, cost.n);
 }
 
 /** Raise worn bow plating by one level. 'short', 'max', 'empty', or the new level. */

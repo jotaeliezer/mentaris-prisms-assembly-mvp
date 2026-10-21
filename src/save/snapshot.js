@@ -133,5 +133,9 @@ export function buildProgressSnapshot(state) {
     layerBanks: encodeBanks(state.layerBanks),
     clusterCache: encodeClusters(state.clusterCache),
     clock: Number(state.clock) || 0,
+    station: copyJson(state.station),
+    planets: copyJson(state.planets || []),
+    sunBodies: copyJson(state.sunBodies || []),
+    nextId: state.nextId,
   };
 }

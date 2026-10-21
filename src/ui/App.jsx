@@ -197,9 +197,11 @@ export default function App({ bridge }) {
       {snapshot.intro && snapshot.intro.black > 0.02 && (
         <div className="intro-cover" style={{ opacity: snapshot.intro.black }} />
       )}
-      {(snapshot.notices || []).length > 0 && (
+      {(snapshot.notices || []).filter((note) => note.kind !== 'loot').length > 0 && (
         <div className="craft-toasts" aria-live="polite">
-          {snapshot.notices.map((note) => (
+          {(snapshot.notices || [])
+            .filter((note) => note.kind !== 'loot')
+            .map((note) => (
             <div key={note.id} className="craft-toast">
               {note.text}
             </div>

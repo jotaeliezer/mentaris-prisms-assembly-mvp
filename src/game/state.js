@@ -3,7 +3,8 @@ import { clamp, makeRng, rand } from './util.js';
 import { DEFAULT_SHIP } from './assetsManifest.js';
 import { CARGO_SIZE, emptyStacks } from './items.js';
 
-export const WORLD = { w: 72000, h: 52000 };
+/** Layer area is 60% larger than the 72000×52000 belt. Linear size is sqrt(1.6). */
+export const WORLD = { w: 91000, h: 65800 };
 export const SHIP_RADIUS = 28;
 export const APPROACH = 340;
 /** Inclusive stack. Layer 0 sits in the middle; Q/E stop at the ends. */
@@ -29,9 +30,9 @@ export const MISSIONS = {
 };
 
 /** Spacing of the belt grid. Cells fill in around the ship as it flies. */
-export const FIELD_STEP = 720;
+export const FIELD_STEP = 1150;
 /** How far from the ship the belt keeps rocks ready to extract. */
-export const BELT_RADIUS = 3000;
+export const BELT_RADIUS = 4600;
 
 /** Five rock pictures, rarest last. Weights are out of 100, in the coal-to-diamond sense. */
 export const ASTEROID_TYPES = [
@@ -117,7 +118,7 @@ export function spawnAsteroid(state, operation, difficulty, place, options) {
   for (let guard = 0; guard < 40; guard++) {
     if (place === 'near' || place === 'mid') {
       const angle = state.rng() * Math.PI * 2;
-      const dist = place === 'near' ? 250 + state.rng() * 40 : 520 + state.rng() * 480;
+      const dist = place === 'near' ? 220 + state.rng() * 70 : 980 + state.rng() * 800;
       x = clamp(state.ship.x + Math.cos(angle) * dist, 160, WORLD.w - 160);
       y = clamp(state.ship.y + Math.sin(angle) * dist, 160, WORLD.h - 160);
     } else {
@@ -128,11 +129,11 @@ export function spawnAsteroid(state, operation, difficulty, place, options) {
     const shipDist = Math.hypot(x - state.ship.x, y - state.ship.y);
     const clearOfShip =
       place === 'near'
-        ? shipDist > 230 && shipDist < 310
+        ? shipDist > 200 && shipDist < 300
         : place === 'mid'
-          ? shipDist > 500 && shipDist < 1100
+          ? shipDist > 900 && shipDist < 1900
           : shipDist > minShip;
-    const gap = place === 'near' ? 130 : 260;
+    const gap = place === 'near' ? 150 : 520;
     const clearOfRocks = state.asteroids.every((rock) => Math.hypot(x - rock.x, y - rock.y) > gap);
     if (clearOfShip && clearOfRocks) break;
   }

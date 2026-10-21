@@ -18,7 +18,8 @@ import {
 import { createInput } from '../input.js';
 import { multiplayer } from '../../multiplayer/session.js';
 import { saveAssembly } from '../../save/cloud.js';
-import { dropSpriteKey, inventoryClick, inventoryDrag, itemTint } from '../items.js';
+import { dropSpriteKey, inventoryClick, inventoryDrag, itemById, itemTint } from '../items.js';
+import { ghostPose, visiblePieces } from '../construct.js';
 import { readPilotName } from '../pilot.js';
 import { createState, WORLD } from '../state.js';
 import {
@@ -65,10 +66,87 @@ const SHIP_DRAW = SHIP_BASE * 1.05;
 const RIM_PAD = 18;
 const RIM_RADIUS = 16;
 
+function hullDraw(scene, key, height) {
+  const frame = scene.textures.exists(key) ? scene.textures.get(key).get() : null;
+  const srcW = frame && frame.width ? frame.width : 1;
+  const srcH = frame && frame.height ? frame.height : 1;
+  return { w: height * (srcW / srcH), h: height };
+}
+
 function destroyOutline(entry) {
   if (!entry) return;
   if (Array.isArray(entry)) entry.forEach((sprite) => sprite.destroy());
   else entry.destroy();
+}
+
+const PIECE_DRAW = {
+  wall: [104, 22],
+  panel: [120, 44],
+  corner: [36, 36],
+  bunker: [72, 72],
+  telescope: [18, 78],
+  dock: [84, 46],
+  gunship: [76, 36],
+  drill: [28, 86],
+  extension: [34, 96],
+  vault: [64, 64],
+};
+
+const PIECE_COLOR = {
+  wall: 0xf7fafc,
+  panel: 0xe4ebf1,
+  corner: 0xc8e7ff,
+  bunker: 0x6f8ea8,
+  telescope: 0xd7f4ff,
+  satellite: 0xb7c6ff,
+  dock: 0xffc36b,
+  gunship: 0xff8b8b,
+  drill: 0xffd36a,
+  extension: 0x8ef0c2,
+  vault: 0xe7c27a,
+  beacon: 0x9bffd0,
+};
+
+function piecePoly(gfx, x, y, rot, w, h) {
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  const hw = w / 2;
+  const hh = h / 2;
+  const corners = [
+    [-hw, -hh],
+    [hw, -hh],
+    [hw, hh],
+    [-hw, hh],
+  ];
+  gfx.beginPath();
+  corners.forEach(([px, py], index) => {
+    const wx = x + px * c - py * s;
+    const wy = y + px * s + py * c;
+    if (index === 0) gfx.moveTo(wx, wy);
+    else gfx.lineTo(wx, wy);
+  });
+  gfx.closePath();
+}
+
+function drawStationPiece(gfx, piece, color, alpha) {
+  const size = PIECE_DRAW[piece.id] || [60, 60];
+  gfx.fillStyle(0x02040a, 0.35 * alpha);
+  gfx.fillEllipse(piece.x, piece.y + 22, size[0] * 0.8, 18);
+  if (piece.id === 'satellite' || piece.id === 'beacon') {
+    const radius = piece.id === 'beacon' ? 16 : 22;
+    gfx.fillStyle(color, alpha);
+    gfx.fillCircle(piece.x, piece.y, radius);
+    gfx.lineStyle(2, 0xe9fbff, alpha);
+    gfx.strokeCircle(piece.x, piece.y, radius);
+    return;
+  }
+  const rot = piece.rot || 0;
+  gfx.fillStyle(color, alpha);
+  piecePoly(gfx, piece.x, piece.y, rot, size[0], size[1]);
+  gfx.fillPath();
+  gfx.lineStyle(2, 0xe9fbff, Math.min(1, alpha + 0.15));
+  piecePoly(gfx, piece.x, piece.y, rot, size[0], size[1]);
+  gfx.strokePath();
 }
 
 function itemSprite(scene, itemId) {
@@ -94,6 +172,7 @@ export default class PlayScene extends Phaser.Scene {
     this.outlineSprites = new Map();
     this.leaveRockSprites = new Map();
     this.dropSprites = new Map();
+    this.shotSprites = new Map();
     this.starGfx = null;
     this.flameGfx = null;
     this.missileGfx = null;
@@ -124,13 +203,17 @@ export default class PlayScene extends Phaser.Scene {
     this.starGfx = this.add.graphics().setDepth(0).setScrollFactor(0);
 
     this.shipSprite = this.add.image(this.state.ship.x, this.state.ship.y, DEFAULT_SHIP);
-    this.shipSprite.setDisplaySize(SHIP_DRAW, SHIP_DRAW);
+    this.shipSprite.setDisplaySize(hullDraw(this, DEFAULT_SHIP, SHIP_DRAW).w, hullDraw(this, DEFAULT_SHIP, SHIP_DRAW).h);
     this.shipSprite.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
     this.shipSprite.setDepth(10);
 
     this.flameGfx = this.add.graphics().setDepth(9);
     this.gateGfx = this.add.graphics().setDepth(4);
     this.aimGfx = this.add.graphics().setDepth(7);
+    this.stationGfx = this.add.graphics().setDepth(12);
+    this.pilotArrowGfx = this.add.graphics().setDepth(30).setScrollFactor(0);
+    this.bodySprites = new Map();
+    this.plateSprites = new Map();
     this.missileGfx = this.add.graphics().setDepth(8);
     this.particleGfx = this.add.graphics().setDepth(9);
 
@@ -596,6 +679,7 @@ export default class PlayScene extends Phaser.Scene {
     multiplayer.noteFlight({
       missionId: this.state.mission ? this.state.mission.id : '',
       layer: this.state.layer,
+      seed: this.state.seed || '',
     });
     if (!snap.connected || this.state.mode === 'title' || !this.state.shareWorld) {
       if (this.state.sharedRocks) this.state.sharedRocks.length = 0;
@@ -641,7 +725,8 @@ export default class PlayScene extends Phaser.Scene {
       const key = remote.sprite && this.textures.exists(remote.sprite) ? remote.sprite : DEFAULT_SHIP;
       if (!view) {
         const sprite = this.add.image(remote.x, remote.y, key);
-        sprite.setDisplaySize(SHIP_BASE, SHIP_BASE);
+        const draw = hullDraw(this, key, SHIP_BASE);
+        sprite.setDisplaySize(draw.w, draw.h);
         sprite.setDepth(9);
         const label = this.add.text(remote.x, remote.y - 48, remote.tag || '', {
           fontFamily: '"Segoe UI", "Avenir Next", "Helvetica Neue", sans-serif',
@@ -665,7 +750,8 @@ export default class PlayScene extends Phaser.Scene {
       }
       view.sprite.setPosition(remote.x, remote.y);
       view.sprite.setRotation(remote.aim + Math.PI / 2);
-      view.sprite.setDisplaySize(SHIP_BASE, SHIP_BASE);
+      const draw = hullDraw(this, key, SHIP_BASE);
+      view.sprite.setDisplaySize(draw.w, draw.h);
       view.sprite.setVisible(visible);
       const tag = remote.pilot || remote.tag || '';
       if (view.label.text !== tag) view.label.setText(tag);
@@ -820,6 +906,179 @@ export default class PlayScene extends Phaser.Scene {
       this.snapshotAcc = 0;
       this.publishSnapshot(false);
     }
+  }
+
+  syncSingleShots() {
+    if (!this.shotSprites) this.shotSprites = new Map();
+    const shots = []
+      .concat(this.state.missiles || [], this.state.ghostMissiles || [])
+      .filter((missile) => missile.single);
+    const seen = new Set();
+    shots.forEach((missile, index) => {
+      const key = missile.id != null ? missile.id : missile.shotId || 'shot-' + index;
+      seen.add(key);
+      let sprite = this.shotSprites.get(key);
+      if (sprite && !sprite.scene) {
+        this.shotSprites.delete(key);
+        sprite = null;
+      }
+      if (!sprite) {
+        const texture = this.textures.exists('bullet_single.png') ? 'bullet_single.png' : null;
+        sprite = texture
+          ? this.add.image(missile.x, missile.y, texture)
+          : this.add.circle(missile.x, missile.y, 4, 0xb9f3ff, 1);
+        sprite.setDepth(11);
+        if (sprite.setDisplaySize) sprite.setDisplaySize(18, 18);
+        this.refreshUiIgnore(sprite);
+        this.shotSprites.set(key, sprite);
+      }
+      sprite.setPosition(missile.x, missile.y);
+      if (sprite.setRotation) sprite.setRotation(Math.atan2(missile.vy, missile.vx));
+    });
+    for (const [key, sprite] of this.shotSprites) {
+      if (seen.has(key)) continue;
+      sprite.destroy();
+      this.shotSprites.delete(key);
+    }
+  }
+
+  syncPlates() {
+    if (!this.plateSprites) this.plateSprites = new Map();
+    const plates = visiblePieces(this.state).filter((piece) => piece.id === 'wall' || piece.id === 'panel');
+    const seen = new Set();
+    for (const piece of plates) {
+      seen.add(piece.uid);
+      const keyName = piece.id === 'panel' ? 'panel-plate.svg' : 'wall-plate.svg';
+      let sprite = this.plateSprites.get(piece.uid);
+      if (!sprite || !sprite.scene) {
+        if (sprite) sprite.destroy();
+        const texture = this.textures.exists(keyName) ? keyName : null;
+        sprite = texture
+          ? this.add.image(piece.x, piece.y, texture)
+          : this.add.rectangle(piece.x, piece.y, piece.id === 'panel' ? 120 : 104, piece.id === 'panel' ? 44 : 22, 0xf4f7fb);
+        sprite.setDepth(12);
+        this.refreshUiIgnore(sprite);
+        this.plateSprites.set(piece.uid, sprite);
+      }
+      const size = piece.id === 'panel' ? [120, 44] : [104, 22];
+      sprite.setPosition(piece.x, piece.y);
+      sprite.setRotation(piece.rot || 0);
+      if (sprite.setDisplaySize) sprite.setDisplaySize(size[0], size[1]);
+    }
+    for (const [uid, sprite] of this.plateSprites) {
+      if (seen.has(uid)) continue;
+      sprite.destroy();
+      this.plateSprites.delete(uid);
+    }
+  }
+
+  syncBodies() {
+    if (!this.bodySprites) this.bodySprites = new Map();
+    const bodies = []
+      .concat(this.state.planets || [], this.state.sunBodies || [])
+      .filter((body) => body.layer === this.state.layer);
+    const seen = new Set();
+    for (const body of bodies) {
+      const id = (body.kind || 'body') + ':' + body.layer + ':' + Math.round(body.x) + ':' + Math.round(body.y);
+      seen.add(id);
+      let sprite = this.bodySprites.get(id);
+      if (!sprite || !sprite.scene) {
+        if (sprite) sprite.destroy();
+        const texture = body.key && this.textures.exists(body.key) ? body.key : null;
+        const diameter = (body.r || 80) * 2;
+        sprite = texture
+          ? this.add.image(body.x, body.y, texture)
+          : this.add.circle(body.x, body.y, body.r || 80, body.key && body.key.startsWith('star') ? 0xfff1c2 : 0xc5d0dc, 1);
+        sprite.setDepth(body.key && String(body.key).startsWith('star') ? 3 : 2);
+        if (sprite.setDisplaySize) sprite.setDisplaySize(diameter, diameter);
+        this.refreshUiIgnore(sprite);
+        this.bodySprites.set(id, sprite);
+      }
+      sprite.setPosition(body.x, body.y);
+    }
+    for (const [id, sprite] of this.bodySprites) {
+      if (seen.has(id)) continue;
+      sprite.destroy();
+      this.bodySprites.delete(id);
+    }
+  }
+
+  syncPilotArrows() {
+    const gfx = this.pilotArrowGfx;
+    if (!gfx) return;
+    gfx.clear();
+    if (this.state.mode === 'title') return;
+    const cam = this.cameras.main;
+    const zoom = cam.zoom || 1;
+    const left = cam.scrollX;
+    const top = cam.scrollY;
+    const viewW = cam.width;
+    const viewH = cam.height;
+    const right = left + viewW / zoom;
+    const bottom = top + viewH / zoom;
+    const ship = this.state.ship;
+    for (const remote of multiplayer.remoteShips()) {
+      if (!remote.hasPose || remote.layer !== this.state.layer) continue;
+      const onScreen =
+        remote.x > left + 48 &&
+        remote.x < right - 48 &&
+        remote.y > top + 48 &&
+        remote.y < bottom - 48;
+      if (onScreen) continue;
+      const sx = (remote.x - left) * zoom;
+      const sy = (remote.y - top) * zoom;
+      const cx = viewW / 2;
+      const cy = viewH / 2;
+      const ang = Math.atan2(sy - cy, sx - cx);
+      const inset = 64;
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      let t = 1e9;
+      if (dx > 0) t = Math.min(t, (viewW - inset - cx) / dx);
+      if (dx < 0) t = Math.min(t, (inset - cx) / dx);
+      if (dy > 0) t = Math.min(t, (viewH - inset - cy) / dy);
+      if (dy < 0) t = Math.min(t, (inset - cy) / dy);
+      const x = cx + dx * t;
+      const y = cy + dy * t;
+      const dist = Math.hypot(remote.x - ship.x, remote.y - ship.y);
+      const size = 34 - Math.min(1, dist / 5200) * 18;
+      gfx.fillStyle(0x7ee7ff, 0.95);
+      gfx.lineStyle(2, 0xe9fbff, 0.9);
+      gfx.beginPath();
+      gfx.moveTo(x + Math.cos(ang) * size, y + Math.sin(ang) * size);
+      gfx.lineTo(x + Math.cos(ang + 2.4) * size * 0.72, y + Math.sin(ang + 2.4) * size * 0.72);
+      gfx.lineTo(x + Math.cos(ang - 2.4) * size * 0.72, y + Math.sin(ang - 2.4) * size * 0.72);
+      gfx.closePath();
+      gfx.fillPath();
+      gfx.strokePath();
+    }
+  }
+
+  syncStation() {
+    const gfx = this.stationGfx;
+    if (!gfx) return;
+    gfx.clear();
+    for (const piece of visiblePieces(this.state)) {
+      if (piece.id === 'wall' || piece.id === 'panel') continue;
+      drawStationPiece(gfx, piece, PIECE_COLOR[piece.id] || 0x9ad7ff, 0.92);
+    }
+    this.syncPlates();
+    this.syncBodies();
+    this.syncPilotArrows();
+    const mouse = this.inputCtl && this.inputCtl.mouse;
+    if (!mouse || !Number.isFinite(mouse.worldX) || !Number.isFinite(mouse.worldY)) return;
+    const hotbar = this.state.hotbar;
+    const stack = hotbar && hotbar[hotbarIndex(this.state)];
+    if (!stack) return;
+    const item = itemById(stack.id);
+    if (!item || item.kind !== 'construction') return;
+    const ghost = ghostPose(this.state, stack.id, mouse.worldX, mouse.worldY);
+    drawStationPiece(
+      gfx,
+      { id: stack.id, x: ghost.x, y: ghost.y, rot: ghost.rot },
+      ghost.ok ? PIECE_COLOR[stack.id] || 0x9ad7ff : 0xff5a6a,
+      0.4
+    );
   }
 
   publishSnapshot(force) {
@@ -1093,7 +1352,8 @@ export default class PlayScene extends Phaser.Scene {
       }
       this.shipSprite.setPosition(ship.x, ship.y);
       this.shipSprite.setRotation(ship.aim + Math.PI / 2);
-      this.shipSprite.setDisplaySize(SHIP_DRAW * shipScale, SHIP_DRAW * shipScale);
+      const draw = hullDraw(this, key, SHIP_DRAW * shipScale);
+      this.shipSprite.setDisplaySize(draw.w, draw.h);
       this.shipSprite.setAlpha(intro.ship);
       this.shipSprite.setVisible(
         intro.ship > 0.02 && this.state.mode !== 'title' && this.state.mode !== 'dead'
@@ -1152,16 +1412,19 @@ export default class PlayScene extends Phaser.Scene {
 
     if (this.gateGfx) syncGates(this.gateGfx, this.state);
     if (this.aimGfx) syncAimArc(this.aimGfx, this.state);
+    this.syncStation();
 
     if (this.missileGfx) {
       this.missileGfx.clear();
       const paintShot = (missile) => {
+        if (missile.single) return;
         this.missileGfx.fillStyle(missile.heavy ? 0xffb7de : 0xb9f3ff, 0.95);
         this.missileGfx.fillCircle(missile.x, missile.y, missile.heavy ? 7 : 4);
       };
       for (const m of this.state.missiles) paintShot(m);
       for (const m of this.state.ghostMissiles || []) paintShot(m);
     }
+    this.syncSingleShots();
 
     if (this.particleGfx) syncParticles(this.particleGfx, this.state.particles);
 

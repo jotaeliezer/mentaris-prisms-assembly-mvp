@@ -16,8 +16,10 @@ function typewriterPlan(length) {
   return { interval: 28, chunk: Math.ceil(length / ticks) };
 }
 
-function SlotFace({ icon, mark, color }) {
-  if (icon) return <img src={icon} alt="" draggable="false" />;
+function SlotFace({ icon, mark, color, iconFilter }) {
+  if (icon) {
+    return <img src={icon} alt="" draggable="false" style={iconFilter && iconFilter !== 'none' ? { filter: iconFilter } : undefined} />;
+  }
   return (
     <span className="hotbar-swatch" style={{ background: color }}>
       {mark}
@@ -122,6 +124,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       index,
       mark: slot.mark,
       icon: slot.icon || '',
+      iconFilter: slot.iconFilter || 'none',
       color: slot.color,
       x0: event.clientX,
       y0: event.clientY,
@@ -298,7 +301,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                 >
                   <span className="hull-slot-label">{slot.slotLabel}</span>
                   {slot.available ? (
-                    <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
+                    <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
                   ) : null}
                   {slot.levelLabel ? <span className="hull-level">{slot.levelLabel}</span> : null}
                 </button>
@@ -331,6 +334,17 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
         <div
           className={`hotbar-dock${snapshot.mapUnlocked ? ' hotbar-clear-map' : ''}`}
         >
+          {(snapshot.notices || []).some((note) => note.kind === 'loot') ? (
+            <div className="loot-toasts" aria-live="polite">
+              {(snapshot.notices || [])
+                .filter((note) => note.kind === 'loot')
+                .map((note) => (
+                  <div key={note.id} className="craft-toast loot-toast">
+                    {note.text}
+                  </div>
+                ))}
+            </div>
+          ) : null}
           {cargoOpen && snapshot.held ? (
             <p className="cargo-held">
               Holding {snapshot.held.name}
@@ -351,7 +365,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                     {...slotProps('cargo', slot)}
                   >
                     {slot.available ? (
-                      <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
+                      <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
                     ) : null}
                     {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
                   </button>
@@ -375,7 +389,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
               >
                 <span className="hotbar-key">{slot.key}</span>
                 {slot.available ? (
-                  <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
+                  <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
                 ) : null}
                 {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
               </button>
@@ -385,11 +399,11 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       )}
       {drag ? (
         <div className="drag-ghost" style={{ left: drag.x, top: drag.y }}>
-          <SlotFace icon={drag.icon} mark={drag.mark} color={drag.color} />
+          <SlotFace icon={drag.icon} iconFilter={drag.iconFilter} mark={drag.mark} color={drag.color} />
         </div>
       ) : snapshot.held && pointer ? (
         <div className="drag-ghost" style={{ left: pointer.x, top: pointer.y }}>
-          <SlotFace icon={snapshot.held.icon} mark={snapshot.held.mark} color={snapshot.held.color} />
+          <SlotFace icon={snapshot.held.icon} iconFilter={snapshot.held.iconFilter} mark={snapshot.held.mark} color={snapshot.held.color} />
           {snapshot.held.count > 1 ? <span className="hotbar-badge">{snapshot.held.count}</span> : null}
         </div>
       ) : null}

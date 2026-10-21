@@ -118,13 +118,18 @@ rock.question = { ...rock.question, answerText: '7', prompt: '3 + 4' };
 openExtract(shrink, rock.id, null);
 typeChar(shrink, '7', null);
 assert(rock.size === before, 'a correct answer does not jump the size');
-assert(rock.sizeTarget < before, 'the rock has a smaller target');
+assert(!(rock.sizeTarget < before), 'the rock waits to shrink until the bullet arrives');
+assert((shrink.missiles || []).some((missile) => missile.single && missile.extract), 'a correct answer fires the single bullet');
+assert(rock.question.prompt === '3 + 4', 'the next question waits for the bullet');
 assert(shrink.fxGreen > 0, 'a correct answer flashes green');
 assert(shrink.correctAnswer === '7', 'the correct answer stays visible in the green box');
 assert(shrink.buffer === '', 'the live buffer clears so the next problem can be typed');
 assert(shrink.mode === 'extract', 'extract stays open while the answer is green');
 assert(!shrink.orePopping, 'one answer does not release ore');
 assert(!shrink.drops.length, 'one correct extract does not put ore in space');
+assert(rock.extractCount === 0, 'the answer does not count until the bullet lands');
+landExtractShot(shrink, null);
+assert(rock.sizeTarget < before, 'the rock has a smaller target after the bullet lands');
 assert(rock.extractCount === 1, 'the first answer counts');
 assert(rock.alive, 'the rock is still there after one answer');
 assert(rock.question.prompt !== '3 + 4', 'the next question is a different prompt');
@@ -162,12 +167,19 @@ const sfx = {
   },
 };
 
+function landExtractShot(state, audio) {
+  for (let i = 0; i < 80 && (state.missiles || []).some((missile) => missile.extract); i += 1) {
+    idle(state, 0.05, audio);
+  }
+}
+
 function answerExtract(state, target, audio) {
   state.mode = 'extract';
   state.extractRockId = target.id;
   state.extractAvailable = target.id;
   const answer = String(target.question.answerText);
   for (const ch of answer) typeChar(state, ch, audio);
+  landExtractShot(state, audio);
 }
 
 answerExtract(shrink, rock, sfx);
@@ -221,6 +233,7 @@ host.extractCount = 2;
 host.question = { ...host.question, answerText: '4', prompt: '2 + 2' };
 openExtract(spent, host.id, null);
 typeChar(spent, '4', null);
+landExtractShot(spent, null);
 assert(host.depleted, 'the third answer spends the rock');
 assert(!spent.asteroids.some((item) => item.id === host.id), 'the spent rock is gone');
 assert(spent.mode === 'extract', 'the last answer stays on screen');
@@ -413,6 +426,7 @@ openExtract(finished, oreRock.id, null);
 for (let n = 0; n < 3; n += 1) {
   oreRock.question = { ...oreRock.question, answerText: '4', prompt: '1 + ' + n };
   typeChar(finished, '4', null);
+  landExtractShot(finished, null);
 }
 const finishedYield = mineralYield(
   { mineral: finishedMineral },
@@ -430,17 +444,18 @@ assert(
 assert(finished.drops.every((drop) => !drop.popping), 'the crystals finish popping');
 assert(!finished.orePopping, 'flight resumes after the crystals land');
 
+const crystalIcon = '/assets/asteroids/mineral.png';
 const slotPictures = [
-  ['pale', '/assets/asteroids/asteroid1.png', 'Pa'],
-  ['slate', '/assets/asteroids/asteroid2.png', 'Sl'],
-  ['amber', '/assets/asteroids/asteroid3.png', 'Am'],
-  ['virid', '/assets/asteroids/asteroid4.png', 'Vi'],
-  ['glint', '/assets/asteroids/asteroid6.png', 'Gn'],
+  ['pale', crystalIcon, 'Pa'],
+  ['slate', crystalIcon, 'Sl'],
+  ['amber', crystalIcon, 'Am'],
+  ['virid', crystalIcon, 'Vi'],
+  ['glint', crystalIcon, 'Gn'],
   ['arc-missile', '/images/bullets/bullet_missile.png', 'Ar'],
   ['pulse-lance', '/images/bullets/bullet_laser.png', 'Pu'],
   ['flare', '/images/bullets/bullet_fire1.png', 'Sf'],
-  ['glass', '', 'Gl'],
-  ['repair', '', 'Rp'],
+  ['glass', '/images/items/glass.svg', 'Gl'],
+  ['repair', '/images/items/repair.svg', 'Rp'],
 ];
 const iconState = createState();
 slotPictures.forEach(([id, icon, mark], index) => {
@@ -460,26 +475,30 @@ slotPictures.forEach(([id, icon, mark], index) => {
   assert(slot.mark === mark, id + ' keeps its mark text');
 });
 assert(
-  iconSnap.cargoHold.slots[0].icon === '/assets/asteroids/asteroid3.png',
-  'cargo ore uses the asteroid picture'
+  iconSnap.cargoHold.slots[0].icon === crystalIcon,
+  'cargo ore uses the crystal picture'
+);
+assert(
+  iconSnap.hud.hotbar.slots[0].iconFilter === 'none' && iconSnap.hud.hotbar.slots[2].iconFilter.includes('hue-rotate'),
+  'collected ore keeps a tint so pale and amber do not look the same'
 );
 assert(
   iconSnap.cargoHold.slots[1].icon === '/images/bullets/bullet_fire1.png',
   'cargo weapon uses the bullet picture'
 );
 assert(
-  iconSnap.cargoHold.slots[2].icon === '' && iconSnap.cargoHold.slots[2].mark === 'Fe',
-  'alloy cargo stays a letter'
+  iconSnap.cargoHold.slots[2].icon === '/images/items/iron.svg' && iconSnap.cargoHold.slots[2].mark === 'Fe',
+  'alloy cargo uses its sticker'
 );
 assert(
-  iconSnap.cargoHold.slots[3].icon === '' && iconSnap.cargoHold.slots[3].mark === 'Bl',
-  'ability cargo stays a letter'
+  iconSnap.cargoHold.slots[3].icon === '/images/items/blink.svg' && iconSnap.cargoHold.slots[3].mark === 'Bl',
+  'ability cargo uses its sticker'
 );
 const heldOre = createState();
 assert(addItem(heldOre, 'pale', 2) === 0, 'pale ore for the held stack');
 assert(inventoryClick(heldOre, 'hotbar', 0), 'pick up the pale ore');
 assert(
-  buildSnapshotPatch(heldOre, false).held.icon === '/assets/asteroids/asteroid1.png',
+  buildSnapshotPatch(heldOre, false).held.icon === crystalIcon,
   'a held ore stack keeps its picture'
 );
 assert(

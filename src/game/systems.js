@@ -47,14 +47,17 @@ import {
   itemById,
   raiseBowPlating,
   slotIcon,
+  iconFilter,
   moveCargoToHotbar,
   moveHotbarToCargo,
   recipeById,
   recipeOpen,
+  payCraftCosts,
   removeItems,
   returnHeld,
   takeAllStacks,
 } from './items.js';
+import { backfillStation, placePiece, tickStructures, visiblePieces } from './construct.js';
 
 const EXTRACT_SHRINK = 0.83;
 /** World pixels of size lost per second while a rock eases toward its target. */
@@ -362,6 +365,65 @@ export function populateField(state) {
     spawnAsteroid(state, 'add', 'easy', 'near');
   }
   ensureBelt(state, operation);
+  ensureScenery(state);
+}
+
+const PLANET_RADIUS = { small: 520, great: 1100, vast: 2200 };
+
+/** One planet and a few stars on this layer. The planet stays put. A base can sit on its rim. */
+export function ensureScenery(state) {
+  if (!state.planets) state.planets = [];
+  if (!state.sunBodies) state.sunBodies = [];
+  const cluster = state.cluster || 1;
+  const havePlanet = state.planets.some((planet) => planet.layer === state.layer && planet.cluster === cluster);
+  if (!havePlanet) {
+    const rng = makeRng((state.seed || 'belt') + '|planet|' + cluster + '|' + state.layer);
+    const kind = state.layer !== 0 && state.layer % 23 === 0 ? 'vast' : state.layer !== 0 && state.layer % 7 === 0 ? 'great' : 'small';
+    const r = PLANET_RADIUS[kind];
+    let x = clamp(state.ship.x + 3200, r + 400, WORLD.w - r - 400);
+    let y = clamp(state.ship.y, r + 400, WORLD.h - r - 400);
+    for (let i = 0; i < 14; i += 1) {
+      const angle = rng() * Math.PI * 2;
+      const dist = 2600 + r * 0.4 + rng() * 1600;
+      const px = clamp(state.ship.x + Math.cos(angle) * dist, r + 400, WORLD.w - r - 400);
+      const py = clamp(state.ship.y + Math.sin(angle) * dist, r + 400, WORLD.h - r - 400);
+      const blocked = state.planets.some((planet) => Math.hypot(planet.x - px, planet.y - py) < planet.r + r + 900);
+      if (!blocked) {
+        x = px;
+        y = py;
+        break;
+      }
+    }
+    state.planets.push({
+      layer: state.layer,
+      cluster,
+      x,
+      y,
+      r,
+      kind,
+      key: 'planet-' + kind + '.jpg',
+    });
+  }
+  state.planet = state.planets.find((planet) => planet.layer === state.layer && planet.cluster === cluster) || null;
+  if (!state.sunBodies.some((star) => star.layer === state.layer && star.cluster === cluster)) {
+    const rng = makeRng((state.seed || 'belt') + '|star|' + cluster + '|' + state.layer);
+    const count = rng() < 0.4 ? 0 : rng() < 0.8 ? 1 : 2;
+    const order = ['pale', 'pale', 'cinder', 'glint'];
+    for (let i = 0; i < count; i += 1) {
+      const kind = order[Math.min(order.length - 1, Math.floor(rng() * order.length))];
+      const angle = rng() * Math.PI * 2;
+      const dist = 1400 + rng() * 2400;
+      state.sunBodies.push({
+        layer: state.layer,
+        cluster,
+        x: clamp(state.ship.x + Math.cos(angle) * dist, 500, WORLD.w - 500),
+        y: clamp(state.ship.y + Math.sin(angle) * dist, 500, WORLD.h - 500),
+        r: 78,
+        kind,
+        key: 'star-' + kind + '.jpg',
+      });
+    }
+  }
 }
 
 export function placeWormhole(state) {
@@ -665,6 +727,19 @@ export function resumeAssembly(state, progress, audio, assemblyId) {
   if (typeof ship.sprite === 'string' && ship.sprite) state.ship.sprite = ship.sprite;
   state.ship.hp = Math.min(state.ship.maxHp, state.ship.hp);
   if (Number.isFinite(Number(progress.clock))) state.clock = Number(progress.clock);
+  state.station = progress.station && Array.isArray(progress.station.pieces) ? progress.station : null;
+  state.planets = Array.isArray(progress.planets) ? progress.planets : [];
+  state.sunBodies = Array.isArray(progress.sunBodies) ? progress.sunBodies : [];
+  backfillStation(state.station);
+  if (Number.isFinite(progress.nextId)) state.nextId = progress.nextId;
+  const restoredPieces = state.station && state.station.pieces;
+  if (Array.isArray(restoredPieces)) {
+    for (const piece of restoredPieces) {
+      if (!piece || !Number.isFinite(piece.uid)) continue;
+      const above = piece.uid + 1;
+      if (!Number.isFinite(state.nextId) || above > state.nextId) state.nextId = above;
+    }
+  }
   state.home = progress.home || { x: state.ship.x, y: state.ship.y };
   state.wormhole = progress.wormhole || null;
   state.returnHole = progress.returnHole || null;
@@ -826,7 +901,7 @@ export function typeChar(state, ch, audio) {
   // Digits only apply during extract; fly mode no longer answers via missiles.
   if (state.mode !== 'extract') return;
   const rock = extractRock(state);
-  if (!rock || rock.depleted) return;
+  if (!rock || rock.depleted || rock.pendingExtract) return;
   state.buffer += ch;
   const answer = rock.question.answerText;
   if (state.buffer === answer) {
@@ -1040,10 +1115,50 @@ function playPickup(audio) {
   if (audio && typeof audio.pickup === 'function') audio.pickup();
 }
 
+/** One straight bullet from the ship to the rock. The shrink waits until it arrives. */
+function launchExtractShot(state, rock, audio) {
+  const ship = state.ship;
+  const aim = ship.aim || 0;
+  const x = ship.x + Math.cos(aim) * 36;
+  const y = ship.y + Math.sin(aim) * 36;
+  state.missiles.push({
+    id: state.nextId++,
+    x,
+    y,
+    vx: Math.cos(aim) * 80,
+    vy: Math.sin(aim) * 80,
+    bend: 0,
+    straight: true,
+    single: true,
+    extract: true,
+    targetId: rock.id,
+    targetKey: rock.key,
+    tx: rock.x,
+    ty: rock.y,
+    life: 4,
+    age: 0,
+    heavy: false,
+    power: 1,
+  });
+  queueWorld(state, {
+    k: 'shot',
+    x: round1(x),
+    y: round1(y),
+    aim: Math.round(aim * 1000) / 1000,
+    key: rock.key,
+    tx: round1(rock.x),
+    ty: round1(rock.y),
+    bend: 0,
+    heavy: 0,
+    single: 1,
+  });
+  if (audio && typeof audio.shot === 'function') audio.shot();
+}
+
 /** Correct extract: two shrinks, then the third answer destroys the rock and spills its ore. */
 function acceptAnswer(state, rock, audio) {
   if (state.mode !== 'extract') return;
-  if (!rock || !rock.alive) return;
+  if (!rock || !rock.alive || rock.pendingExtract) return;
   ensureRockExtractFields(rock);
   if (rock.depleted) return;
 
@@ -1069,6 +1184,18 @@ function acceptAnswer(state, rock, audio) {
   }
 
   const before = copyRock(rock);
+  rock.pendingExtract = { before, claimKey, claim };
+  launchExtractShot(state, rock, audio);
+}
+
+/** The extract bullet has reached the rock. Shrink, or destroy on the third hit, then show the next question. */
+function applyExtractImpact(state, rock, audio) {
+  if (!rock || !rock.pendingExtract) return;
+  const pending = rock.pendingExtract;
+  rock.pendingExtract = null;
+  const before = pending.before;
+  const claimKey = pending.claimKey;
+  const claim = pending.claim;
   rock.extractCount += 1;
 
   if (rock.extractCount >= 3) {
@@ -1438,11 +1565,138 @@ function separateFromRocks(state, audio) {
   }
 }
 
+/** Walls and panels are solid. The ship is pushed out and cannot sit on top of them. */
+function separateFromStructure(state) {
+  const ship = state.ship;
+  if (!ship) return;
+  const radius = SHIP_RADIUS;
+  for (const piece of visiblePieces(state)) {
+    if (piece.id !== 'wall' && piece.id !== 'panel') continue;
+    const halfW = piece.id === 'panel' ? 60 : 52;
+    const halfH = piece.id === 'panel' ? 22 : 11;
+    const rot = piece.rot || 0;
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    const dx = ship.x - piece.x;
+    const dy = ship.y - piece.y;
+    let lx = dx * c + dy * s;
+    let ly = -dx * s + dy * c;
+    const inside = Math.abs(lx) <= halfW && Math.abs(ly) <= halfH;
+    let nx = 0;
+    let ny = 0;
+    let push = 0;
+    if (inside) {
+      const outX = halfW - Math.abs(lx) + radius;
+      const outY = halfH - Math.abs(ly) + radius;
+      if (outX < outY) {
+        nx = lx < 0 ? -1 : 1;
+        push = outX;
+      } else {
+        ny = ly < 0 ? -1 : 1;
+        push = outY;
+      }
+    } else {
+      const cx = clamp(lx, -halfW, halfW);
+      const cy = clamp(ly, -halfH, halfH);
+      const ox = lx - cx;
+      const oy = ly - cy;
+      const dist = Math.hypot(ox, oy);
+      if (dist >= radius || dist < 0.001) continue;
+      nx = ox / dist;
+      ny = oy / dist;
+      push = radius - dist;
+    }
+    lx += nx * push;
+    ly += ny * push;
+    ship.x = piece.x + lx * c - ly * s;
+    ship.y = piece.y + lx * s + ly * c;
+    const wx = nx * c - ny * s;
+    const wy = nx * s + ny * c;
+    const vn = ship.vx * wx + ship.vy * wy;
+    if (vn < 0) {
+      ship.vx -= vn * wx;
+      ship.vy -= vn * wy;
+    }
+  }
+}
+
+/** The planet disc and a star core stop the ship. A star is only a light bump. */
+function separateFromBodies(state, audio) {
+  const ship = state.ship;
+  if (!ship) return;
+  const planet = state.planet;
+  if (planet && planet.layer === state.layer) {
+    const dx = ship.x - planet.x;
+    const dy = ship.y - planet.y;
+    const dist = Math.hypot(dx, dy) || 0.001;
+    const min = planet.r + SHIP_RADIUS;
+    if (dist < min) {
+      const nx = dx / dist;
+      const ny = dy / dist;
+      ship.x = planet.x + nx * min;
+      ship.y = planet.y + ny * min;
+      const vn = ship.vx * nx + ship.vy * ny;
+      if (vn < 0) {
+        ship.vx -= vn * nx;
+        ship.vy -= vn * ny;
+      }
+    }
+  }
+  for (const star of state.sunBodies || []) {
+    if (star.layer !== state.layer) continue;
+    const dx = ship.x - star.x;
+    const dy = ship.y - star.y;
+    const dist = Math.hypot(dx, dy) || 0.001;
+    const min = star.r + SHIP_RADIUS;
+    if (dist >= min) continue;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    ship.x = star.x + nx * min;
+    ship.y = star.y + ny * min;
+    ship.vx += nx * 80;
+    ship.vy += ny * 80;
+    if (state.bumpCooldown <= 0 && state.mode === 'fly' && !(state.quiet > 0)) {
+      state.bumpCooldown = 0.8;
+      ship.hp = Math.max(0, ship.hp - 4);
+      state.fxFlash = 0.12;
+      if (audio && typeof audio.hit === 'function') audio.hit();
+      if (ship.hp <= 0) breachHull(state, audio, 'The hull broke on a star.');
+    }
+  }
+}
+
 function clickWorld(state, view, click) {
   if (click.worldX != null && click.worldY != null) {
     return { x: click.worldX, y: click.worldY };
   }
   return screenToWorld(state, view, click.x, click.y);
+}
+
+/**
+ * One canvas click in flight. Construction places from the selected hotbar slot
+ * unless the click is a rock in reach, which still extracts. Returns true when
+ * the click is consumed so a miss does not fall through to extractAvailable.
+ */
+export function applyFlyClick(state, worldX, worldY, audio) {
+  const stack = selectedStack(state);
+  const item = stack ? itemById(stack.id) : null;
+  const construction = !!(item && item.kind === 'construction');
+  const hit = asteroidAt(state, worldX, worldY);
+  const near =
+    hit &&
+    !hit.depleted &&
+    Math.hypot(hit.x - state.ship.x, hit.y - state.ship.y) <= APPROACH;
+  if (near) {
+    state.extractAvailable = hit.id;
+    openExtract(state, hit.id, audio);
+    return true;
+  }
+  if (!construction) return false;
+  if (placePiece(state, stack.id, worldX, worldY)) {
+    stack.count -= 1;
+    if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
+  }
+  return true;
 }
 
 function handleClicks(state, input, view, audio) {
@@ -1455,19 +1709,13 @@ function handleClicks(state, input, view, audio) {
   if (useSelectedHotbar(state, audio)) return;
   for (const click of queued) {
     const world = clickWorld(state, view, click);
-    const hit = asteroidAt(state, world.x, world.y);
-    if (!hit || hit.depleted) continue;
-    const dist = Math.hypot(hit.x - state.ship.x, hit.y - state.ship.y);
-    if (dist > APPROACH) continue;
-    state.extractAvailable = hit.id;
-    openExtract(state, hit.id, audio);
-    return;
+    if (applyFlyClick(state, world.x, world.y, audio)) return;
   }
   if (state.extractAvailable) openExtract(state, state.extractAvailable, audio);
 }
 
 function stepOneMissile(state, missile, dt, onHit) {
-  const speed = 700;
+  const speed = missile.single ? 1280 : 700;
   missile.life -= dt;
   missile.age += dt;
   const rock = missile.targetKey
@@ -1477,27 +1725,33 @@ function stepOneMissile(state, missile, dt, onHit) {
   const ty = rock ? rock.y : missile.ty;
   if (!Number.isFinite(tx) || !Number.isFinite(ty)) {
     missile.life = 0;
+    if (missile.extract && rock == null) {
+      const pending = state.asteroids.find((item) => item.pendingExtract && item.key === missile.targetKey);
+      if (pending) pending.pendingExtract = null;
+    }
     return;
   }
   const dx = tx - missile.x;
   const dy = ty - missile.y;
   const dist = Math.hypot(dx, dy) || 1;
   const desired = Math.atan2(dy, dx);
-  const bias = missile.age > 0.45 || dist < 140 ? 0 : missile.bend * Math.min(0.9, dist / 480);
+  const bias = missile.straight ? 0 : missile.age > 0.45 || dist < 140 ? 0 : missile.bend * Math.min(0.9, dist / 480);
   const heading = desired + bias;
   missile.vx = Math.cos(heading) * speed;
   missile.vy = Math.sin(heading) * speed;
   missile.x += missile.vx * dt;
   missile.y += missile.vy * dt;
-  state.particles.push({
-    x: missile.x,
-    y: missile.y,
-    vx: 0,
-    vy: 0,
-    life: 0.28,
-    size: 3,
-    color: missile.heavy ? '#ffb7de' : '#b9f3ff',
-  });
+  if (!missile.single) {
+    state.particles.push({
+      x: missile.x,
+      y: missile.y,
+      vx: 0,
+      vy: 0,
+      life: 0.28,
+      size: 3,
+      color: missile.heavy ? '#ffb7de' : '#b9f3ff',
+    });
+  }
   const reach = rock ? rock.radius + 28 : 28;
   if (missile.age > 2.2) {
     missile.x = tx;
@@ -1511,7 +1765,10 @@ function stepOneMissile(state, missile, dt, onHit) {
 
 function updateMissiles(state, dt, audio) {
   for (const missile of state.missiles) {
-    stepOneMissile(state, missile, dt, (rock) => destroyAsteroid(state, rock, audio));
+    stepOneMissile(state, missile, dt, (rock) => {
+      if (missile.extract) applyExtractImpact(state, rock, audio);
+      else destroyAsteroid(state, rock, audio);
+    });
   }
   state.missiles = state.missiles.filter((missile) => missile.life > 0);
   if (!state.ghostMissiles) state.ghostMissiles = [];
@@ -1772,6 +2029,8 @@ function applyShotWorld(state, event, selfId) {
     life: 6,
     age: 0,
     heavy: !!event.heavy,
+    single: !!event.single,
+    straight: !!event.single,
     power: event.heavy ? 2 : 1,
   });
 }
@@ -1895,6 +2154,8 @@ function updateDrops(state, dt, audio) {
         announceCrafts(state);
         if (!state.sharedGathers) state.sharedGathers = [];
         state.sharedGathers.push({ x: drop.x, y: drop.y, itemId });
+        const picked = itemById(itemId);
+        pushNotice(state, (picked ? picked.name : 'Item') + ' added.', 'loot');
         playPickup(audio);
       }
       if (left <= 0) {
@@ -1948,6 +2209,7 @@ const FLIGHT_TUTORIAL = [
   'Click a rock with the cyan rim to extract it.',
   'Answer the question. Three answers destroy the rock. Fly over the crystals.',
   'Press F to fabricate. Press C to open cargo.',
+  'Fabricate a piece, select it on the hotbar, and click to place it.',
 ];
 const TUTORIAL_STEP_SEC = 10;
 
@@ -1990,9 +2252,9 @@ function teachFlight(state, dt) {
   }
 }
 
-function pushNotice(state, text) {
+function pushNotice(state, text, kind) {
   if (!state.notices) state.notices = [];
-  state.notices.push({ id: state.nextId++, text, time: 4.4 });
+  state.notices.push({ id: state.nextId++, text, time: 4.4, kind: kind || '' });
   if (state.notices.length > 3) state.notices.splice(0, state.notices.length - 3);
 }
 
@@ -2058,6 +2320,7 @@ export function updatePhysics(state, dt, input) {
   ship.x += ship.vx * dt;
   ship.y += ship.vy * dt;
   containShip(state);
+  tickStructures(state, dt);
 }
 
 export function updateFly(state, dt, ctx) {
@@ -2073,10 +2336,13 @@ export function updateFly(state, dt, ctx) {
   ship.aim += clamp(wrapAngle(desired - ship.aim), -6.5 * dt, 6.5 * dt);
 
   updatePhysics(state, dt, input);
+  ensureScenery(state);
   if (audio && typeof audio.syncMotionLoops === 'function') {
     audio.syncMotionLoops(!!ship.thrusting, state.mode === 'fly');
   }
   separateFromRocks(state, audio);
+  separateFromStructure(state);
+  separateFromBodies(state, audio);
     if (state.mode === 'dead') {
     if (state.deathReveal > 0) state.deathReveal = Math.max(0, state.deathReveal - dt);
     tickShrink(state, dt);
@@ -2162,6 +2428,8 @@ export function idle(state, dt, audio) {
   }
   state.ship.aim += dt * 0.15;
   for (const rock of state.asteroids) rock.rot += rock.spin * dt;
+  tickStructures(state, dt);
+  if (state.mode === 'extract') updateMissiles(state, dt, audio);
   updateParticles(state, dt);
   if (state.mode !== 'dead') updateDrops(state, dt, audio);
   tickExtractToast(state, dt);
@@ -2265,6 +2533,7 @@ function stackView(stack, index, selected, key) {
     label: item ? item.name : 'Empty',
     available: !!item,
     icon: item ? slotIcon(stack.id) : '',
+    iconFilter: item ? iconFilter(stack.id) : 'none',
     color: item ? item.color : '',
     mark: item ? item.mark : '',
     badge: stack && stack.count > 1 ? String(stack.count) : '',
@@ -2362,7 +2631,7 @@ export function craftItem(state, recipeId, audio) {
   const id = typeof recipeId === 'string' ? recipeId : recipeId && recipeId.id;
   const recipe = recipeById(id);
   if (!recipe || !recipeOpen(state, recipe) || !canAfford(state, recipe.costs)) return false;
-  for (const cost of recipe.costs) removeItems(state, cost.id, cost.n);
+  payCraftCosts(state, recipe);
   const made = recipe.count || 1;
   const left = addItem(state, recipe.result, made);
   if (left > 0) {
@@ -2377,8 +2646,12 @@ export function craftItem(state, recipeId, audio) {
     });
   }
   const name = ITEMS[recipe.result] ? ITEMS[recipe.result].name : recipe.result;
-  state.status = left > 0 ? name + ' dropped beside the ship. The hold is full.' : name + ' added.';
-  state.statusTime = 3;
+  if (left > 0) {
+    state.status = name + ' dropped beside the ship. The hold is full.';
+    state.statusTime = 3;
+  } else {
+    pushNotice(state, name + ' added.', 'loot');
+  }
   if (recipe.result === 'map') state.mapUnlocked = true;
   if (audio && typeof audio.correct === 'function') audio.correct();
   return true;
@@ -2609,6 +2882,8 @@ function RECIPES_FOR_FAB(state) {
     id: recipe.id,
     category: recipe.category,
     name: ITEMS[recipe.result] ? ITEMS[recipe.result].name : recipe.result,
+    icon: slotIcon(recipe.result),
+    iconFilter: iconFilter(recipe.result),
     about: ITEMS[recipe.result] && ITEMS[recipe.result].about ? ITEMS[recipe.result].about : '',
     costText: costLabel(recipe.costs) + (recipe.standIn ? ' (stand-in)' : ''),
     ready: canAfford(state, recipe.costs),
@@ -2625,6 +2900,7 @@ function heldView(state) {
     color: item ? item.color : '#9be7ff',
     mark: item ? item.mark : '',
     icon: item ? slotIcon(state.held.id) : '',
+    iconFilter: item ? iconFilter(state.held.id) : 'none',
   };
 }
 
@@ -2656,7 +2932,7 @@ export function buildSnapshotPatch(state, muted) {
     cargoHold: buildCargo(state),
     hullRack: buildHull(state),
     held: heldView(state),
-    notices: (state.notices || []).map((note) => ({ id: note.id, text: note.text })),
+    notices: (state.notices || []).map((note) => ({ id: note.id, text: note.text, kind: note.kind || '' })),
     intro: introAlphas(state),
     ...buildFabFields(state),
     hud: buildHudFields(state),

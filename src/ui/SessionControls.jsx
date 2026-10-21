@@ -91,13 +91,16 @@ export default function SessionControls({
     setBusy(true);
     setLocalError('');
     if (bridge) bridge.emit('uiBeep');
-    const { code, done } = multiplayer.host();
+    const live = inGame && bridge && typeof bridge.getSnapshot === 'function' ? bridge.getSnapshot() : null;
+    const { code, done } = multiplayer.host(
+      live && live.seed ? { seed: String(live.seed), missionId: live.missionId || '' } : null
+    );
     if (onSeed) onSeed(code);
     const ok = await done;
     setBusy(false);
     if (!ok) return;
     const snap = multiplayer.getSnapshot();
-    if (inGame && bridge && snap.ship && !snap.needsShip && !snap.sessionFull) {
+    if (!inGame && bridge && snap.ship && !snap.needsShip && !snap.sessionFull) {
       bridge.emit('startMission', { missionId: missionId || 'add', seed: code });
     }
     setOpen(false);
@@ -124,7 +127,7 @@ export default function SessionControls({
     if (inGame && bridge && snap.ship && !snap.needsShip && !snap.sessionFull) {
       bridge.emit('startMission', {
         missionId: snap.hostMission || missionId || 'add',
-        seed: code,
+        seed: snap.hostSeed || code,
       });
     }
     setOpen(false);
@@ -141,10 +144,10 @@ export default function SessionControls({
     const snap = multiplayer.getSnapshot();
     if (onSeed && snap.code) onSeed(snap.code);
     if (onMission && snap.hostMission) onMission(snap.hostMission);
-    if (inGame && bridge && snap.code && snap.ship && !snap.needsShip && !snap.sessionFull) {
+    if (inGame && snap.role !== 'host' && bridge && snap.code && snap.ship && !snap.needsShip && !snap.sessionFull) {
       bridge.emit('startMission', {
         missionId: snap.hostMission || missionId || 'add',
-        seed: snap.code,
+        seed: snap.hostSeed || snap.code,
       });
     }
   }

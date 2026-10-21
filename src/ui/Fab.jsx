@@ -1,12 +1,13 @@
 import { useState } from 'react';
 
 const CATEGORIES = [
-  { id: 'basics', label: 'By hand' },
-  { id: 'alloys', label: 'Alloys' },
-  { id: 'weapons', label: 'Weapons' },
-  { id: 'ship', label: 'Ship improvements' },
-  { id: 'hud', label: 'HUD tools' },
-  { id: 'abilities', label: 'Abilities' },
+  { id: 'basics', label: 'By hand', icon: '/images/categories/basics.svg' },
+  { id: 'alloys', label: 'Alloys', icon: '/images/categories/alloys.svg' },
+  { id: 'weapons', label: 'Weapons', icon: '/images/categories/weapons.svg' },
+  { id: 'ship', label: 'Ship improvements', icon: '/images/categories/ship.svg' },
+  { id: 'hud', label: 'HUD tools', icon: '/images/categories/hud.svg' },
+  { id: 'abilities', label: 'Abilities', icon: '/images/categories/abilities.svg' },
+  { id: 'construction', label: 'Construction', icon: '/images/categories/construction.svg' },
 ];
 
 function beep(bridge) {
@@ -42,7 +43,10 @@ export default function Fab({ bridge, snapshot }) {
             if (!list.length) return null;
             return (
               <section key={cat.id} className="fab-col" aria-label={cat.label}>
-                <h3>{cat.label}</h3>
+                <h3>
+                  <img className="fab-cat-icon" src={cat.icon} alt="" />
+                  {cat.label}
+                </h3>
                 <div className="missions fab-recipes">
                   {list.map((recipe) => (
                     <button
@@ -63,7 +67,17 @@ export default function Fab({ bridge, snapshot }) {
                         bridge.emit('craft', recipe.id);
                       }}
                     >
-                      <span className="fab-name">{recipe.name}</span>
+                      <span className="fab-name">
+                        {recipe.icon ? (
+                          <img
+                            className="fab-item-icon"
+                            src={recipe.icon}
+                            alt=""
+                            style={recipe.iconFilter && recipe.iconFilter !== 'none' ? { filter: recipe.iconFilter } : undefined}
+                          />
+                        ) : null}
+                        {recipe.name}
+                      </span>
                       <span className="fab-cost">{recipe.costText}</span>
                     </button>
                   ))}

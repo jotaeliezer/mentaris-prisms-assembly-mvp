@@ -209,6 +209,19 @@ export function listPhaserImages() {
   for (const name of SHOT_IMAGE_FILES) {
     entries.push({ key: name, url: assetUrl("images/shots", name) });
   }
+  const plates = [
+    ['wall-plate.svg', 'images/items'],
+    ['panel-plate.svg', 'images/items'],
+    ['planet-small.jpg', 'images/planets'],
+    ['planet-great.jpg', 'images/planets'],
+    ['planet-vast.jpg', 'images/planets'],
+    ['star-pale.jpg', 'images/stars'],
+    ['star-cinder.jpg', 'images/stars'],
+    ['star-glint.jpg', 'images/stars'],
+  ];
+  for (const [name, folder] of plates) {
+    entries.push({ key: name, url: assetUrl(folder, name) });
+  }
   return entries;
 }
 

@@ -76,6 +76,7 @@ function emptySnapshot(available) {
     playerCount: 0,
     selfTag: '',
     hostMission: '',
+    hostSeed: '',
     ship: '',
     takenShips: [],
     shipOffer: [],
@@ -95,7 +96,7 @@ export function createMultiplayerSession(options = {}) {
   let channel = null;
   let generation = 0;
   let joinedAt = 0;
-  let flight = { missionId: '', layer: 0 };
+  let flight = { missionId: '', layer: 0, seed: '' };
   let lastSentAt = 0;
   let lastSentLayer = null;
   let lastSentX = null;
@@ -125,6 +126,7 @@ export function createMultiplayerSession(options = {}) {
       role: snapshot.role === 'host' ? 'host' : 'join',
       missionId: flight.missionId || '',
       layer: flight.layer | 0,
+      seed: flight.seed || '',
       ship: trackingShip || '',
     };
   }
@@ -142,6 +144,7 @@ export function createMultiplayerSession(options = {}) {
         role: meta.role === 'host' ? 'host' : 'join',
         missionId: typeof meta.missionId === 'string' ? meta.missionId : '',
         layer: finite(meta.layer, 0),
+        seed: typeof meta.seed === 'string' ? meta.seed : '',
         ship: typeof meta.ship === 'string' ? meta.ship : '',
       });
     }
@@ -229,10 +232,12 @@ export function createMultiplayerSession(options = {}) {
       .filter((peer) => peer.role === 'host')
       .sort((a, b) => a.joinedAt - b.joinedAt);
     const hostMission = hosts[0] && hosts[0].missionId ? hosts[0].missionId : '';
+    const hostSeed = hosts[0] && hosts[0].seed ? hosts[0].seed : '';
     notify({
       playerCount: peers.length,
       selfTag: tags.get(playerId) || '',
       hostMission,
+      hostSeed,
     });
     reconcileShips(peers);
   }
@@ -328,6 +333,7 @@ export function createMultiplayerSession(options = {}) {
       playerCount: 0,
       selfTag: '',
       hostMission: '',
+      hostSeed: '',
     });
     if (!config) {
       notify({
@@ -463,7 +469,9 @@ export function createMultiplayerSession(options = {}) {
     }
   }
 
-  function host() {
+  function host(world) {
+    if (world && world.seed) flight.seed = String(world.seed);
+    if (world && world.missionId) flight.missionId = String(world.missionId);
     const code = generateSessionCode(randomUnit);
     const done = connect(code, 'host');
     return { code, done };
@@ -507,8 +515,9 @@ export function createMultiplayerSession(options = {}) {
   function noteFlight(next) {
     const missionId = next && next.missionId ? String(next.missionId) : '';
     const layer = next ? finite(next.layer, 0) : 0;
-    const changed = flight.missionId !== missionId || flight.layer !== layer;
-    flight = { missionId, layer };
+    const seed = next && next.seed ? String(next.seed) : flight.seed || '';
+    const changed = flight.missionId !== missionId || flight.layer !== layer || flight.seed !== seed;
+    flight = { missionId, layer, seed };
     if (!changed || !channel || snapshot.status !== 'connected') return;
     channel.track(presencePayload()).catch(() => {});
   }

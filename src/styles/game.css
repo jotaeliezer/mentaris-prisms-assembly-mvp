@@ -496,9 +496,10 @@ button:disabled,
 
 .hull-drawer {
   position: absolute;
-  left: 18px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 24px;
+  bottom: 24px;
+  top: auto;
+  transform: none;
   z-index: 4;
   display: flex;
   flex-direction: column;
@@ -636,7 +637,25 @@ button:disabled,
   white-space: nowrap;
 }
 
-.craft-toasts {
+.loot-toasts {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  width: max-content;
+  pointer-events: none;
+}
+
+.craft-toast.loot-toast {
+  max-width: 280px;
+  padding: 8px 12px;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
   position: fixed;
   top: 14px;
   left: 50%;
@@ -1285,9 +1304,10 @@ button:disabled {
   .hull-meter { width: 220px; }
   .hotbar-dock { right: 10px; bottom: 10px; }
   .hull-drawer {
-    top: 72px;
+    left: 16px;
+    bottom: 16px;
+    top: auto;
     transform: none;
-    left: 8px;
   }
   .hull-slot { width: min(220px, 52vw); }
   .hotbar-slot { width: 48px; height: 48px; }
@@ -2346,6 +2366,74 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 8px 10px;
+}
+
+.build-panel {
+  position: fixed;
+  left: 24px;
+  top: 96px;
+  z-index: 24;
+  width: min(320px, calc(100vw - 48px));
+  max-height: calc(100vh - 280px);
+  overflow: auto;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: rgba(6, 16, 28, 0.92);
+  border: 1px solid rgba(126, 231, 255, 0.35);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.build-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.build-card {
+  text-align: left;
+}
+
+.build-card.is-hot {
+  border-color: rgba(126, 231, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(126, 231, 255, 0.45);
+}
+
+.build-card.is-short {
+  opacity: 0.62;
+}
+
+.build-reason {
+  display: block;
+  margin-top: 4px;
+  color: #ffb4c0;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.fab-cat-icon,
+.fab-item-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.fab-col h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fab-recipes .fab-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fab-item-icon {
+  width: 28px;
+  height: 28px;
 }
 
 #title.home-menu .seed-field input:read-only,
