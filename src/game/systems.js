@@ -1950,12 +1950,20 @@ function teachOnce(state, key, text) {
   pushNotice(state, text);
 }
 
+function hotbarIsFull(state) {
+  ensureInventory(state);
+  return state.hotbar.every((stack) => stack && stack.count > 0);
+}
+
 function teachFlight(state, dt) {
   if (!state.taught) state.taught = {};
   if (state.intro || state.mode !== 'fly') return;
   tickTutorial(state, dt);
   if (!state.taught.jumper && hullHas(state, 'jumper')) {
     teachOnce(state, 'jumper', 'Layer jumper installed. Q and E change layers.');
+  }
+  if (!state.taught.hotbarFull && hotbarIsFull(state)) {
+    teachOnce(state, 'hotbarFull', 'Cargo is beside the hotbar. Press C.');
   }
 }
 
