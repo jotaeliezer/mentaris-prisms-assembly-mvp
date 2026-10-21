@@ -22,9 +22,9 @@ What is already in the game, then the work that is still only written down. The 
 
 ## Next, easiest first
 
-1. **Alien parts, still with no alien on screen.** Add Alien core, Hull shard, and Spark gland as items, and one strong weapon whose recipe spends a core. `FREE_COMBAT.md` and `ALIEN_COMBAT.md` both use these drops. The spawn clock stays off.
+1. **Alien parts, still with no alien on screen.** Add the eight drops in `ALIENS.md` as items, and one strong weapon whose recipe spends an Alien core. A drop with no recipe yet can be stored. The spawn clock stays off.
 2. **Free combat commands from `FREE_COMBAT.md`.** Shift dash and hold-Space block, while extract and fabrication stay available. No alien yet, no zoom, no slow motion.
-3. **One alien in the belt.** A spawn clock, one alien at a time, three hits to break, and the part drop from step 1. Free combat is the first fight.
+3. **One alien in the belt.** A spawn clock, one alien at a time, using that picture's movement, speed, approach, attack, and drop from `ALIENS.md`. Three hits to break it. Free combat is the first fight.
 4. **The duel version in `ALIEN_COMBAT.md`.** Zoom, slow motion, Incoming or Open locked when the question appears. Only after free combat is already understandable.
 5. **Star dust and light rays from `STARS.md`.** These are pickups, like ore: fly to a star, fly through the dust or the beam, and store the item. They do not build a station. Hand recipes stay ore only. The first use is one bench recipe that spends Pale dust.
 6. **One more carried station from `STATIONS.md`.** A new hull part that reveals one new recipe list. Not a floating base. Not before the alien parts have a home.
