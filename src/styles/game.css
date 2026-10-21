@@ -656,6 +656,8 @@ button:disabled,
   font-size: 15px;
   letter-spacing: 0.04em;
 }
+
+.craft-toasts {
   position: fixed;
   top: 14px;
   left: 50%;
