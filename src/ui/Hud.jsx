@@ -16,6 +16,15 @@ function typewriterPlan(length) {
   return { interval: 28, chunk: Math.ceil(length / ticks) };
 }
 
+function SlotFace({ icon, mark, color }) {
+  if (icon) return <img src={icon} alt="" draggable="false" />;
+  return (
+    <span className="hotbar-swatch" style={{ background: color }}>
+      {mark}
+    </span>
+  );
+}
+
 function HintBar({ text, besideMap }) {
   const full = text || '';
   const [count, setCount] = useState(0);
@@ -112,6 +121,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       area,
       index,
       mark: slot.mark,
+      icon: slot.icon || '',
       color: slot.color,
       x0: event.clientX,
       y0: event.clientY,
@@ -268,9 +278,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                 >
                   <span className="hull-slot-label">{slot.slotLabel}</span>
                   {slot.available ? (
-                    <span className="hotbar-swatch" style={{ background: slot.color }}>
-                      {slot.mark}
-                    </span>
+                    <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
                   ) : null}
                   {slot.levelLabel ? <span className="hull-level">{slot.levelLabel}</span> : null}
                 </button>
@@ -323,9 +331,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                     {...slotProps('cargo', slot)}
                   >
                     {slot.available ? (
-                      <span className="hotbar-swatch" style={{ background: slot.color }}>
-                        {slot.mark}
-                      </span>
+                      <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
                     ) : null}
                     {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
                   </button>
@@ -349,9 +355,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
               >
                 <span className="hotbar-key">{slot.key}</span>
                 {slot.available ? (
-                  <span className="hotbar-swatch" style={{ background: slot.color }}>
-                    {slot.mark}
-                  </span>
+                  <SlotFace icon={slot.icon} mark={slot.mark} color={slot.color} />
                 ) : null}
                 {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
               </button>
@@ -361,15 +365,11 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       )}
       {drag ? (
         <div className="drag-ghost" style={{ left: drag.x, top: drag.y }}>
-          <span className="hotbar-swatch" style={{ background: drag.color }}>
-            {drag.mark}
-          </span>
+          <SlotFace icon={drag.icon} mark={drag.mark} color={drag.color} />
         </div>
       ) : snapshot.held && pointer ? (
         <div className="drag-ghost" style={{ left: pointer.x, top: pointer.y }}>
-          <span className="hotbar-swatch" style={{ background: snapshot.held.color }}>
-            {snapshot.held.mark}
-          </span>
+          <SlotFace icon={snapshot.held.icon} mark={snapshot.held.mark} color={snapshot.held.color} />
           {snapshot.held.count > 1 ? <span className="hotbar-badge">{snapshot.held.count}</span> : null}
         </div>
       ) : null}

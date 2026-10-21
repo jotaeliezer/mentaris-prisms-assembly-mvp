@@ -638,7 +638,8 @@ button:disabled,
   border-color: rgba(255, 255, 255, 0.14);
 }
 
-.hotbar-slot img {
+.hotbar-slot img,
+.drag-ghost img {
   width: 32px;
   height: 32px;
   object-fit: contain;
@@ -1241,7 +1242,8 @@ button:disabled {
   }
   .hull-slot { width: min(220px, 52vw); }
   .hotbar-slot { width: 48px; height: 48px; }
-  .hotbar-slot img { width: 30px; height: 30px; }
+  .hotbar-slot img,
+  .drag-ghost img { width: 30px; height: 30px; }
   .cargo-grid {
     grid-template-columns: repeat(4, 48px);
     grid-template-rows: repeat(10, 48px);

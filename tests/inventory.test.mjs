@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { createState, mineralYield, rollAsteroidType } from '../src/game/state.js';
 import { makeRng } from '../src/game/util.js';
 import {
@@ -11,6 +12,7 @@ import {
   inventoryClick,
   inventoryDrag,
   moveCargoToHotbar,
+  slotIcon,
 } from '../src/game/items.js';
 import {
   breachHull,
@@ -425,6 +427,58 @@ assert(
 assert(finished.drops.every((drop) => !drop.popping), 'the crystals finish popping');
 assert(!finished.orePopping, 'flight resumes after the crystals land');
 
+const slotPictures = [
+  ['pale', '/assets/asteroids/asteroid1.png', 'Pa'],
+  ['slate', '/assets/asteroids/asteroid2.png', 'Sl'],
+  ['amber', '/assets/asteroids/asteroid3.png', 'Am'],
+  ['virid', '/assets/asteroids/asteroid4.png', 'Vi'],
+  ['glint', '/assets/asteroids/asteroid6.png', 'Gn'],
+  ['arc-missile', '/images/bullets/bullet_missile.png', 'Ar'],
+  ['pulse-lance', '/images/bullets/bullet_laser.png', 'Pu'],
+  ['flare', '/images/bullets/bullet_fire1.png', 'Sf'],
+  ['glass', '', 'Gl'],
+  ['repair', '', 'Rp'],
+];
+const iconState = createState();
+slotPictures.forEach(([id, icon, mark], index) => {
+  assert(slotIcon(id) === icon, id + ' picture');
+  if (icon) assert(existsSync('public' + icon), id + ' picture file is already in the game');
+  iconState.hotbar[index] = { id, count: 2 };
+  assert(mark, id + ' still has a two-letter mark');
+});
+iconState.cargoSlots[0] = { id: 'amber', count: 3 };
+iconState.cargoSlots[1] = { id: 'flare', count: 1 };
+iconState.cargoSlots[2] = { id: 'iron', count: 1 };
+iconState.cargoSlots[3] = { id: 'blink', count: 1 };
+const iconSnap = buildSnapshotPatch(iconState, false);
+slotPictures.forEach(([id, icon, mark], index) => {
+  const slot = iconSnap.hud.hotbar.slots[index];
+  assert(slot.icon === icon, id + ' shows in the hotbar slot');
+  assert(slot.mark === mark, id + ' keeps its mark text');
+});
+assert(
+  iconSnap.cargoHold.slots[0].icon === '/assets/asteroids/asteroid3.png',
+  'cargo ore uses the asteroid picture'
+);
+assert(
+  iconSnap.cargoHold.slots[1].icon === '/images/bullets/bullet_fire1.png',
+  'cargo weapon uses the bullet picture'
+);
+assert(
+  iconSnap.cargoHold.slots[2].icon === '' && iconSnap.cargoHold.slots[2].mark === 'Fe',
+  'alloy cargo stays a letter'
+);
+assert(
+  iconSnap.cargoHold.slots[3].icon === '' && iconSnap.cargoHold.slots[3].mark === 'Bl',
+  'ability cargo stays a letter'
+);
+const heldOre = createState();
+assert(addItem(heldOre, 'pale', 2) === 0, 'pale ore for the held stack');
+assert(inventoryClick(heldOre, 'hotbar', 0), 'pick up the pale ore');
+assert(
+  buildSnapshotPatch(heldOre, false).held.icon === '/assets/asteroids/asteroid1.png',
+  'a held ore stack keeps its picture'
+);
 assert(
   HULL_FITS.map((slot) => slot.accept).join(',') === 'jumper,bench,compass,bow',
   'bow plating is the only armor slot'
