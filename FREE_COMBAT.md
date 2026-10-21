@@ -11,7 +11,7 @@ The ship stays in the belt. The player blocks, dashes, and shoots when they choo
 - Open cargo with C and fabrication with F.
 - Fight an alien without leaving the belt.
 
-A hull drawer on R is still only a plan in `HULL.md`. Free combat does not use R.
+The hull panel stays on screen in flight. Free combat does not add a key for it. See `HULL.md`.
 
 ## Commands
 

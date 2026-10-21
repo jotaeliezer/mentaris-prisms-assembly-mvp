@@ -10,7 +10,8 @@ What is already in the game, then the work that is still only written down. The 
 - Hotbar, cargo on C, drag between them, and a name when you hover a slot. A held stack follows the cursor until it is placed.
 - Fabrication on F. Prism glass and the Fabrication bench are hand recipes. The bench, worn in the hull panel, opens the rest. See `STATIONS.md`.
 - One count recipe each for Slate, Virid, and Glint, behind the Fabrication bench. Slate wire, Virid foil, and a Glint gem can be stored. They have no use.
-- Hull panel on R for the layer jumper, the fabrication bench, and the layer compass. The compass is a line for this layer, with the ship as a dot and the layer number in bold beside it. Q and E need the jumper installed there.
+- The hull panel stays on screen in flight, on the left edge. It holds the layer jumper, the fabrication bench, and the layer compass. The compass is a line for this layer, with the ship as a dot and the layer number in bold beside it. Q and E need the jumper installed there.
+- Bow plating in that panel. One worn slot. A rock hit does less damage, and that piece can be raised from level 1 to 3. A worn part lights up, and an empty slot stays dim. The other three armor slots are still waiting. See `HULL.md`.
 - Launch fades through black, asteroids, stars, then the ship and HUD. The ship draws a little larger, with nearest-neighbor pixels so the hull lines stay put while it moves.
 - Pilot name on the title screen and at the top right. Assemblies can be saved for a signed-in account, or kept on this browser. See the home menu.
 - A hull breach plays the explosion first. Game over then appears, centered, in red, with the cause under the title.
@@ -21,18 +22,17 @@ What is already in the game, then the work that is still only written down. The 
 ## Next, easiest first
 
 1. **Ore and weapon icons from `FABRICATOR_ICONS.md`.** Ores are smaller copies of the matching asteroid picture. Weapons reuse the bullet images already in the game. Show those in the slot instead of the two-letter mark. Leave alloys and abilities for a later pass.
-2. **Bow plating from `HULL.md`.** R already opens. Add one worn slot, one stat (less damage from a rock), and levels 1 to 3 for that slot only. The other three armor slots wait.
-3. **Alien parts, still with no alien on screen.** Add Alien core, Hull shard, and Spark gland as items, and one strong weapon whose recipe spends a core. `FREE_COMBAT.md` and `ALIEN_COMBAT.md` both use these drops. The spawn clock stays off.
-4. **Free combat commands from `FREE_COMBAT.md`.** Shift dash and hold-Space block, while extract and fabrication stay available. No alien yet, no zoom, no slow motion.
-5. **One alien in the belt.** A spawn clock, one alien at a time, three hits to break, and the part drop from step 3. Free combat is the first fight.
-6. **The duel version in `ALIEN_COMBAT.md`.** Zoom, slow motion, Incoming or Open locked when the question appears. Only after free combat is already understandable.
-7. **Star dust and light rays from `STARS.md`.** These are pickups, like ore: fly to a star, fly through the dust or the beam, and store the item. They do not build a station. Hand recipes stay ore only. The first use is one bench recipe that spends Pale dust.
-8. **One more carried station from `STATIONS.md`.** A new hull part that reveals one new recipe list. Not a floating base. Not before the alien parts have a home.
-9. **Achievements.** There is no achievements file. Write one, and show each achievement with the same top toast as `TUTORIAL.md`.
-10. **The floating station frame from `CONSTRUCT.md`.** One anchor on the layer where you place it, plus walls that snap end to end. No fueling dock, gunship, or mega drill yet. The station does not change layer.
-11. **The costly rooms in `CONSTRUCT.md`.** Fueling dock, gunship, mega drill, layer extension, ore vault, and beacon. Each one is a long recipe. Build them only after the frame can hold a joint.
-12. **One small planet from `PLANETS.md`.** The smallest size, about five large asteroids across. The ship can dig a tunnel with a question. A ground base waits until a tunnel exists. Great and vast planets come after the small one works.
-13. **Space objects from `SPACE_OBJECT.md`.** Start with the nebula: a large cloud the ship can fly in front of and behind. Then the black hole, the abandoned stronghold, and the smaller objects (comet, debris, ion stream, relay buoy, prism ring). This is the largest set. Do not start it before the planet dig is understandable.
+2. **Alien parts, still with no alien on screen.** Add Alien core, Hull shard, and Spark gland as items, and one strong weapon whose recipe spends a core. `FREE_COMBAT.md` and `ALIEN_COMBAT.md` both use these drops. The spawn clock stays off.
+3. **Free combat commands from `FREE_COMBAT.md`.** Shift dash and hold-Space block, while extract and fabrication stay available. No alien yet, no zoom, no slow motion.
+4. **One alien in the belt.** A spawn clock, one alien at a time, three hits to break, and the part drop from step 2. Free combat is the first fight.
+5. **The duel version in `ALIEN_COMBAT.md`.** Zoom, slow motion, Incoming or Open locked when the question appears. Only after free combat is already understandable.
+6. **Star dust and light rays from `STARS.md`.** These are pickups, like ore: fly to a star, fly through the dust or the beam, and store the item. They do not build a station. Hand recipes stay ore only. The first use is one bench recipe that spends Pale dust.
+7. **One more carried station from `STATIONS.md`.** A new hull part that reveals one new recipe list. Not a floating base. Not before the alien parts have a home.
+8. **Achievements.** There is no achievements file. Write one, and show each achievement with the same top toast as `TUTORIAL.md`.
+9. **The floating station frame from `CONSTRUCT.md`.** One anchor on the layer where you place it, plus walls that snap end to end. No fueling dock, gunship, or mega drill yet. The station does not change layer.
+10. **The costly rooms in `CONSTRUCT.md`.** Fueling dock, gunship, mega drill, layer extension, ore vault, and beacon. Each one is a long recipe. Build them only after the frame can hold a joint.
+11. **One small planet from `PLANETS.md`.** The smallest size, about five large asteroids across. The ship can dig a tunnel with a question. A ground base waits until a tunnel exists. Great and vast planets come after the small one works.
+12. **Space objects from `SPACE_OBJECT.md`.** Start with the nebula: a large cloud the ship can fly in front of and behind. Then the black hole, the abandoned stronghold, and the smaller objects (comet, debris, ion stream, relay buoy, prism ring). This is the largest set. Do not start it before the planet dig is understandable.
 
 ## Leave for later
 

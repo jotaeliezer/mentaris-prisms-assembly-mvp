@@ -35,6 +35,7 @@ export const ITEMS = {
   quiet: { id: 'quiet', name: 'Quiet running', mark: 'Qr', color: '#9bb0c0', tint: 0x9bb0c0, kind: 'ability', use: 'quiet', about: 'For a few seconds, bumping a rock does not damage the hull. Use it from the hotbar. Useful when you must squeeze between rocks to reach a drop.' },
   /** Placeholder cost. The real jumper ingredients are still open. */
   jumper: { id: 'jumper', name: 'Layer jumper', mark: 'Jp', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'ship', about: 'A carried part that unlocks Q and E layer travel. It is not used up by a jump. If a hull breach drops it, layer travel locks until you pick it up. The 4 Pale ore cost is a stand-in.' },
+  bow: { id: 'bow', name: 'Bow plating', mark: 'Bp', color: '#d5e6ff', tint: 0xd5e6ff, kind: 'ship', about: 'Worn in the hull panel. A rock hit does a little less damage. Level 1 is a modest change, and the piece can be raised to level 3. The 3 Pale ore recipe and the raise cost are stand-ins.' },
   bench: { id: 'bench', name: 'Fabrication bench', mark: 'Fb', color: '#d7e4ff', tint: 0xd7e4ff, kind: 'station', about: 'The crafting table of the belt. Carry it in the hotbar or cargo and the bay opens the harder recipes. Drop it on a hull breach and those recipes close until you pick it up.' },
 };
 
@@ -49,6 +50,7 @@ export const RECIPES = [
   { id: 'hull', category: 'ship', result: 'hull', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'pale', n: 2 }] },
   { id: 'hint', category: 'ship', result: 'hint', station: 'bench', count: 1, costs: [{ id: 'glass', n: 1 }] },
   { id: 'jumper', category: 'ship', result: 'jumper', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }] },
+  { id: 'bow', category: 'ship', result: 'bow', station: 'bench', count: 1, costs: [{ id: 'pale', n: 3 }], standIn: true },
   { id: 'iron', category: 'alloys', result: 'iron', station: 'bench', count: 1, costs: [{ id: 'pale', n: 2 }, { id: 'amber', n: 1 }] },
   { id: 'resin', category: 'alloys', result: 'resin', station: 'bench', count: 1, costs: [{ id: 'amber', n: 2 }] },
   { id: 'filament', category: 'alloys', result: 'filament', station: 'bench', count: 1, costs: [{ id: 'resin', n: 1 }, { id: 'glass', n: 1 }] },
@@ -75,7 +77,26 @@ export const HULL_FITS = [
   { accept: 'jumper', label: 'Layer jumper' },
   { accept: 'bench', label: 'Fabrication bench' },
   { accept: 'compass', label: 'Layer compass' },
+  { accept: 'bow', label: 'Bow plating' },
 ];
+
+export const BOW_ID = 'bow';
+export const BOW_MAX_LEVEL = 3;
+/** Stand-in until the real counts are chosen. A few Pale ore, spent from the hotbar, then the cargo. */
+export const BOW_LEVEL_COST = [{ id: 'pale', n: 3 }];
+
+export function bowLevel(stack) {
+  if (!stack || stack.id !== BOW_ID) return 0;
+  const n = Number(stack.level);
+  if (!Number.isInteger(n) || n < 1) return 1;
+  return n > BOW_MAX_LEVEL ? BOW_MAX_LEVEL : n;
+}
+
+function pieceStack(id, count, level) {
+  const stack = { id, count };
+  if (id === BOW_ID) stack.level = bowLevel({ id: BOW_ID, level });
+  return stack;
+}
 
 export function ensureHull(state) {
   if (!Array.isArray(state.hullSlots) || state.hullSlots.length !== HULL_FITS.length) {
@@ -94,12 +115,12 @@ export function hullHas(state, id) {
   return state.hullSlots.some((stack) => stack && stack.id === id);
 }
 
-/** Install a jumper or bench into its hull slot. Returns false if that slot is taken or the item does not fit. */
-export function equipHull(state, id) {
+/** Install a hull piece into its slot. Returns false if that slot is taken or the item does not fit. */
+export function equipHull(state, id, level) {
   ensureHull(state);
   const index = HULL_FITS.findIndex((slot) => slot.accept === id);
   if (index < 0 || state.hullSlots[index]) return false;
-  state.hullSlots[index] = { id, count: 1 };
+  state.hullSlots[index] = pieceStack(id, 1, level);
   return true;
 }
 
@@ -137,9 +158,10 @@ export function ensureInventory(state) {
       if (!list) continue;
       const found = list.findIndex((stack) => stack && stack.id === fit.accept);
       if (found < 0) continue;
-      state.hullSlots[index] = { id: fit.accept, count: 1 };
-      list[found].count -= 1;
-      if (list[found].count <= 0) list[found] = null;
+      const foundStack = list[found];
+      state.hullSlots[index] = pieceStack(fit.accept, 1, foundStack.level);
+      foundStack.count -= 1;
+      if (foundStack.count <= 0) list[found] = null;
       break;
     }
   }
@@ -156,8 +178,17 @@ export function countItem(state, id) {
   return total;
 }
 
-function addInto(list, id, count) {
+function addInto(list, id, count, level) {
   let left = count;
+  if (id === BOW_ID) {
+    const lv = bowLevel({ id: BOW_ID, level });
+    for (let i = 0; i < list.length && left > 0; i++) {
+      if (list[i]) continue;
+      list[i] = { id: BOW_ID, count: 1, level: lv };
+      left -= 1;
+    }
+    return left;
+  }
   for (const stack of list) {
     if (!stack || stack.id !== id || stack.count >= STACK_MAX) continue;
     const take = Math.min(STACK_MAX - stack.count, left);
@@ -176,15 +207,15 @@ function addInto(list, id, count) {
 }
 
 /** Prefer the hotbar. Overflow goes to cargo. Returns how many did not fit. */
-export function addItem(state, id, count) {
+export function addItem(state, id, count, level) {
   ensureInventory(state);
   ensureHull(state);
   if (!ITEMS[id] || count <= 0) return count;
   let left = count;
-  if (HULL_FITS.some((slot) => slot.accept === id) && equipHull(state, id)) left -= 1;
+  if (HULL_FITS.some((slot) => slot.accept === id) && equipHull(state, id, level)) left -= 1;
   if (left <= 0) return 0;
-  left = addInto(state.hotbar, id, left);
-  if (left > 0) left = addInto(state.cargoSlots, id, left);
+  left = addInto(state.hotbar, id, left, level);
+  if (left > 0) left = addInto(state.cargoSlots, id, left, level);
   return left;
 }
 
@@ -208,6 +239,38 @@ export function removeItems(state, id, count) {
 
 export function canAfford(state, costs) {
   return costs.every((cost) => countItem(state, cost.id) >= cost.n);
+}
+
+/** Leveling spends the hotbar first, then the cargo. Recipes keep removeItems. */
+function spendHotbarThenCargo(state, id, count) {
+  let left = count;
+  for (const list of [state.hotbar, state.cargoSlots]) {
+    for (let i = 0; i < list.length && left > 0; i++) {
+      const stack = list[i];
+      if (!stack || stack.id !== id) continue;
+      const take = Math.min(stack.count, left);
+      stack.count -= take;
+      left -= take;
+      if (stack.count <= 0) list[i] = null;
+    }
+  }
+  return left === 0;
+}
+
+/** Raise worn bow plating by one level. 'short', 'max', 'empty', or the new level. */
+export function raiseBowPlating(state) {
+  ensureInventory(state);
+  const index = HULL_FITS.findIndex((slot) => slot.accept === BOW_ID);
+  const stack = index < 0 ? null : state.hullSlots[index];
+  if (!stack || stack.id !== BOW_ID) return 'empty';
+  const level = bowLevel(stack);
+  if (level >= BOW_MAX_LEVEL) return 'max';
+  if (!canAfford(state, BOW_LEVEL_COST)) return 'short';
+  for (const cost of BOW_LEVEL_COST) {
+    if (!spendHotbarThenCargo(state, cost.id, cost.n)) return 'short';
+  }
+  stack.level = level + 1;
+  return stack.level;
 }
 
 export function recipeById(id) {
@@ -253,7 +316,7 @@ export function moveHotbarToCargo(state, hotbarIndex) {
   if (!Number.isInteger(hotbarIndex) || hotbarIndex < 0 || hotbarIndex >= state.hotbar.length) return false;
   const from = state.hotbar[hotbarIndex];
   if (!from) return false;
-  const left = addInto(state.cargoSlots, from.id, from.count);
+  const left = addInto(state.cargoSlots, from.id, from.count, from.level);
   if (left === from.count) return false;
   if (left <= 0) state.hotbar[hotbarIndex] = null;
   else from.count = left;
@@ -286,15 +349,16 @@ export function inventoryClick(state, area, index) {
   if (!held) {
     if (!slot) return false;
     state.held = { id: slot.id, count: slot.count, area, index };
+    if (slot.id === BOW_ID) state.held.level = bowLevel(slot);
     list[index] = null;
     return true;
   }
   if (!slot) {
-    list[index] = { id: held.id, count: held.count };
+    list[index] = pieceStack(held.id, held.count, held.level);
     state.held = null;
     return true;
   }
-  if (slot.id === held.id) {
+  if (slot.id === held.id && held.id !== BOW_ID) {
     const take = Math.min(STACK_MAX - slot.count, held.count);
     if (take <= 0) return false;
     slot.count += take;
@@ -302,8 +366,9 @@ export function inventoryClick(state, area, index) {
     if (held.count <= 0) state.held = null;
     return true;
   }
-  list[index] = { id: held.id, count: held.count };
+  list[index] = pieceStack(held.id, held.count, held.level);
   state.held = { id: slot.id, count: slot.count, area, index };
+  if (slot.id === BOW_ID) state.held.level = bowLevel(slot);
   return true;
 }
 
@@ -326,12 +391,12 @@ export function returnHeld(state) {
   state.held = null;
   const list = slotList(state, held.area);
   if (list && list[held.index] == null) {
-    list[held.index] = { id: held.id, count: held.count };
+    list[held.index] = pieceStack(held.id, held.count, held.level);
     return;
   }
-  const left = addItem(state, held.id, held.count);
+  const left = addItem(state, held.id, held.count, held.level);
   if (left > 0 && state.ship) {
-    state.drops.push({
+    const drop = {
       id: state.nextId++,
       x: state.ship.x,
       y: state.ship.y,
@@ -339,7 +404,9 @@ export function returnHeld(state) {
       count: left,
       life: 40,
       maxLife: 40,
-    });
+    };
+    if (held.id === BOW_ID) drop.level = bowLevel(held);
+    state.drops.push(drop);
   }
 }
 
