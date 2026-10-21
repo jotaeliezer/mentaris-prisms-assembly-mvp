@@ -6,6 +6,7 @@ import {
   CARGO_ROWS,
   CARGO_SIZE,
   HULL_FITS,
+  ITEMS,
   RECIPES,
   addItem,
   countItem,
@@ -16,6 +17,7 @@ import {
 } from '../src/game/items.js';
 import {
   breachHull,
+  buildFabFields,
   buildHotbar,
   buildHudFields,
   buildSnapshotPatch,
@@ -37,6 +39,7 @@ import {
   setCargoOpen,
   startMission,
   typeChar,
+  useSelectedHotbar,
 } from '../src/game/systems.js';
 
 function assert(cond, msg) {
@@ -581,5 +584,87 @@ assert(
   plate.hullSlots.some((stack) => stack && stack.id === 'bow' && stack.level === 3),
   'picking the plate up wears it at the same level'
 );
+
+const alienIcons = [
+  ['gland', '/images/items/spark-gland.png', 'Sg'],
+  ['fiber', '/images/items/grip-fiber.png', 'Gf'],
+  ['shard', '/images/items/hull-shard.png', 'Hs'],
+  ['lamp', '/images/items/cold-lamp.png', 'Cl'],
+  ['servo', '/images/items/servo-joint.png', 'Sv'],
+  ['spike', '/images/items/spike-crystal.png', 'Sp'],
+  ['chart', '/images/items/alien-chart.png', 'Ac'],
+  ['core', '/images/items/alien-core.png', 'Co'],
+  ['core-cannon', '/images/items/core-cannon.png', 'Cn'],
+];
+alienIcons.forEach(([id, icon, mark]) => {
+  assert(slotIcon(id) === icon, id + ' picture');
+  assert(existsSync('public' + icon), id + ' picture file is in the game');
+  assert(ITEMS[id] && ITEMS[id].mark === mark, id + ' keeps its mark');
+});
+const storedCore = createState();
+assert(addItem(storedCore, 'core', 2) === 0, 'an alien core can be stored');
+assert(countItem(storedCore, 'core') === 2, 'the core stacks in the hold');
+assert(
+  buildSnapshotPatch(storedCore, false).hud.hotbar.slots[0].icon === '/images/items/alien-core.png',
+  'a stored core shows its picture'
+);
+
+const cannon = createState();
+startMission(cannon, 'add', 'core-cannon', null);
+assert(addItem(cannon, 'bench', 1) === 0, 'the bench wears for the cannon');
+assert(addItem(cannon, 'iron', 2) === 0, 'iron for the cannon');
+assert(addItem(cannon, 'glass', 1) === 0, 'glass for the cannon');
+assert(
+  !buildFabFields(cannon).recipes.some((recipe) => recipe.id === 'core-cannon'),
+  'the core cannon stays hidden without a core'
+);
+assert(!craftItem(cannon, 'core-cannon', null), 'the cannon cannot be made without a core');
+assert(addItem(cannon, 'core', 1) === 0, 'a core reveals the recipe');
+assert(
+  buildFabFields(cannon).recipes.some((recipe) => recipe.id === 'core-cannon'),
+  'a carried core shows the core cannon'
+);
+assert(craftItem(cannon, 'core-cannon', null), 'the core cannon is manufactured');
+assert(countItem(cannon, 'core') === 0, 'the recipe spends the alien core');
+assert(countItem(cannon, 'iron') === 0 && countItem(cannon, 'glass') === 0, 'the recipe spends the bench materials');
+assert(countItem(cannon, 'core-cannon') === 1, 'the cannon is in the hold');
+const cannonSlot = cannon.hotbar.findIndex((stack) => stack && stack.id === 'core-cannon');
+selectHotbar(cannon, cannonSlot);
+const cannonRock = cannon.asteroids.find((rock) => rock.alive);
+cannon.ship.x = 4000;
+cannon.ship.y = 4000;
+cannon.ship.vx = 0;
+cannon.ship.vy = 0;
+cannon.ship.aim = 0;
+cannonRock.x = 4900;
+cannonRock.y = 4000;
+for (const other of cannon.asteroids) {
+  if (other === cannonRock) continue;
+  other.x = -4000;
+  other.y = -4000;
+}
+assert(useSelectedHotbar(cannon, null), 'the cannon fires at a rock 900 away');
+assert(
+  cannon.missiles.length === 1 && cannon.missiles[0].heavy && cannon.missiles[0].power === 2,
+  'the cannon is the heavy shot'
+);
+assert(cannon.missiles[0].targetId === cannonRock.id, 'the heavy shot aims at that rock');
+
+const arc = createState();
+startMission(arc, 'add', 'arc-far', null);
+assert(addItem(arc, 'arc-missile', 1) === 0, 'an arc missile for the range check');
+selectHotbar(arc, arc.hotbar.findIndex((stack) => stack && stack.id === 'arc-missile'));
+const arcRock = arc.asteroids.find((rock) => rock.alive);
+arc.ship.x = 4000;
+arc.ship.y = 4000;
+arcRock.x = 4900;
+arcRock.y = 4000;
+for (const other of arc.asteroids) {
+  if (other === arcRock) continue;
+  other.x = -4000;
+  other.y = -4000;
+}
+assert(!useSelectedHotbar(arc, null), 'an arc missile cannot reach a rock 900 away');
+assert(countItem(arc, 'arc-missile') === 1, 'a shot with no rock in range is not spent');
 
 console.log('inventory tests ok');

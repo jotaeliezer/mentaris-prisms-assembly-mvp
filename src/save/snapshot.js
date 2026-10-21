@@ -132,5 +132,6 @@ export function buildProgressSnapshot(state) {
     returnHole: copyJson(state.returnHole),
     layerBanks: encodeBanks(state.layerBanks),
     clusterCache: encodeClusters(state.clusterCache),
+    clock: Number(state.clock) || 0,
   };
 }

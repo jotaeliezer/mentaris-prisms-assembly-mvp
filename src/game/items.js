@@ -12,9 +12,22 @@ const WEAPON_BULLET = {
   flare: 'bullet_fire1.png',
 };
 
+/** Pictures cut from the alien that drops the part. The cannon is the weapon that spends a core. */
+const ALIEN_ICON = {
+  gland: 'spark-gland.png',
+  fiber: 'grip-fiber.png',
+  shard: 'hull-shard.png',
+  lamp: 'cold-lamp.png',
+  servo: 'servo-joint.png',
+  spike: 'spike-crystal.png',
+  chart: 'alien-chart.png',
+  core: 'alien-core.png',
+  'core-cannon': 'core-cannon.png',
+};
+
 /**
  * Picture for a hotbar or cargo slot.
- * Ores copy their asteroid. Weapons reuse a bullet. Alloys and abilities stay letters.
+ * Ores copy their asteroid. Weapons reuse a bullet. Alien parts use their own picture. Alloys and abilities stay letters.
  */
 export function slotIcon(id) {
   if (Object.prototype.hasOwnProperty.call(ORE_SPRITE, id)) {
@@ -22,7 +35,16 @@ export function slotIcon(id) {
     return file ? '/assets/asteroids/' + file : '';
   }
   const bullet = WEAPON_BULLET[id];
-  return bullet ? '/images/bullets/' + bullet : '';
+  if (bullet) return '/images/bullets/' + bullet;
+  const alien = ALIEN_ICON[id];
+  return alien ? '/images/items/' + alien : '';
+}
+
+/** Phaser texture key for a drop that has its own picture. Ores stay on the mineral sprite. */
+export function dropSpriteKey(id) {
+  const icon = slotIcon(id);
+  if (!icon.startsWith('/images/items/')) return '';
+  return icon.slice(icon.lastIndexOf('/') + 1);
 }
 
 export const STACK_MAX = 64;
@@ -62,6 +84,15 @@ export const ITEMS = {
   jumper: { id: 'jumper', name: 'Layer jumper', mark: 'Jp', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'ship', about: 'A carried part that unlocks Q and E layer travel. It is not used up by a jump. If a hull breach drops it, layer travel locks until you pick it up. The 4 Pale ore cost is a stand-in.' },
   bow: { id: 'bow', name: 'Bow plating', mark: 'Bp', color: '#d5e6ff', tint: 0xd5e6ff, kind: 'ship', about: 'Worn in the hull panel. A rock hit does a little less damage. Level 1 is a modest change, and the piece can be raised to level 3. The 3 Pale ore recipe and the raise cost are stand-ins.' },
   bench: { id: 'bench', name: 'Fabrication bench', mark: 'Fb', color: '#d7e4ff', tint: 0xd7e4ff, kind: 'station', about: 'The crafting table of the belt. Carry it in the hotbar or cargo and the bay opens the harder recipes. Drop it on a hull breach and those recipes close until you pick it up.' },
+  gland: { id: 'gland', name: 'Spark gland', mark: 'Sg', color: '#7dff9a', tint: 0x7dff9a, kind: 'alien', about: 'A green charge from a scout. Store it in the hotbar or cargo. It is the part for a strong energy weapon, and the gunship room spends one. The belt does not drop it until a lair opens.' },
+  fiber: { id: 'fiber', name: 'Grip fiber', mark: 'Gf', color: '#d5d8df', tint: 0xd5d8df, kind: 'alien', about: 'A coil from a spider. Store it until a later recipe makes Quiet running last longer. It is not worn.' },
+  shard: { id: 'shard', name: 'Hull shard', mark: 'Hs', color: '#5ee0c5', tint: 0x5ee0c5, kind: 'alien', about: 'A plate from a dartwing. Store it for a later hull recipe. It is not worn by itself.' },
+  lamp: { id: 'lamp', name: 'Cold lamp', mark: 'Cl', color: '#d7f4ff', tint: 0xd7f4ff, kind: 'alien', about: 'A small lamp from an eye. It is an ingredient for the beacon and for night-bright hull work. It is not a weapon. Store it until those recipes exist.' },
+  servo: { id: 'servo', name: 'Servo joint', mark: 'Sv', color: '#7aa2ff', tint: 0x7aa2ff, kind: 'alien', about: 'A hinge from a pincer. It is the part for thruster housing, which raises top speed, once that slot exists. Store it until then.' },
+  spike: { id: 'spike', name: 'Spike crystal', mark: 'Sp', color: '#b7c9d6', tint: 0xb7c9d6, kind: 'alien', about: 'A spike from a golem. It is the material for raising bow plating once the Pale ore stand-in is replaced. Store it until then.' },
+  chart: { id: 'chart', name: 'Alien chart', mark: 'Ac', color: '#e7eef5', tint: 0xe7eef5, kind: 'alien', about: 'A one-use note from a saucer. When strongholds exist, using it shows the layer and the direction of another stronghold, or of a black hole, in this cluster. Store it until then.' },
+  core: { id: 'core', name: 'Alien core', mark: 'Co', color: '#ff7ab8', tint: 0xff7ab8, kind: 'alien', about: 'The heart of a brain. The Core cannon spends one, and the mega drill spends one. Store it, then fabricate the cannon at the bench.' },
+  'core-cannon': { id: 'core-cannon', name: 'Core cannon', mark: 'Cn', color: '#ff8ec8', tint: 0xff8ec8, kind: 'weapon', use: 'core', about: 'The heavy weapon. Select it and left click. It reaches farther than the Arc missile, and one shot breaks one rock. On an alien it counts as two of the three hits. The recipe spends an Alien core and stays hidden until a core is in the hold.' },
 };
 
 /** Each recipe is a result plus how many of each material it takes. station: 'bench' waits until that item is carried. */
@@ -70,6 +101,7 @@ export const RECIPES = [
   { id: 'bench', category: 'basics', result: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }] },
   { id: 'arc-missile', category: 'weapons', result: 'arc-missile', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'pale', n: 1 }] },
   { id: 'pulse-lance', category: 'weapons', result: 'pulse-lance', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'amber', n: 1 }] },
+  { id: 'core-cannon', category: 'weapons', result: 'core-cannon', station: 'bench', reveal: 'core', count: 1, costs: [{ id: 'core', n: 1 }, { id: 'iron', n: 2 }, { id: 'glass', n: 1 }] },
   { id: 'flare', category: 'weapons', result: 'flare', station: 'bench', count: 1, costs: [{ id: 'pale', n: 1 }, { id: 'glass', n: 1 }] },
   { id: 'drive', category: 'ship', result: 'drive', station: 'bench', count: 1, costs: [{ id: 'iron', n: 3 }, { id: 'pale', n: 1 }] },
   { id: 'hull', category: 'ship', result: 'hull', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'pale', n: 2 }] },

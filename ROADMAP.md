@@ -19,20 +19,20 @@ What is already in the game, then the work that is still only written down. The 
 - Toasts drop in at the top in neon blue. The bottom hint is a larger neon-green line that types itself out. The first "hold W" and "open cargo" lines from `TUTORIAL.md` are in.
 - When the hotbar fills, one toast says to press C. The first rock stays the bottom hint, and the first breach stays the game-over line.
 - Ore and weapon slots show a picture instead of the two-letter mark. Each ore is a smaller copy of its asteroid picture. Weapons reuse the bullet images already in the game. Alloys and abilities still use the two-letter mark. See `FABRICATOR_ICONS.md`.
+- Alien parts can be stored: Spark gland, Grip fiber, Hull shard, Cold lamp, Servo joint, Spike crystal, Alien chart, and Alien core. Each has a picture taken from the alien that drops it. The Core cannon is made at the bench from one Alien core, two Belt iron, and one Prism glass, and that recipe stays hidden until a core is in the hold. No alien is on screen. The main star's name comes from the seed and is shared by every cluster. Its arc is the spawn clock. Up would open a lair, and down would shut it. The lair is not placed yet. See `ALIENS.md`.
 
 ## Next, easiest first
 
-1. **Alien parts, still with no alien on screen.** Add the eight drops in `ALIENS.md` as items, and one strong weapon whose recipe spends an Alien core. A drop with no recipe yet can be stored. The spawn clock stays off.
-2. **Free combat commands from `FREE_COMBAT.md`.** Shift dash and hold-Space block, while extract and fabrication stay available. No alien yet, no zoom, no slow motion.
-3. **One alien in the belt.** A spawn clock, one alien at a time, using that picture's movement, speed, approach, attack, and drop from `ALIENS.md`. Three hits to break it. Free combat is the first fight.
-4. **The duel version in `ALIEN_COMBAT.md`.** Zoom, slow motion, Incoming or Open locked when the question appears. Only after free combat is already understandable.
-5. **Star dust and light rays from `STARS.md`.** These are pickups, like ore: fly to a star, fly through the dust or the beam, and store the item. They do not build a station. Hand recipes stay ore only. The first use is one bench recipe that spends Pale dust.
-6. **One more carried station from `STATIONS.md`.** A new hull part that reveals one new recipe list. Not a floating base. Not before the alien parts have a home.
-7. **Achievements.** There is no achievements file. Write one, and show each achievement with the same top toast as `TUTORIAL.md`.
-8. **The floating station frame from `CONSTRUCT.md`.** One anchor on the layer where you place it, plus walls that snap end to end. No fueling dock, gunship, or mega drill yet. The station does not change layer.
-9. **The costly rooms in `CONSTRUCT.md`.** Fueling dock, gunship, mega drill, layer extension, ore vault, and beacon. Each one is a long recipe. Build them only after the frame can hold a joint.
-10. **One small planet from `PLANETS.md`.** The smallest size, about five large asteroids across. The ship can dig a tunnel with a question. A ground base waits until a tunnel exists. Great and vast planets come after the small one works.
-11. **Space objects from `SPACE_OBJECT.md`.** Start with the nebula: a large cloud the ship can fly in front of and behind. Then the black hole, the abandoned stronghold, and the smaller objects (comet, debris, ion stream, relay buoy, prism ring). This is the largest set. Do not start it before the planet dig is understandable.
+1. **Free combat commands from `FREE_COMBAT.md`.** Shift dash and hold-Space block, while extract and fabrication stay available. No alien yet, no zoom, no slow motion.
+2. **One alien in the belt.** While the main star is up, place the lair from `SPACE_OBJECT.md` and let one alien out. Use that picture's movement, speed, approach, attack, and drop from `ALIENS.md`. Three hits to break it. A Core cannon hit counts as two. Free combat is the first fight.
+3. **The duel version in `ALIEN_COMBAT.md`.** Zoom, slow motion, Incoming or Open locked when the question appears. Only after free combat is already understandable.
+4. **Star dust and light rays from `STARS.md`.** These are pickups, like ore: fly to a star, fly through the dust or the beam, and store the item. They do not build a station. Hand recipes stay ore only. The first use is one bench recipe that spends Pale dust.
+5. **One more carried station from `STATIONS.md`.** A new hull part that reveals one new recipe list. Not a floating base.
+6. **Achievements.** There is no achievements file. Write one, and show each achievement with the same top toast as `TUTORIAL.md`.
+7. **The floating station frame from `CONSTRUCT.md`.** One anchor on the layer where you place it, plus walls that snap end to end. No fueling dock, gunship, or mega drill yet. The station does not change layer.
+8. **The costly rooms in `CONSTRUCT.md`.** Fueling dock, gunship, mega drill, layer extension, ore vault, and beacon. Each one is a long recipe. Build them only after the frame can hold a joint.
+9. **One small planet from `PLANETS.md`.** The smallest size, about five large asteroids across. The ship can dig a tunnel with a question. A ground base waits until a tunnel exists. Great and vast planets come after the small one works.
+10. **Space objects from `SPACE_OBJECT.md`.** The lair is placed when the first alien leaves it. This step is the rest. Start with the nebula: a large cloud the ship can fly in front of and behind. Then the black hole, the abandoned stronghold, and the smaller objects (comet, debris, ion stream, relay buoy, prism ring). This is the largest set. Do not start it before the planet dig is understandable.
 
 ## Leave for later
 

@@ -16,6 +16,7 @@ import {
   spawnAsteroid,
 } from './state.js';
 import { buildProgressSnapshot, decodeBanks, decodeClusters } from '../save/snapshot.js';
+import { mainStarView } from './star.js';
 import {
   dieClaimKey,
   eventOnLayer,
@@ -663,6 +664,7 @@ export function resumeAssembly(state, progress, audio, assemblyId) {
   state.ship.maxSpeed = 430 + state.driveTier * 50;
   if (typeof ship.sprite === 'string' && ship.sprite) state.ship.sprite = ship.sprite;
   state.ship.hp = Math.min(state.ship.maxHp, state.ship.hp);
+  if (Number.isFinite(Number(progress.clock))) state.clock = Number(progress.clock);
   state.home = progress.home || { x: state.ship.x, y: state.ship.y };
   state.wormhole = progress.wormhole || null;
   state.returnHole = progress.returnHole || null;
@@ -738,6 +740,7 @@ export function startMission(state, id, seed, audio, assemblyId) {
   state.quiet = 0;
   state.ship.hp = state.ship.maxHp;
   state.ship.aim = -Math.PI / 2;
+  state.clock = 0;
   state.seed = cleanSeed(seed);
   state.assemblyId = assemblyId || null;
   state.cluster = 1;
@@ -960,7 +963,7 @@ function copyRock(rock) {
 }
 
 /** Unused for rocks (extract is primary). Kept for the crafted arc missile. */
-function launchMissile(state, rock, audio) {
+function launchMissile(state, rock, audio, heavy) {
   const ship = state.ship;
   const x = ship.x + Math.cos(ship.aim) * 40;
   const y = ship.y + Math.sin(ship.aim) * 40;
@@ -983,6 +986,8 @@ function launchMissile(state, rock, audio) {
     ty: rock.y,
     life: 6,
     age: 0,
+    heavy: !!heavy,
+    power: heavy ? 2 : 1,
   });
   queueWorld(state, {
     k: 'shot',
@@ -993,6 +998,7 @@ function launchMissile(state, rock, audio) {
     tx: round1(rock.x),
     ty: round1(rock.y),
     bend,
+    heavy: heavy ? 1 : 0,
   });
   if (audio) audio.shot();
 }
@@ -1490,7 +1496,7 @@ function stepOneMissile(state, missile, dt, onHit) {
     vy: 0,
     life: 0.28,
     size: 3,
-    color: '#b9f3ff',
+    color: missile.heavy ? '#ffb7de' : '#b9f3ff',
   });
   const reach = rock ? rock.radius + 28 : 28;
   if (missile.age > 2.2) {
@@ -1765,6 +1771,8 @@ function applyShotWorld(state, event, selfId) {
     ty: Number(event.ty),
     life: 6,
     age: 0,
+    heavy: !!event.heavy,
+    power: event.heavy ? 2 : 1,
   });
 }
 
@@ -2388,13 +2396,14 @@ function noteStatus(state, text) {
 
 function applyUse(state, use) {
   const ship = state.ship;
-  if (use === 'missile') {
-    const rock = nearestAsteroid(state, 720);
+  if (use === 'missile' || use === 'core') {
+    const heavy = use === 'core';
+    const rock = nearestAsteroid(state, heavy ? 1200 : 720);
     if (!rock || rock.depleted) {
       noteStatus(state, 'No rock in range for that weapon.');
       return false;
     }
-    launchMissile(state, rock, null);
+    launchMissile(state, rock, null, heavy);
     return true;
   }
   if (use === 'flare') {
@@ -2516,7 +2525,7 @@ export function useSelectedHotbar(state, audio) {
   stack.count -= 1;
   if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
   if (audio) {
-    if (item.use === 'missile' && typeof audio.shot === 'function') audio.shot();
+    if ((item.use === 'missile' || item.use === 'core') && typeof audio.shot === 'function') audio.shot();
     else if (typeof audio.correct === 'function') audio.correct();
   }
   return true;
@@ -2563,6 +2572,7 @@ export function buildHudFields(state) {
         ? state.status
         : tutorialHint(state),
     hotbar: buildHotbar(state),
+    mainStar: mainStarView(state.seed, state.clock),
     compass: hullHas(state, 'compass')
       ? {
           layer: state.layer,
@@ -2595,7 +2605,7 @@ export function buildFabFields(state) {
 }
 
 function RECIPES_FOR_FAB(state) {
-  return RECIPES.filter((recipe) => recipeOpen(state, recipe)).map((recipe) => ({
+  return RECIPES.filter((recipe) => recipeOpen(state, recipe) && (!recipe.reveal || countItem(state, recipe.reveal) >= 1)).map((recipe) => ({
     id: recipe.id,
     category: recipe.category,
     name: ITEMS[recipe.result] ? ITEMS[recipe.result].name : recipe.result,

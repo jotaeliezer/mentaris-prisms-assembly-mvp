@@ -35,19 +35,11 @@ An alien shot that is not dashed through and not blocked hits the hull for one r
 
 A broken alien does not drop Pale ore or Amber ore. Those stay on the rocks.
 
-It drops one alien part, picked from this list:
-
-| Part | What it is for |
-| --- | --- |
-| Alien core | The main part for a strong weapon. A strong weapon recipe needs a core plus materials the bench already uses. |
-| Hull shard | A plating part. It can feed a later hull recipe. It is not worn by itself. |
-| Spark gland | A charge part for a strong energy weapon. |
+The picture chooses the part. `ALIENS.md` names that part, and the place that alien prefers. Those parts can already be stored. The Core cannon spends one Alien core, plus Belt iron and Prism glass, and that recipe stays hidden until a core is in the hold. Nothing in the belt drops a part until a lair opens.
 
 The part falls beside the wreck, the same way a mineral falls beside a rock. The ship flies over it to pick it up. It then sits in the hotbar or cargo.
 
-Strong weapons are not on the hand list. They wait on the Fabrication bench, the same way the current weapons do, and they also spend at least one alien part. Without a core, gland, or shard, the strong recipe stays hidden.
-
-The exact weapon list is not chosen yet. The rule is the part: alien loot is for manufacturing, not a second stack of ore.
+Strong weapons are not on the hand list. They wait on the Fabrication bench, the same way the current weapons do, and they also spend at least one alien part. Alien loot is for manufacturing, not a second stack of ore.
 
 ## What this version leaves alone
 
