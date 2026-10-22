@@ -16,6 +16,53 @@ function typewriterPlan(length) {
   return { interval: 28, chunk: Math.ceil(length / ticks) };
 }
 
+function arcPoint(angleDeg, radius) {
+  const rad = (angleDeg * Math.PI) / 180;
+  return {
+    left: Math.cos(rad) * radius,
+    bottom: Math.sin(rad) * radius,
+  };
+}
+
+function hotbarPose(index, selected, count, open) {
+  const n = Math.max(count, 1);
+  let delta = index - selected;
+  if (delta > n / 2) delta -= n;
+  if (delta < -n / 2) delta += n;
+  if (open) {
+    const span = 132;
+    const start = 16;
+    const t = n <= 1 ? 0.5 : index / (n - 1);
+    const angle = start + span * t;
+    const scale = index === selected ? 1.28 : 1;
+    return { ...arcPoint(angle, 196), scale, visible: true };
+  }
+  const angle = 50 + delta * (360 / n);
+  const visible = angle > -6 && angle < 104;
+  const scale = delta === 0 ? 1.62 : Math.abs(delta) === 1 ? 1.02 : 0.86;
+  return { ...arcPoint(angle, 158), scale, visible };
+}
+
+function cargoPose(index, count) {
+  const rows = Math.max(1, Math.ceil(count / 2));
+  const along = Math.floor(index / 2);
+  const band = index % 2;
+  const t = rows <= 1 ? 0.5 : along / (rows - 1);
+  const angle = 14 + 152 * t;
+  return { ...arcPoint(angle, band === 0 ? 348 : 268), scale: 0.78, visible: true };
+}
+
+function ringStyle(pose) {
+  return {
+    left: pose.left,
+    bottom: pose.bottom,
+    transform: `translate(-50%, 50%) scale(${pose.scale})`,
+    opacity: pose.visible ? 1 : 0,
+    pointerEvents: pose.visible ? 'auto' : 'none',
+    zIndex: Math.round(pose.scale * 10),
+  };
+}
+
 function SlotFace({ icon, mark, color, iconFilter }) {
   if (icon) {
     return <img src={icon} alt="" draggable="false" style={iconFilter && iconFilter !== 'none' ? { filter: iconFilter } : undefined} />;
@@ -352,25 +399,24 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
             </p>
           ) : null}
           {cargoOpen && (
-            <div id="cargo" className="cargo-drawer" role="dialog" aria-label="Cargo">
-              <div className="cargo-grid">
-                {cargoSlots.map((slot) => (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    className={`hotbar-slot cargo-slot${slot.available ? '' : ' empty'}${
-                      drag && drag.area === 'cargo' && drag.index === slot.index ? ' lifting' : ''
-                    }`}
-                    aria-label={slot.available ? slot.label : 'Empty cargo'}
-                    {...slotProps('cargo', slot)}
-                  >
-                    {slot.available ? (
-                      <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
-                    ) : null}
-                    {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
-                  </button>
-                ))}
-              </div>
+            <div id="cargo" className="cargo-arc" role="dialog" aria-label="Cargo">
+              {cargoSlots.map((slot) => (
+                <button
+                  key={slot.id}
+                  type="button"
+                  className={`hotbar-slot ring-slot cargo-slot${slot.available ? '' : ' empty'}${
+                    drag && drag.area === 'cargo' && drag.index === slot.index ? ' lifting' : ''
+                  }`}
+                  style={ringStyle(cargoPose(slot.index, cargoSlots.length))}
+                  aria-label={slot.available ? slot.label : 'Empty cargo'}
+                  {...slotProps('cargo', slot)}
+                >
+                  {slot.available ? (
+                    <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
+                  ) : null}
+                  {slot.badge ? <span className="hotbar-badge">{slot.badge}</span> : null}
+                </button>
+              ))}
             </div>
           )}
           <div id="hotbar" className="hotbar" role="toolbar" aria-label="Ship tools">
@@ -378,9 +424,10 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
               <button
                 key={slot.id}
                 type="button"
-                className={`hotbar-slot${slot.selected ? ' selected' : ''}${slot.available ? '' : ' empty'}${
+                className={`hotbar-slot ring-slot${slot.selected ? ' selected' : ''}${slot.available ? '' : ' empty'}${
                   drag && drag.area === 'hotbar' && drag.index === slot.index ? ' lifting' : ''
                 }`}
+                style={ringStyle(hotbarPose(slot.index, hotbar.selected || 0, slots.length, cargoOpen))}
                 aria-pressed={slot.selected ? 'true' : 'false'}
                 aria-label={
                   slot.available ? slot.label + ', slot ' + slot.key : 'Empty slot ' + slot.key
