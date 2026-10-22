@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
-  { id: 'basics', label: 'By hand', icon: '/images/categories/basics.svg' },
-  { id: 'alloys', label: 'Alloys', icon: '/images/categories/alloys.svg' },
-  { id: 'weapons', label: 'Weapons', icon: '/images/categories/weapons.svg' },
-  { id: 'ship', label: 'Ship improvements', icon: '/images/categories/ship.svg' },
-  { id: 'hud', label: 'HUD tools', icon: '/images/categories/hud.svg' },
-  { id: 'abilities', label: 'Abilities', icon: '/images/categories/abilities.svg' },
-  { id: 'construction', label: 'Construction', icon: '/images/categories/construction.svg' },
+  { id: 'basics', label: 'Direct', icon: '/images/categories/basics.png' },
+  { id: 'alloys', label: 'Alloys', icon: '/images/categories/alloys.png' },
+  { id: 'weapons', label: 'Weapons', icon: '/images/categories/weapons.png' },
+  { id: 'ship', label: 'Ship improvements', icon: '/images/categories/ship.png' },
+  { id: 'hud', label: 'HUD tools', icon: '/images/categories/hud.png' },
+  { id: 'abilities', label: 'Abilities', icon: '/images/categories/abilities.png' },
+  { id: 'construction', label: 'Construction', icon: '/images/categories/construction.png' },
 ];
 
 function beep(bridge) {
@@ -29,20 +29,40 @@ function itemPicture(item) {
 export default function Fab({ bridge, snapshot }) {
   const recipes = Array.isArray(snapshot.recipes) ? snapshot.recipes : [];
   const [filter, setFilter] = useState('all');
-  const [selectedId, setSelectedId] = useState(null);
+  const [hoverId, setHoverId] = useState(null);
+  const hideTimer = useRef(null);
   const visible = recipes.filter((recipe) => filter === 'all' || recipe.category === filter);
-  const selected = recipes.find((recipe) => recipe.id === selectedId) || null;
-  const category = selected ? CATEGORIES.find((cat) => cat.id === selected.category) : null;
+  const hovered = recipes.find((recipe) => recipe.id === hoverId) || null;
+  const category = hovered ? CATEGORIES.find((cat) => cat.id === hovered.category) : null;
+
+  function clearHide() {
+    if (hideTimer.current) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  }
+
+  function showCard(id) {
+    clearHide();
+    setHoverId(id);
+  }
+
+  function scheduleHide() {
+    clearHide();
+    hideTimer.current = window.setTimeout(() => setHoverId(null), 220);
+  }
+
+  useEffect(() => () => clearHide(), []);
 
   return (
     <div id="fab" className="overlay">
       <div className="panel fab-panel fab-wide">
         <p className="eyebrow">Fabrication bay</p>
-        <h2>Count recipes</h2>
+        <h2>Fabrication index</h2>
         <p className="lede" id="fab-copy">
           {snapshot.fabCopy}
         </p>
-        <div className="fab-cats" role="tablist" aria-label="Recipe categories">
+        <div className="fab-cats" role="tablist" aria-label="Fabrication groups">
           {CATEGORIES.map((cat) => {
             const count =
               cat.id === 'all' ? recipes.length : recipes.filter((recipe) => recipe.category === cat.id).length;
@@ -57,6 +77,7 @@ export default function Fab({ bridge, snapshot }) {
                 onClick={() => {
                   beep(bridge);
                   setFilter(cat.id);
+                  setHoverId(null);
                 }}
               >
                 {cat.icon ? <img className="fab-cat-icon" src={cat.icon} alt="" /> : null}
@@ -65,65 +86,68 @@ export default function Fab({ bridge, snapshot }) {
             );
           })}
         </div>
-        <div className="fab-layout">
-          <div className="fab-icon-grid" role="list">
+        <div className={`fab-layout${hovered ? ' is-open' : ''}`}>
+          <div className="fab-icon-grid">
             {visible.map((recipe) => (
               <button
                 key={recipe.id}
                 id={'craft-' + recipe.id}
                 type="button"
-                role="listitem"
-                className={`fab-icon-btn${selectedId === recipe.id ? ' is-hot' : ''}${recipe.ready ? '' : ' is-short'}`}
+                className={`fab-icon-btn${hoverId === recipe.id ? ' is-hot' : ''}${recipe.ready ? '' : ' is-short'}`}
                 aria-label={recipe.name}
-                aria-pressed={selectedId === recipe.id}
-                onClick={() => {
-                  beep(bridge);
-                  setSelectedId(recipe.id);
+                onPointerEnter={(event) => {
+                  if (event.pointerType === 'touch') return;
+                  showCard(recipe.id);
+                }}
+                onPointerLeave={(event) => {
+                  if (event.pointerType === 'touch') return;
+                  scheduleHide();
+                }}
+                onPointerDown={(event) => {
+                  if (event.pointerType !== 'touch') return;
+                  showCard(recipe.id);
                 }}
               >
                 {itemPicture(recipe)}
+                <span className="fab-icon-name">{recipe.name}</span>
               </button>
             ))}
           </div>
-          <aside className="fab-info" aria-live="polite">
-            {selected ? (
-              <>
-                <div className="fab-info-head">
-                  {itemPicture(selected)}
-                  <div>
-                    <p className="fab-readout-name">{selected.name}</p>
-                    {category ? <p className="fab-info-cat">{category.label}</p> : null}
-                  </div>
+          {hovered ? (
+            <aside className="fab-info" onPointerEnter={clearHide} onPointerLeave={scheduleHide}>
+              <div className="fab-info-head">
+                {itemPicture(hovered)}
+                <div>
+                  <p className="fab-readout-name">{hovered.name}</p>
+                  {category ? <p className="fab-info-cat">{category.label}</p> : null}
                 </div>
-                <p className="fab-readout-body">{selected.about || 'A fabrication count.'}</p>
-                <p className="fab-info-label">Recipe</p>
-                <ul className="fab-recipe">
-                  {(selected.costs || []).map((cost) => (
-                    <li key={cost.id}>
-                      {itemPicture(cost)}
-                      <span>
-                        {cost.n} {cost.name}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!selected.ready}
-                  onClick={() => {
-                    if (!selected.ready) return;
-                    beep(bridge);
-                    bridge.emit('craft', selected.id);
-                  }}
-                >
-                  {selected.ready ? 'Fabricate' : 'Missing materials'}
-                </button>
-              </>
-            ) : (
-              <p className="fab-readout-body">Choose an icon to read the item and its recipe.</p>
-            )}
-          </aside>
+              </div>
+              <p className="fab-readout-body">{hovered.about || 'A fabrication count.'}</p>
+              <p className="fab-info-label">Inputs</p>
+              <ul className="fab-recipe">
+                {(hovered.costs || []).map((cost) => (
+                  <li key={cost.id}>
+                    {itemPicture(cost)}
+                    <span>
+                      {cost.n} {cost.name}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!hovered.ready}
+                onClick={() => {
+                  if (!hovered.ready) return;
+                  beep(bridge);
+                  bridge.emit('craft', hovered.id);
+                }}
+              >
+                {hovered.ready ? 'Fabricate' : 'Missing materials'}
+              </button>
+            </aside>
+          ) : null}
         </div>
         <div className="missions fab-footer">
           <button
@@ -135,7 +159,7 @@ export default function Fab({ bridge, snapshot }) {
               bridge.emit('setFab', false);
             }}
           >
-            Resume flight
+            Close
           </button>
         </div>
       </div>

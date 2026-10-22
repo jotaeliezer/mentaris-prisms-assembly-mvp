@@ -16,10 +16,10 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
-    // Nearest keeps hull panel lines from blending as the camera scrolls. Other textures stay linear.
+    // Painted hulls stay smooth while they turn. Nearest sampling made the pixels crawl.
     for (const name of SHIP_FILES) {
       if (!this.textures.exists(name)) continue;
-      this.textures.get(name).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      this.textures.get(name).setFilter(Phaser.Textures.FilterMode.LINEAR);
     }
     const bridge = this.registry.get('bridge');
     this.scene.start('PlayScene', { bridge });

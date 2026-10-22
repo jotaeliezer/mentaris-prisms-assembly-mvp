@@ -401,7 +401,7 @@ export function ensureScenery(state) {
       y,
       r,
       kind,
-      key: 'planet-' + kind + '.jpg',
+      key: 'planet-' + kind + '.png',
     });
   }
   state.planet = state.planets.find((planet) => planet.layer === state.layer && planet.cluster === cluster) || null;
@@ -420,7 +420,7 @@ export function ensureScenery(state) {
         y: clamp(state.ship.y + Math.sin(angle) * dist, 500, WORLD.h - 500),
         r: 78,
         kind,
-        key: 'star-' + kind + '.jpg',
+        key: 'star-' + kind + '.png',
       });
     }
   }
@@ -446,11 +446,11 @@ export function ensureScenery(state) {
         ...extra,
       });
     };
-    place('debris', 'debris-field.jpg', 420);
-    if (rng() < 0.7) place('ion', 'ion-stream.jpg', 180);
-    if (rng() < 0.45) place('prism', 'prism-ring.jpg', 90);
-    if (rng() < 0.35) place('stronghold', 'stronghold.jpg', 160);
-    if (rng() < 0.4) place('comet', 'comet.jpg', 70);
+    place('debris', 'debris-field.png', 420);
+    if (rng() < 0.7) place('ion', 'ion-stream.png', 180);
+    if (rng() < 0.45) place('prism', 'prism-ring.png', 90);
+    if (rng() < 0.35) place('stronghold', 'stronghold.png', 160);
+    if (rng() < 0.4) place('comet', 'comet.png', 70);
   }
 }
 
@@ -1476,8 +1476,8 @@ function easeCamera(state, dt) {
   if (state.mode === 'extract') {
     const rock = extractRock(state);
     if (rock) {
-      focusX = state.ship.x * 0.4 + rock.x * 0.6;
-      focusY = state.ship.y * 0.4 + rock.y * 0.6;
+      focusX = state.ship.x;
+      focusY = state.ship.y;
       zoom = 1.72;
     }
   }
@@ -2350,7 +2350,7 @@ function pushNotice(state, text, kind) {
   if (state.notices.length > 3) state.notices.splice(0, state.notices.length - 3);
 }
 
-/** Minecraft-style: the first time a recipe becomes affordable, say so and point at F. */
+/** The first time a count becomes affordable, say so and point at F. */
 function announceCrafts(state) {
   if (!state.knownCrafts) state.knownCrafts = {};
   for (const recipe of RECIPES) {
@@ -2371,8 +2371,11 @@ export function updatePhysics(state, dt, input) {
   const brake = input.brake();
   const strafe = input.strafe();
   ship.thrusting = thrust > 0 && !brake;
+  ship.braking = !!brake && !thrust;
   if (ship.thrusting) ship.thrust = Math.min(1, (ship.thrust || 0) + dt / 0.34);
   else ship.thrust = Math.max(0, (ship.thrust || 0) - dt / 0.72);
+  if (ship.braking) ship.reverse = Math.min(1, (ship.reverse || 0) + dt / 0.28);
+  else ship.reverse = Math.max(0, (ship.reverse || 0) - dt / 0.5);
 
   const accel = 520;
   const reverseAccel = accel * 1.45;
@@ -2519,7 +2522,7 @@ export function idle(state, dt, audio) {
   if (state.mode === 'dead' && state.deathReveal > 0) {
     state.deathReveal = Math.max(0, state.deathReveal - dt);
   }
-  state.ship.aim += dt * 0.15;
+  if (state.mode === 'title') state.ship.aim += dt * 0.15;
   for (const rock of state.asteroids) rock.rot += rock.spin * dt;
   tickStructures(state, dt);
   if (state.mode === 'extract') updateMissiles(state, dt, audio);
@@ -2961,6 +2964,7 @@ export function buildHudFields(state) {
         : tutorialHint(state),
     hotbar: buildHotbar(state),
     mainStar: mainStarView(state.seed, state.clock),
+    starClock: countItem(state, 'star-clock') > 0,
     compass: hullHas(state, 'compass')
       ? {
           layer: state.layer,
@@ -2974,8 +2978,8 @@ export function buildFabFields(state) {
   const recipes = RECIPES_FOR_FAB(state);
   return {
     fabCopy: countItem(state, 'bench')
-      ? 'The bench is in your hold, so the rest of the bay is open. Each recipe is still a count of materials.'
-      : 'By hand you can make Prism glass and a Fabrication bench. Carry the bench to fabricate the harder pieces.',
+      ? 'The Fabrication Tool is in your hold, so the rest of the bay is open. Each entry is still a count of materials.'
+      : 'Without the tool, the bay only runs Prism glass and the Fabrication Tool. Carry the tool to open the rest of the index.',
     recipes,
     fabBankLabel: '',
     fabDriveLabel: '',

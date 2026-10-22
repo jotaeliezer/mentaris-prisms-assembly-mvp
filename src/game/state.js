@@ -5,7 +5,7 @@ import { CARGO_SIZE, emptyStacks } from './items.js';
 
 /** Layer area is 60% larger than the 72000×52000 belt. Linear size is sqrt(1.6). */
 export const WORLD = { w: 91000, h: 65800 };
-export const SHIP_RADIUS = 28;
+export const SHIP_RADIUS = 36;
 export const APPROACH = 340;
 /** Inclusive stack. Layer 0 sits in the middle; Q/E stop at the ends. */
 export const LAYER_MIN = -250;
@@ -271,6 +271,8 @@ export function createState() {
       sprite: DEFAULT_SHIP,
       thrusting: false,
       thrust: 0,
+      braking: false,
+      reverse: 0,
       hp: 100,
       maxHp: 100,
       maxSpeed: 430,

@@ -55,6 +55,37 @@ export function syncFlame(gfx, ship, shipScale = 1, time = 0) {
   gfx.fillTriangle(-2, 14, 0, 14 + length * 0.38, 2, 14);
 }
 
+/**
+ * Two small flames on the wing leading edges, pointing forward, while reversing.
+ * Local +Y is the tail, so these shoot toward -Y.
+ */
+export function syncReverse(gfx, ship, shipScale = 1, time = 0) {
+  gfx.clear();
+  const burn = ship && ship.reverse ? ship.reverse : 0;
+  if (!ship || burn < 0.04) {
+    gfx.setVisible(false);
+    return;
+  }
+  gfx.setVisible(true);
+  gfx.setPosition(ship.x, ship.y);
+  gfx.setRotation(ship.aim + Math.PI / 2);
+  gfx.setScale(shipScale);
+  const flick = 0.84 + Math.sin(time * 40) * 0.1;
+  const length = (7 + burn * 16) * flick;
+  for (const side of [-1, 1]) {
+    const wag = Math.sin(time * 34 + side) * 1.4 * burn;
+    const x = side * 27;
+    const y = -4;
+    const tip = y - length;
+    gfx.fillStyle(0xff9a3c, 0.28 * burn);
+    gfx.fillTriangle(x - 4.5, y, x + wag, tip - 2, x + 4.5, y);
+    gfx.fillStyle(0xffd27a, 0.7 * flick);
+    gfx.fillTriangle(x - 2.4, y + 1, x + wag * 0.4, tip, x + 2.4, y + 1);
+    gfx.fillStyle(0xfff6df, 0.95);
+    gfx.fillTriangle(x - 1.1, y + 1, x, y - length * 0.45, x + 1.1, y + 1);
+  }
+}
+
 /** Direction-specific rock/ship envelopes for kind:"layer" only. */
 export function layerTransitionFx(state) {
   const tr = state.transition;

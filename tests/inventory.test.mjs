@@ -454,8 +454,8 @@ const slotPictures = [
   ['arc-missile', '/images/bullets/bullet_missile.png', 'Ar'],
   ['pulse-lance', '/images/bullets/bullet_laser.png', 'Pu'],
   ['flare', '/images/bullets/bullet_fire1.png', 'Sf'],
-  ['glass', '/images/items/glass.svg', 'Gl'],
-  ['repair', '/images/items/repair.svg', 'Rp'],
+  ['glass', '/images/items/glass.png', 'Gl'],
+  ['repair', '/images/items/repair.png', 'Rp'],
 ];
 const iconState = createState();
 slotPictures.forEach(([id, icon, mark], index) => {
@@ -487,12 +487,12 @@ assert(
   'cargo weapon uses the bullet picture'
 );
 assert(
-  iconSnap.cargoHold.slots[2].icon === '/images/items/iron.svg' && iconSnap.cargoHold.slots[2].mark === 'Fe',
-  'alloy cargo uses its sticker'
+  iconSnap.cargoHold.slots[2].icon === '/images/items/iron.png' && iconSnap.cargoHold.slots[2].mark === 'Fe',
+  'alloy cargo uses its picture'
 );
 assert(
-  iconSnap.cargoHold.slots[3].icon === '/images/items/blink.svg' && iconSnap.cargoHold.slots[3].mark === 'Bl',
-  'ability cargo uses its sticker'
+  iconSnap.cargoHold.slots[3].icon === '/images/items/blink.png' && iconSnap.cargoHold.slots[3].mark === 'Bl',
+  'ability cargo uses its picture'
 );
 const heldOre = createState();
 assert(addItem(heldOre, 'pale', 2) === 0, 'pale ore for the held stack');

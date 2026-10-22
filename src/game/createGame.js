@@ -17,6 +17,11 @@ export function createGame(bridge, parent = 'game-root') {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
+    render: {
+      antialias: true,
+      pixelArt: false,
+      roundPixels: false,
+    },
     callbacks: {
       preBoot(game) {
         game.registry.set('bridge', bridge);
