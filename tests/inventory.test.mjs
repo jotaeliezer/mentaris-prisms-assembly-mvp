@@ -13,6 +13,7 @@ import {
   inventoryClick,
   inventoryDrag,
   moveCargoToHotbar,
+  shiftOne,
   slotIcon,
 } from '../src/game/items.js';
 import {
@@ -685,5 +686,20 @@ for (const other of arc.asteroids) {
 }
 assert(!useSelectedHotbar(arc, null), 'an arc missile cannot reach a rock 900 away');
 assert(countItem(arc, 'arc-missile') === 1, 'a shot with no rock in range is not spent');
+
+const pour = createState();
+startMission(pour, 'roam', 'pour-ore', null);
+assert(addItem(pour, 'pale', 6) === 0, 'pale ore for the cargo wheel');
+const paleSlot = pour.hotbar.findIndex((stack) => stack && stack.id === 'pale');
+assert(paleSlot >= 0, 'pale ore starts on the hotbar');
+assert(shiftOne(pour, paleSlot, -1), 'the first ore enters cargo');
+const paleLanded = pour.cargoSlots.findIndex((slot) => slot && slot.id === 'pale');
+assert(paleLanded >= 0 && pour.cargoSlots[paleLanded].count === 1, 'one pale ore lands in a cargo slot');
+for (let n = 0; n < 4; n += 1) assert(shiftOne(pour, paleSlot, -1), 'the next ore follows the first');
+assert(pour.cargoSlots[paleLanded].count === 5, 'later ore stays in the first cargo slot');
+assert(
+  pour.cargoSlots.filter((slot) => slot && slot.id === 'pale').length === 1,
+  'the same ore does not scatter across cargo'
+);
 
 console.log('inventory tests ok');

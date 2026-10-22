@@ -5,6 +5,7 @@ import {
   applyCameraPolish,
   layerTransitionFx,
   rockDisplayScale,
+  recoilOffset,
   syncAimArc,
   syncBeacons,
   syncFlame,
@@ -1189,23 +1190,22 @@ export default class PlayScene extends Phaser.Scene {
     this.bridge.setSnapshot(patch);
   }
 
-  /** Screen position of the rock being extracted, so the numpad can sit clear of it. */
+  /** Screen position of the ship, so the numpad sits just behind the hull. */
   extractAnchor() {
-    if (this.state.mode !== 'extract' || !this.state.extractRockId) return null;
-    const rock = this.state.asteroids.find((item) => item.alive && item.id === this.state.extractRockId);
-    if (!rock) return null;
+    if (this.state.mode !== 'extract') return null;
     const cam = this.cameras.main;
     if (!cam || !cam.worldView) return null;
     const zoomX = cam.zoomX || cam.zoom || 1;
     const zoomY = cam.zoomY || cam.zoom || 1;
-    const sprite = this.rockSprites.get(rock.id);
-    const base = sprite
-      ? Math.max(sprite.displayWidth, sprite.displayHeight) * 0.5
-      : rock.size * 0.45;
+    const ship = this.state.ship;
+    const shipR = this.shipSprite
+      ? Math.max(this.shipSprite.displayWidth, this.shipSprite.displayHeight) * 0.5
+      : 50;
     return {
-      x: (rock.x - cam.worldView.x) * zoomX,
-      y: (rock.y - cam.worldView.y) * zoomY,
-      r: base * Math.max(zoomX, zoomY),
+      sx: (ship.x - cam.worldView.x) * zoomX,
+      sy: (ship.y - cam.worldView.y) * zoomY,
+      aim: ship.aim || 0,
+      shipR: shipR * Math.max(zoomX, zoomY),
       vw: this.scale.width,
       vh: this.scale.height,
     };
@@ -1448,7 +1448,8 @@ export default class PlayScene extends Phaser.Scene {
         this.shipSprite.setTexture(key);
         this.shipSprite.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
       }
-      this.shipSprite.setPosition(ship.x, ship.y);
+      const posed = recoilOffset(ship);
+      this.shipSprite.setPosition(posed.x, posed.y);
       this.shipSprite.setRotation(ship.aim + Math.PI / 2);
       const draw = hullDraw(this, key, SHIP_DRAW * shipScale);
       this.shipSprite.setDisplaySize(draw.w, draw.h);

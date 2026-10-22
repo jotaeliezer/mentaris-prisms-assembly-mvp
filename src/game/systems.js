@@ -1191,11 +1191,45 @@ function launchMissile(state, rock, audio, heavy, face, soundKey) {
   });
   if (audio && soundKey && typeof audio.playShot === 'function') audio.playShot(soundKey);
   else if (audio) audio.shot();
+  kickRecoil(state);
 }
 
 function rockYieldSize(rock) {
   if (rock.baseRadius) return rock.baseRadius / 0.34;
   return rock.size;
+}
+
+function kickRecoil(state) {
+  if (state.ship) state.ship.recoil = 1;
+}
+
+function decayRecoil(state, dt) {
+  const ship = state.ship;
+  if (ship && ship.recoil > 0) ship.recoil = Math.max(0, ship.recoil - dt * 9);
+}
+
+function playImpact(audio) {
+  if (audio && typeof audio.impact === 'function') audio.impact();
+  else if (audio && typeof audio.hit === 'function') audio.hit();
+}
+
+/** Arith Belt impact debris: a short pale burst at the hit. */
+function impactDebris(state, x, y) {
+  for (let i = 0; i < 12; i += 1) {
+    const angle = state.rng() * Math.PI * 2;
+    const speed = 112 + state.rng() * 208;
+    state.particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.18 + state.rng() * 0.14,
+      size: 1.2 + state.rng() * 1.2,
+      a: 0.55 + state.rng() * 0.4,
+      color: '#e8ecff',
+    });
+  }
+  if (state.particles.length > 180) state.particles.splice(0, state.particles.length - 180);
 }
 
 /** Same particle list the belt already uses, packed so the hit reads as an explosion. */
@@ -1268,6 +1302,7 @@ function launchExtractShot(state, rock, audio) {
     single: 1,
   });
   if (audio && typeof audio.shot === 'function') audio.shot();
+  kickRecoil(state);
 }
 
 /** Correct extract: two shrinks, then the third answer destroys the rock and spills its ore. */
@@ -1306,6 +1341,8 @@ function acceptAnswer(state, rock, audio) {
 /** The extract bullet has reached the rock. Shrink, or destroy on the third hit, then show the next question. */
 function applyExtractImpact(state, rock, audio) {
   if (!rock || !rock.pendingExtract) return;
+  impactDebris(state, rock.x, rock.y);
+  playImpact(audio);
   const pending = rock.pendingExtract;
   rock.pendingExtract = null;
   const before = pending.before;
@@ -1401,6 +1438,8 @@ function destroyAsteroid(state, rock, audio, owner) {
         color: i % 3 === 0 ? '#ffb15a' : '#d7f6ff',
       });
     }
+    impactDebris(state, rock.x, rock.y);
+    playImpact(audio);
   }
   const mined = rock.mineral || 'pale';
   const count = mineralYield({ mineral: mined }, rock.size, rock.difficulty);
@@ -2252,10 +2291,17 @@ export function tickIntro(state, dt) {
 }
 
 function updateParticles(state, dt) {
+  const damp = Math.max(0, 1 - dt * 2.8);
+  const fade = Math.max(0, 1 - dt * 3.6);
   for (const bit of state.particles) {
     bit.x += bit.vx * dt;
     bit.y += bit.vy * dt;
     bit.life -= dt;
+    if (bit.a != null) {
+      bit.vx *= damp;
+      bit.vy *= damp;
+      bit.a *= fade;
+    }
   }
   state.particles = state.particles.filter((bit) => bit.life > 0);
 }
@@ -2497,6 +2543,7 @@ export function updatePhysics(state, dt, input) {
 }
 
 export function updateFly(state, dt, ctx) {
+  decayRecoil(state, dt);
   const { input, audio, view } = ctx;
   const ship = state.ship;
   // Prefer Phaser camera world points (set by PlayScene.syncPointerWorld); fall back to CSS math.
@@ -2603,6 +2650,7 @@ export function updateTransition(state, dt) {
 }
 
 export function idle(state, dt, audio) {
+  decayRecoil(state, dt);
   state.clock += dt;
   if (state.mode === 'dead' && state.deathReveal > 0) {
     state.deathReveal = Math.max(0, state.deathReveal - dt);

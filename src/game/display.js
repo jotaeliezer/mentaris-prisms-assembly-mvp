@@ -37,8 +37,9 @@ export function syncFlame(gfx, ship, shipScale = 1, time = 0) {
     gfx.setVisible(false);
     return;
   }
+  const posed = recoilOffset(ship);
   gfx.setVisible(true);
-  gfx.setPosition(ship.x, ship.y);
+  gfx.setPosition(posed.x, posed.y);
   gfx.setRotation(ship.aim + Math.PI / 2);
   gfx.setScale(shipScale);
 
@@ -66,8 +67,9 @@ export function syncReverse(gfx, ship, shipScale = 1, time = 0) {
     gfx.setVisible(false);
     return;
   }
+  const posed = recoilOffset(ship);
   gfx.setVisible(true);
-  gfx.setPosition(ship.x, ship.y);
+  gfx.setPosition(posed.x, posed.y);
   gfx.setRotation(ship.aim + Math.PI / 2);
   gfx.setScale(shipScale);
   const flick = 0.84 + Math.sin(time * 40) * 0.1;
@@ -166,7 +168,15 @@ export function snapSpriteToScreenPixel(sprite, cam) {
   sprite.y = Math.round(phaseY) / zoomY + cam.scrollY;
 }
 
-/** Small fading dots/sparks — matches legacy js/render.js drawParticles. */
+/** Backward kick, in pixels, matching Arith Belt: recoil 1 shifts about 8px and falls off at 9 per second. */
+export function recoilOffset(ship) {
+  const kick = Math.max(0, ship && ship.recoil ? ship.recoil : 0) * 8.05;
+  if (!ship || kick < 0.05) return { x: ship ? ship.x : 0, y: ship ? ship.y : 0 };
+  return {
+    x: ship.x - Math.cos(ship.aim) * kick,
+    y: ship.y - Math.sin(ship.aim) * kick,
+  };
+}
 export function syncParticles(gfx, particles) {
   gfx.clear();
   for (const bit of particles) {
@@ -175,8 +185,13 @@ export function syncParticles(gfx, particles) {
       typeof bit.color === 'number'
         ? bit.color
         : parseInt(String(bit.color).replace('#', ''), 16) || 0xd7f6ff;
-    gfx.fillStyle(color, Math.max(0, Math.min(1, bit.life)));
-    gfx.fillRect(bit.x, bit.y, bit.size, bit.size);
+    if (bit.a != null) {
+      gfx.fillStyle(color, Math.max(0, Math.min(1, bit.a)));
+      gfx.fillCircle(bit.x, bit.y, Math.max(0.8, bit.size));
+    } else {
+      gfx.fillStyle(color, Math.max(0, Math.min(1, bit.life)));
+      gfx.fillRect(bit.x, bit.y, bit.size, bit.size);
+    }
   }
 }
 

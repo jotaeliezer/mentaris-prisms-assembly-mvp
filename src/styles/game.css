@@ -342,7 +342,7 @@ button:disabled,
   .hint-caret { animation: none; }
 }
 
-/* Quarter-circle hotbar in the bottom-left. Cargo opens as a wider arc. */
+/* Corner-hugging hotbar. Cargo opens on the bottom-right quarter of a circle centered inside the screen. */
 .hotbar-dock {
   position: absolute;
   right: 0;

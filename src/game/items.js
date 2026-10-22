@@ -509,6 +509,23 @@ export function moveHotbarToCargo(state, hotbarIndex) {
 }
 
 /** Move a single piece between one hotbar slot and cargo. dir 1 pulls from cargo; dir -1 sends one out. */
+function cargoDepositIndex(state, id) {
+  if (!state.cargoDrop || typeof state.cargoDrop !== 'object') state.cargoDrop = {};
+  const remembered = state.cargoDrop[id];
+  if (Number.isInteger(remembered) && remembered >= 0 && remembered < state.cargoSlots.length) {
+    const slot = state.cargoSlots[remembered];
+    if (!slot || (slot.id === id && slot.count < STACK_MAX)) return remembered;
+  }
+  const room = [];
+  state.cargoSlots.forEach((slot, index) => {
+    if (!slot || (slot.id === id && slot.count < STACK_MAX)) room.push(index);
+  });
+  if (!room.length) return -1;
+  const pick = room[Math.floor(Math.random() * room.length)];
+  state.cargoDrop[id] = pick;
+  return pick;
+}
+
 export function shiftOne(state, hotbarIndex, dir) {
   ensureInventory(state);
   if (!Number.isInteger(hotbarIndex) || hotbarIndex < 0 || hotbarIndex >= state.hotbar.length) return false;
@@ -516,12 +533,8 @@ export function shiftOne(state, hotbarIndex, dir) {
   if (!stack || !stack.id) return false;
   if (dir < 0) {
     if (stack.count <= 0) return false;
-    const room = [];
-    state.cargoSlots.forEach((slot, index) => {
-      if (!slot || (slot.id === stack.id && slot.count < STACK_MAX)) room.push(index);
-    });
-    if (!room.length) return false;
-    const pick = room[Math.floor(Math.random() * room.length)];
+    const pick = cargoDepositIndex(state, stack.id);
+    if (pick < 0) return false;
     const dest = state.cargoSlots[pick];
     if (!dest) state.cargoSlots[pick] = { id: stack.id, count: 1, ...(stack.level ? { level: stack.level } : {}) };
     else dest.count += 1;
@@ -530,12 +543,16 @@ export function shiftOne(state, hotbarIndex, dir) {
     return true;
   }
   if (stack.count >= STACK_MAX) return false;
-  const sources = [];
-  state.cargoSlots.forEach((slot, index) => {
-    if (slot && slot.id === stack.id && slot.count > 0) sources.push(index);
-  });
-  if (!sources.length) return false;
-  const pick = sources[Math.floor(Math.random() * sources.length)];
+  const remembered = state.cargoDrop && state.cargoDrop[stack.id];
+  let pick = -1;
+  if (Number.isInteger(remembered)) {
+    const slot = state.cargoSlots[remembered];
+    if (slot && slot.id === stack.id && slot.count > 0) pick = remembered;
+  }
+  if (pick < 0) {
+    pick = state.cargoSlots.findIndex((slot) => slot && slot.id === stack.id && slot.count > 0);
+  }
+  if (pick < 0) return false;
   const src = state.cargoSlots[pick];
   src.count -= 1;
   if (src.count <= 0) state.cargoSlots[pick] = null;

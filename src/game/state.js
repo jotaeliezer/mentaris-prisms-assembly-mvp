@@ -273,6 +273,7 @@ export function createState() {
       thrust: 0,
       braking: false,
       reverse: 0,
+      recoil: 0,
       hp: 100,
       maxHp: 100,
       maxSpeed: 430,

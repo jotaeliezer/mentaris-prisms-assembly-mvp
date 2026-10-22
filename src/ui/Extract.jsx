@@ -3,43 +3,25 @@ const PANEL_W = 340;
 const PANEL_H = 430;
 
 function placeExtractPanel(anchor) {
-  if (!anchor || !anchor.vw || !anchor.vh) {
+  const vw = anchor && anchor.vw ? anchor.vw : 1280;
+  const vh = anchor && anchor.vh ? anchor.vh : 720;
+  const width = Math.min(PANEL_W, Math.max(180, vw - 24));
+  const height = Math.min(PANEL_H, Math.max(220, vh - 24));
+  if (!anchor || !Number.isFinite(anchor.sx) || !Number.isFinite(anchor.sy)) {
     return { left: 16, top: 72 };
   }
-  const vw = anchor.vw;
-  const vh = anchor.vh;
-  const bottomGap = 112;
-  const width = Math.min(PANEL_W, vw - 108);
-  const height = Math.min(PANEL_H, vh - bottomGap - 16);
-  const spots = [
-    [16, 16],
-    [16, vh - height - bottomGap],
-    [vw - width - 96, 16],
-    [vw - width - 96, vh - height - bottomGap],
-    [16, (vh - height) / 2],
-    [vw - width - 96, (vh - height) / 2],
-    [(vw - width) / 2, 16],
-    [(vw - width) / 2, vh - height - bottomGap],
-  ];
-  function hitsRock(left, top) {
-    const nearestX = Math.max(left, Math.min(anchor.x, left + width));
-    const nearestY = Math.max(top, Math.min(anchor.y, top + height));
-    return Math.hypot(anchor.x - nearestX, anchor.y - nearestY) < anchor.r + 28;
-  }
-  const open = spots.filter(([left, top]) => {
-    if (left < 8 || top < 8) return false;
-    if (left + width > vw - 8 || top + height > vh - 8) return false;
-    return !hitsRock(left, top);
-  });
-  const ranked = (open.length ? open : spots).slice().sort((a, b) => {
-    const da = Math.hypot(a[0] + width / 2 - anchor.x, a[1] + height / 2 - anchor.y);
-    const db = Math.hypot(b[0] + width / 2 - anchor.x, b[1] + height / 2 - anchor.y);
-    return db - da;
-  });
-  const [left, top] = ranked[0];
+  const aim = anchor.aim || 0;
+  const dx = -Math.cos(aim);
+  const dy = -Math.sin(aim);
+  const hx = width / 2;
+  const hy = height / 2;
+  const along = Math.min(hx / Math.max(0.2, Math.abs(dx)), hy / Math.max(0.2, Math.abs(dy)));
+  const gap = (anchor.shipR || 48) + 28;
+  const cx = anchor.sx + dx * (gap + along);
+  const cy = anchor.sy + dy * (gap + along);
   return {
-    left: Math.max(8, Math.min(left, vw - width - 8)),
-    top: Math.max(8, Math.min(top, vh - height - bottomGap)),
+    left: Math.max(8, Math.min(cx - hx, vw - width - 8)),
+    top: Math.max(8, Math.min(cy - hy, vh - height - 8)),
   };
 }
 

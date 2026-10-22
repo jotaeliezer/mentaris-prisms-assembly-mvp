@@ -16,40 +16,96 @@ function typewriterPlan(length) {
   return { interval: 28, chunk: Math.ceil(length / ticks) };
 }
 
-function arcPoint(angleDeg, radius) {
-  const rad = (angleDeg * Math.PI) / 180;
+/** t=0 is on the bottom edge, t=1 is on the right edge. The middle bows toward the corner. */
+function quarterPoint(t, radius, center) {
+  const phi = Math.PI * (1.5 - t * 0.5);
   return {
-    right: Math.cos(rad) * radius,
-    bottom: Math.sin(rad) * radius,
+    right: center + Math.cos(phi) * radius,
+    bottom: center + Math.sin(phi) * radius,
   };
 }
 
-function hotbarPose(index, selected, count, open) {
+/**
+ * Cargo sits on the bottom-right quarter of a circle whose center is inside the
+ * screen. Bands are spaced so slot centers never land on each other. The hotbar
+ * uses two shorter arcs just inside that fan.
+ */
+function arcLayout(viewW, viewH) {
+  const edge = 28;
+  const cargoPitch = 52;
+  const cargoRadial = 56;
+  const hotPitch = 60;
+  const hotRadial = 64;
+  const hotClear = 58;
+  let best = null;
+  for (let bands = 2; bands <= 5; bands += 1) {
+    const per = Math.ceil(40 / bands);
+    const minInner = (cargoPitch * Math.max(1, per - 1)) / (Math.PI / 2);
+    const hotInnerMin = (hotPitch * 4) / (Math.PI / 2);
+    const cargoInner = Math.max(minInner, hotInnerMin + hotRadial + hotClear);
+    const cargoOuter = cargoInner + (bands - 1) * cargoRadial;
+    if (!best || cargoOuter < best.cargoOuter) {
+      best = {
+        bands,
+        cargoInner,
+        cargoOuter,
+        hotOuter: cargoInner - hotClear,
+        hotRadial,
+        cargoRadial,
+      };
+    }
+  }
+  const reach = best.cargoOuter + edge + 24;
+  const fit = Math.min(1, (Math.max(viewW, 320) - 8) / reach, (Math.max(viewH, 320) - 8) / reach);
+  const scale = (value) => value * fit;
+  return {
+    bands: best.bands,
+    center: scale(best.cargoOuter + edge),
+    cargoOuter: scale(best.cargoOuter),
+    cargoRadial: scale(best.cargoRadial),
+    hotOuter: scale(best.hotOuter),
+    hotRadial: scale(best.hotRadial),
+    fit,
+    closedRadius: 172,
+    closedCenter: 194,
+  };
+}
+
+function hotbarPose(index, selected, count, open, layout) {
   const n = Math.max(count, 1);
   if (open) {
     const row = index < 5 ? 0 : 1;
     const along = index % 5;
     const t = along / 4;
-    const angle = 22 + 48 * t;
-    const scale = index === selected ? 1.2 : 1;
-    return { ...arcPoint(angle, row === 0 ? 292 : 244), scale, visible: true };
+    const radius = layout.hotOuter - row * layout.hotRadial;
+    return {
+      ...quarterPoint(t, radius, layout.center),
+      scale: (index === selected ? 1.08 : 1) * layout.fit,
+      visible: true,
+      z: index === selected ? 7 : 5,
+    };
   }
   let delta = index - selected;
   if (delta > n / 2) delta -= n;
   if (delta < -n / 2) delta += n;
-  const angle = 50 + delta * (360 / n);
-  const visible = angle > 4 && angle < 86;
-  const scale = delta === 0 ? 1.62 : Math.abs(delta) === 1 ? 1.02 : 0.86;
-  return { ...arcPoint(angle, 158), scale, visible };
+  const t = 0.5 + delta * 0.28;
+  const visible = t > 0.02 && t < 0.98;
+  const scale = delta === 0 ? 1.42 : Math.abs(delta) === 1 ? 1 : 0.9;
+  return {
+    ...quarterPoint(t, layout.closedRadius, layout.closedCenter),
+    scale,
+    visible,
+    z: delta === 0 ? 6 : 3,
+  };
 }
 
-function cargoPose(index, count) {
-  const rows = Math.max(1, Math.ceil(count / 2));
-  const along = Math.floor(index / 2);
-  const band = index % 2;
-  const t = rows <= 1 ? 0.5 : along / (rows - 1);
-  const angle = 16 + 58 * t;
-  return { ...arcPoint(angle, band === 0 ? 430 : 340), scale: 0.96, visible: true };
+function cargoPose(index, layout) {
+  const band = index % layout.bands;
+  const along = Math.floor(index / layout.bands);
+  const per = Math.ceil(40 / layout.bands);
+  const t = per <= 1 ? 0.5 : along / (per - 1);
+  const radius = layout.cargoOuter - band * layout.cargoRadial;
+  return { ...quarterPoint(t, radius, layout.center), scale: layout.fit, visible: true, z: 2 };
 }
 
 function ringStyle(pose) {
@@ -58,9 +114,25 @@ function ringStyle(pose) {
     bottom: pose.bottom,
     opacity: pose.visible ? 1 : 0,
     pointerEvents: pose.visible ? 'auto' : 'none',
-    zIndex: Math.round(pose.scale * 10),
+    zIndex: pose.z || Math.round(pose.scale * 10),
     '--slot-scale': String(pose.scale),
   };
+}
+
+function useViewport() {
+  const [size, setSize] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    h: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
+  useEffect(() => {
+    function onResize() {
+      setSize({ w: window.innerWidth, h: window.innerHeight });
+    }
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return size;
 }
 
 function SlotFace({ icon, mark, color, iconFilter }) {
@@ -146,6 +218,8 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const hullSlots = hull && Array.isArray(hull.slots) ? hull.slots : [];
   const showHull = !!(hull && hull.visible);
   const [pointer, setPointer] = useState(null);
+  const view = useViewport();
+  const layout = arcLayout(view.w, view.h);
 
   function inventoryGesture(area) {
     return cargoOpen || !!snapshot.held || area === 'hull';
@@ -378,7 +452,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
             </div>
           ) : null}
           {cargoOpen && snapshot.held ? (
-            <p className="cargo-held">
+            <p className="cargo-held" style={{ right: layout.center, bottom: layout.center }}>
               Holding {snapshot.held.name}
               {snapshot.held.count > 1 ? ' × ' + snapshot.held.count : ''}. Click a slot to place it.
             </p>
@@ -392,7 +466,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                   className={`hotbar-slot ring-slot cargo-slot${slot.available ? '' : ' empty'}${
                     drag && drag.area === 'cargo' && drag.index === slot.index ? ' lifting' : ''
                   }`}
-                  style={ringStyle(cargoPose(slot.index, cargoSlots.length))}
+                  style={ringStyle(cargoPose(slot.index, layout))}
                   aria-label={slot.available ? slot.label : 'Empty cargo'}
                   {...slotProps('cargo', slot)}
                 >
@@ -412,7 +486,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                 className={`hotbar-slot ring-slot${slot.selected ? ' selected' : ''}${slot.available ? '' : ' empty'}${
                   drag && drag.area === 'hotbar' && drag.index === slot.index ? ' lifting' : ''
                 }`}
-                style={ringStyle(hotbarPose(slot.index, hotbar.selected || 0, slots.length, cargoOpen))}
+                style={ringStyle(hotbarPose(slot.index, hotbar.selected || 0, slots.length, cargoOpen, layout))}
                 aria-pressed={slot.selected ? 'true' : 'false'}
                 aria-label={
                   slot.available ? slot.label + ', slot ' + slot.key : 'Empty slot ' + slot.key

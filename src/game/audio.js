@@ -149,6 +149,10 @@ export function createAudio(scene) {
     hit() {
       playFirst(["impact_thud", "impact", "crash"]);
     },
+    impact() {
+      if (playKey("impact_thud", { volume: 0.4 })) return true;
+      return api.hit();
+    },
     damaged() {
       playKey("ship_damaged");
     },
