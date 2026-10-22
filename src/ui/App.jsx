@@ -209,7 +209,7 @@ export default function App({ bridge }) {
           {(snapshot.notices || [])
             .filter((note) => note.kind !== 'loot')
             .map((note) => (
-            <div key={note.id} className="craft-toast">
+            <div key={note.id} className={`craft-toast${note.kind === 'milestone' ? ' milestone-toast' : ''}`}>
               {note.text}
             </div>
           ))}

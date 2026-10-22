@@ -17,6 +17,8 @@ import {
 } from './state.js';
 import { buildProgressSnapshot, decodeBanks, decodeClusters } from '../save/snapshot.js';
 import { mainStarView } from './star.js';
+import { damageAlien, ensureLair, nearestAlien, tickAliens } from './aliens.js';
+import { grantMilestone, reviewMilestones } from './milestones.js';
 import {
   dieClaimKey,
   eventOnLayer,
@@ -452,6 +454,7 @@ export function ensureScenery(state) {
     if (rng() < 0.35) place('stronghold', 'stronghold.png', 160);
     if (rng() < 0.4) place('comet', 'comet.png', 70);
   }
+  ensureLair(state);
 }
 
 function spillFind(state, itemId, x, y) {
@@ -477,6 +480,7 @@ function tickSpaceObjects(state, dt) {
     }
     const dist = Math.hypot(ship.x - object.x, ship.y - object.y);
     if (object.kind === 'debris' && dist < object.r) {
+      if (state.quiet > 0) grantMilestone(state, 'quiet-debris');
       object.touch = (object.touch || 0) + dt;
       if (object.touch > 1.6 && object.lootLeft > 0) {
         object.touch = 0;
@@ -505,6 +509,7 @@ function tickSpaceObjects(state, dt) {
       object.taken = true;
       const parts = ['gland', 'shard', 'lamp', 'chart', 'core'];
       spillFind(state, parts[Math.floor(state.rng() * parts.length)], object.x, object.y);
+      grantMilestone(state, 'stronghold');
     }
   }
 }
@@ -684,6 +689,7 @@ export function changeLayer(state, dir, audio) {
       }
       state.status = dir > 0 ? 'Rose to layer ' + next + '.' : 'Dropped to layer ' + next + '.';
       state.statusTime = 2.4;
+      if (Math.abs(next) >= 3) grantMilestone(state, 'layer-far');
     },
     { kind: 'layer', prevAsteroids, prevDrops },
     audio
@@ -810,6 +816,12 @@ export function resumeAssembly(state, progress, audio, assemblyId) {
   if (typeof ship.sprite === 'string' && ship.sprite) state.ship.sprite = ship.sprite;
   state.ship.hp = Math.min(state.ship.maxHp, state.ship.hp);
   if (Number.isFinite(Number(progress.clock))) state.clock = Number(progress.clock);
+  state.localFlightId = typeof progress.localFlightId === 'string' ? progress.localFlightId : '';
+  state.milestones = progress.milestones && typeof progress.milestones === 'object' ? { ...progress.milestones } : {};
+  state.aliens = Array.isArray(progress.aliens) ? progress.aliens.map((alien) => ({ ...alien })) : [];
+  state.alienShots = [];
+  state.alienNext = Number(progress.alienNext) || 0;
+  state.starWasUp = progress.starWasUp === true ? true : progress.starWasUp === false ? false : undefined;
   state.station = progress.station && Array.isArray(progress.station.pieces) ? progress.station : null;
   state.planets = Array.isArray(progress.planets) ? progress.planets : [];
   state.sunBodies = Array.isArray(progress.sunBodies) ? progress.sunBodies : [];
@@ -902,6 +914,16 @@ export function startMission(state, id, seed, audio, assemblyId) {
   state.clock = 0;
   state.seed = cleanSeed(seed);
   state.assemblyId = assemblyId || null;
+  state.localFlightId = '';
+  state.milestones = {};
+  state.aliens = [];
+  state.alienShots = [];
+  state.alienNext = 0;
+  state.starWasUp = undefined;
+  state.planets = [];
+  state.sunBodies = [];
+  state.spaceObjects = [];
+  state.planet = null;
   state.cluster = 1;
   state.layer = 0;
   state.layerBanks = {};
@@ -1754,6 +1776,23 @@ function separateFromBodies(state, audio) {
       if (ship.hp <= 0) breachHull(state, audio, 'The hull broke on a star.');
     }
   }
+  shedStarDust(state);
+}
+
+/** The first pass through a star's halo shakes one mote loose. */
+function shedStarDust(state) {
+  const ship = state.ship;
+  if (!ship || state.mode !== 'fly') return;
+  for (const star of state.sunBodies || []) {
+    if (!star || star.layer !== state.layer || star.shed) continue;
+    const dist = Math.hypot(ship.x - star.x, ship.y - star.y);
+    const kind = star.kind === 'cinder' || star.kind === 'glint' ? star.kind : 'pale';
+    if (dist <= (star.r || 78) + SHIP_RADIUS) continue;
+    if (dist > (star.r || 78) + 160) continue;
+    star.shed = true;
+    spillFind(state, 'dust-' + kind, star.x, star.y + (star.r || 78) + 24);
+    grantMilestone(state, 'star-halo');
+  }
 }
 
 function clickWorld(state, view, click) {
@@ -1806,14 +1845,24 @@ function handleClicks(state, input, view, audio) {
 }
 
 function stepOneMissile(state, missile, dt, onHit) {
+  const hunted =
+    missile.alienId && state.aliens
+      ? state.aliens.find((alien) => alien.id === missile.alienId && !alien.gone && !alien.leaving)
+      : null;
+  if (missile.alienId && !hunted) {
+    missile.life = 0;
+    return;
+  }
   const speed = missile.single ? 1280 : 700;
   missile.life -= dt;
   missile.age += dt;
-  const rock = missile.targetKey
-    ? state.asteroids.find((item) => item.key === missile.targetKey && item.alive)
-    : state.asteroids.find((item) => item.id === missile.targetId && item.alive);
-  const tx = rock ? rock.x : missile.tx;
-  const ty = rock ? rock.y : missile.ty;
+  const rock = hunted
+    ? null
+    : missile.targetKey
+      ? state.asteroids.find((item) => item.key === missile.targetKey && item.alive)
+      : state.asteroids.find((item) => item.id === missile.targetId && item.alive);
+  const tx = hunted ? hunted.x : rock ? rock.x : missile.tx;
+  const ty = hunted ? hunted.y : rock ? rock.y : missile.ty;
   if (!Number.isFinite(tx) || !Number.isFinite(ty)) {
     missile.life = 0;
     if (missile.extract && rock == null) {
@@ -1832,6 +1881,21 @@ function stepOneMissile(state, missile, dt, onHit) {
   missile.vy = Math.sin(heading) * speed;
   missile.x += missile.vx * dt;
   missile.y += missile.vy * dt;
+  if (!missile.extract) {
+    const struck = (state.aliens || []).find(
+      (alien) =>
+        alien &&
+        !alien.gone &&
+        !alien.leaving &&
+        alien.layer === state.layer &&
+        Math.hypot(alien.x - missile.x, alien.y - missile.y) < 42
+    );
+    if (struck) {
+      missile.life = 0;
+      damageAlien(state, struck, missile.power || 1);
+      return;
+    }
+  }
   if (!missile.single) {
     state.particles.push({
       x: missile.x,
@@ -2433,6 +2497,12 @@ export function updateFly(state, dt, ctx) {
   updatePhysics(state, dt, input);
   ensureScenery(state);
   tickSpaceObjects(state, dt);
+  tickAliens(state, dt);
+  if (state.pendingBreach) {
+    const reason = state.pendingBreach;
+    state.pendingBreach = '';
+    breachHull(state, audio, reason);
+  }
   if (audio && typeof audio.syncMotionLoops === 'function') {
     audio.syncMotionLoops(!!ship.thrusting, state.mode === 'fly');
   }
@@ -2498,6 +2568,7 @@ export function updateFly(state, dt, ctx) {
   tickOrePops(state, dt, audio);
   tickFx(state, dt);
   teachFlight(state, dt);
+  reviewMilestones(state);
   state.clock += dt;
   easeCamera(state, dt);
 }
@@ -2773,28 +2844,58 @@ const SHOT_STYLE = {
   'rail-shot': { face: 'bullet_rail.png', sound: 'shot_railbeam', reach: 1200, heavy: true },
 };
 
+function acquireShot(state, reach) {
+  const rock = nearestAsteroid(state, reach);
+  const alien = nearestAlien(state, reach);
+  const rockDist = rock ? Math.hypot(rock.x - state.ship.x, rock.y - state.ship.y) : Infinity;
+  const alienDist = alien ? Math.hypot(alien.x - state.ship.x, alien.y - state.ship.y) : Infinity;
+  if (alien && alienDist <= rockDist) return { alien };
+  if (rock) return { rock };
+  return null;
+}
+
+function launchAt(state, found, audio, heavy, face, soundKey) {
+  if (found.alien) {
+    launchMissile(
+      state,
+      { id: -1, key: '', x: found.alien.x, y: found.alien.y },
+      audio,
+      heavy,
+      face,
+      soundKey
+    );
+    const missile = state.missiles[state.missiles.length - 1];
+    missile.alienId = found.alien.id;
+    missile.targetId = -1;
+    missile.targetKey = '';
+    return;
+  }
+  launchMissile(state, found.rock, audio, heavy, face, soundKey);
+}
+
 function applyUse(state, use, audio) {
   const ship = state.ship;
   if (use === 'shot') {
     const stack = selectedStack(state);
     const style = stack && SHOT_STYLE[stack.id];
     if (!style) return false;
-    const rock = nearestAsteroid(state, style.reach);
-    if (!rock || rock.depleted) {
-      noteStatus(state, 'No rock in range for that weapon.');
+    const found = acquireShot(state, style.reach);
+    if (!found) {
+      noteStatus(state, 'Nothing in range for that weapon.');
       return false;
     }
-    launchMissile(state, rock, audio, !!style.heavy, style.face, style.sound);
+    launchAt(state, found, audio, !!style.heavy, style.face, style.sound);
     return true;
   }
   if (use === 'missile' || use === 'core') {
     const heavy = use === 'core';
-    const rock = nearestAsteroid(state, heavy ? 1200 : 720);
-    if (!rock || rock.depleted) {
-      noteStatus(state, 'No rock in range for that weapon.');
+    const found = acquireShot(state, heavy ? 1200 : 720);
+    if (!found) {
+      noteStatus(state, 'Nothing in range for that weapon.');
       return false;
     }
-    launchMissile(state, rock, null, heavy);
+    launchAt(state, found, null, heavy);
+    if (heavy) grantMilestone(state, 'core-cannon');
     return true;
   }
   if (use === 'flare') {
@@ -2873,6 +2974,7 @@ function applyUse(state, use, audio) {
       noteStatus(state, 'Hull is already full.');
       return false;
     }
+    if (ship.hp < 20) grantMilestone(state, 'low-repair');
     ship.hp = Math.min(ship.maxHp, ship.hp + 40);
     noteStatus(state, 'Repair patch. Hull ' + Math.round(ship.hp) + '/' + ship.maxHp + '.');
     return true;
@@ -2964,7 +3066,7 @@ export function buildHudFields(state) {
         : tutorialHint(state),
     hotbar: buildHotbar(state),
     mainStar: mainStarView(state.seed, state.clock),
-    starClock: countItem(state, 'star-clock') > 0,
+    starClock: true,
     compass: hullHas(state, 'compass')
       ? {
           layer: state.layer,

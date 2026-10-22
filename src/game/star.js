@@ -32,7 +32,7 @@ export function mainStarPhase(seed, seconds) {
   return phase;
 }
 
-/** Up is the half of the turn when a lair would be open. Nothing leaves the lair yet. */
+/** Up is the half of the turn when a lair is open. An alien can leave while the sun is up. */
 export function mainStarUp(seed, seconds) {
   return mainStarPhase(seed, seconds) < 0.5;
 }

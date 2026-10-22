@@ -19,20 +19,22 @@ What is already in the game, then the work that is still only written down. The 
 - Toasts drop in at the top in neon blue. The bottom hint is a larger neon-green line that types itself out. The first "hold W" and "open cargo" lines from `TUTORIAL.md` are in.
 - When the hotbar fills, one toast says to press C. The first rock stays the bottom hint, and the first breach stays the game-over line.
 - Ore and weapon slots show a picture instead of the two-letter mark. Each ore is a smaller copy of its asteroid picture. Weapons reuse the bullet images already in the game. Alloys and abilities still use the two-letter mark. See `FABRICATOR_ICONS.md`.
-- Alien parts can be stored: Spark gland, Grip fiber, Hull shard, Cold lamp, Servo joint, Spike crystal, Alien chart, and Alien core. Each has a picture taken from the alien that drops it. The Core cannon is made at the bench from one Alien core, two Belt iron, and one Prism glass, and that recipe stays hidden until a core is in the hold. No alien is on screen. The main star's name comes from the seed and is shared by every cluster. Its arc is the spawn clock. Up would open a lair, and down would shut it. The lair is not placed yet. See `ALIENS.md`.
+- Alien parts can be stored: Spark gland, Grip fiber, Hull shard, Cold lamp, Servo joint, Spike crystal, Alien chart, and Alien core. Each has a picture taken from the alien that drops it. The Core cannon is made at the bench from one Alien core, two Belt iron, and one Prism glass, and that recipe stays hidden until a core is in the hold. The main star's name comes from the seed and is shared by every cluster. Its arc stays on the flight view. While the sun is up, one alien can leave the lair on the arrival layer. Three hits break it, and a Core cannon hit counts as two. The part falls beside the wreck. See `ALIENS.md`.
+- A flight can be saved from the pause menu onto this browser, with no account. The title lists those flights, and Continue launches the same belt. See the home menu.
+- Milestones. Odd feats, not one per fabrication and not the basic goals. Each one toasts once at the top. A saved flight keeps them. See `MILESTONES.md`.
+- The fabrication card follows the cursor and sits above the bay, instead of inside the scrolling panel.
+- Layer stars sit in the belt. The first pass through a halo shakes loose one mote of that star's dust. Rays are not built yet. See `STARS.md`.
 
 ## Next, easiest first
 
-1. **Free combat commands from `FREE_COMBAT.md`.** Shift dash and hold-Space block, while extract and fabrication stay available. No alien yet, no zoom, no slow motion.
-2. **One alien in the belt.** While the main star is up, place the lair from `SPACE_OBJECT.md` and let one alien out. Use that picture's movement, speed, approach, attack, and drop from `ALIENS.md`. Three hits to break it. A Core cannon hit counts as two. Free combat is the first fight.
-3. **The duel version in `ALIEN_COMBAT.md`.** Zoom, slow motion, Incoming or Open locked when the question appears. Only after free combat is already understandable.
-4. **Star dust and light rays from `STARS.md`.** These are pickups, like ore: fly to a star, fly through the dust or the beam, and store the item. They do not build a station. Hand recipes stay ore only. The first use is one bench recipe that spends Pale dust.
-5. **One more carried station from `STATIONS.md`.** A new hull part that reveals one new recipe list. Not a floating base.
-6. **Achievements.** There is no achievements file. Write one, and show each achievement with the same top toast as `TUTORIAL.md`.
-7. **The floating station frame from `CONSTRUCT.md`.** One anchor on the layer where you place it, plus walls that snap end to end. No fueling dock, gunship, or mega drill yet. The station does not change layer.
-8. **The costly rooms in `CONSTRUCT.md`.** Fueling dock, gunship, mega drill, layer extension, ore vault, and beacon. Each one is a long recipe. Build them only after the frame can hold a joint.
-9. **One small planet from `PLANETS.md`.** The smallest size, about five large asteroids across. The ship can dig a tunnel with a question. A ground base waits until a tunnel exists. Great and vast planets come after the small one works.
-10. **Space objects from `SPACE_OBJECT.md`.** The lair is placed when the first alien leaves it. This step is the rest. Start with the nebula: a large cloud the ship can fly in front of and behind. Then the black hole, the abandoned stronghold, and the smaller objects (comet, debris, ion stream, relay buoy, prism ring). This is the largest set. Do not start it before the planet dig is understandable.
+1. **Free combat commands from `FREE_COMBAT.md`.** Shift dash and hold-Space block, while extract and fabrication stay available. An alien can already be in the belt. Dash and block are the next fight tools. No zoom, no slow motion.
+2. **The duel version in `ALIEN_COMBAT.md`.** Zoom, slow motion, Incoming or Open locked when the question appears. Only after free combat is already understandable.
+3. **The rest of star dust and light rays from `STARS.md`.** One halo mote is already in. Still to build: the drifting cloud, the beams, and one bench recipe that spends Pale dust. Hand recipes stay ore only.
+4. **One more carried station from `STATIONS.md`.** A new hull part that reveals one new recipe list. Not a floating base.
+5. **The floating station frame from `CONSTRUCT.md`.** One anchor on the layer where you place it, plus walls that snap end to end. No fueling dock, gunship, or mega drill yet. The station does not change layer.
+6. **The costly rooms in `CONSTRUCT.md`.** Fueling dock, gunship, mega drill, layer extension, ore vault, and beacon. Each one is a long recipe. Build them only after the frame can hold a joint.
+7. **One small planet from `PLANETS.md`.** The smallest size, about five large asteroids across. The ship can dig a tunnel with a question. A ground base waits until a tunnel exists. Great and vast planets come after the small one works.
+8. **The rest of the space objects from `SPACE_OBJECT.md`.** The lair is on the arrival layer, and debris, the ion stream, the prism ring, the comet, and the stronghold can already be found. Still to build: the nebula, the black hole, and the relay buoy. Do not start that set before the planet dig is understandable.
 
 ## Leave for later
 

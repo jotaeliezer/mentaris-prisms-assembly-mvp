@@ -18,6 +18,8 @@ import {
 import { createInput } from '../input.js';
 import { multiplayer } from '../../multiplayer/session.js';
 import { saveAssembly } from '../../save/cloud.js';
+import { saveLocalFlight } from '../../save/local.js';
+import { mainStarName } from '../star.js';
 import { dropSpriteKey, inventoryClick, inventoryDrag, itemById, itemTint } from '../items.js';
 import { ghostPose, visiblePieces } from '../construct.js';
 import { readPilotName } from '../pilot.js';
@@ -238,8 +240,10 @@ export default class PlayScene extends Phaser.Scene {
     this.wireDigits();
     this.wireLayerKeys();
     this.onPageHide = () => {
-      const id = this.state && this.state.assemblyId;
-      if (!id || !this.state || this.state.mode === 'title') return;
+      if (!this.state || this.state.mode === 'title') return;
+      this.writeLocalFlight();
+      const id = this.state.assemblyId;
+      if (!id) return;
       saveAssembly(id, captureProgress(this.state));
     };
     window.addEventListener('pagehide', this.onPageHide);
@@ -253,7 +257,18 @@ export default class PlayScene extends Phaser.Scene {
     this.publishSnapshot(true);
   }
 
-  /** Decorative props only. Aliens stay out until a spawn clock exists. */
+  writeLocalFlight() {
+    if (!this.state || this.state.mode === 'title') return { ok: false, error: 'Nothing to save.' };
+    const progress = captureProgress(this.state);
+    const saved = saveLocalFlight(progress, {
+      id: this.state.localFlightId || '',
+      name: mainStarName(this.state.seed),
+    });
+    if (saved.ok) this.state.localFlightId = saved.id;
+    return saved;
+  }
+
+  /** A shield and a spare round, left in the belt as scenery. */
   spawnPresenceSprites() {
     const cx = this.state.ship.x;
     const cy = this.state.ship.y;
@@ -317,6 +332,13 @@ export default class PlayScene extends Phaser.Scene {
         this.publishSnapshot(true);
       }),
       bridge.on('saveAndLeave', async () => {
+        const saved = this.writeLocalFlight();
+        if (!saved.ok) {
+          this.state.status = saved.error || 'Could not save on this browser.';
+          this.state.statusTime = 3.4;
+          this.publishSnapshot(true);
+          return;
+        }
         const id = this.state.assemblyId;
         if (id) {
           const result = await saveAssembly(id, captureProgress(this.state));
@@ -327,6 +349,11 @@ export default class PlayScene extends Phaser.Scene {
             return;
           }
         }
+        this.clearFlightInput();
+        returnToTitle(this.state);
+        this.publishSnapshot(true);
+      }),
+      bridge.on('leaveFlight', () => {
         this.clearFlightInput();
         returnToTitle(this.state);
         this.publishSnapshot(true);
@@ -1009,7 +1036,13 @@ export default class PlayScene extends Phaser.Scene {
         const diameter = (body.r || 80) * 2;
         sprite = texture
           ? this.add.image(body.x, body.y, texture)
-          : this.add.circle(body.x, body.y, body.r || 80, body.key && body.key.startsWith('star') ? 0xfff1c2 : 0xc5d0dc, 1);
+          : this.add.circle(
+              body.x,
+              body.y,
+              body.r || 80,
+              body.kind === 'lair' ? 0x241433 : body.key && String(body.key).startsWith('star') ? 0xfff1c2 : 0xc5d0dc,
+              1
+            );
         sprite.setDepth(body.key && String(body.key).startsWith('star') ? 3 : 2);
         if (sprite.setDisplaySize) sprite.setDisplaySize(diameter, diameter);
         this.refreshUiIgnore(sprite);
@@ -1021,6 +1054,50 @@ export default class PlayScene extends Phaser.Scene {
       if (seen.has(id)) continue;
       sprite.destroy();
       this.bodySprites.delete(id);
+    }
+  }
+
+  syncAliens() {
+    if (!this.alienSprites) this.alienSprites = new Map();
+    const aliens = (this.state.aliens || []).filter((alien) => alien && !alien.gone && alien.layer === this.state.layer);
+    const seen = new Set();
+    for (const alien of aliens) {
+      seen.add(alien.id);
+      let sprite = this.alienSprites.get(alien.id);
+      const key = alien.file && this.textures.exists(alien.file) ? alien.file : null;
+      if (!sprite || !sprite.scene) {
+        if (sprite) sprite.destroy();
+        sprite = key
+          ? this.add.image(alien.x, alien.y, key)
+          : this.add.circle(alien.x, alien.y, 28, 0x7dff9a, 1);
+        sprite.setDepth(7);
+        if (sprite.setDisplaySize) sprite.setDisplaySize(84, 84);
+        this.refreshUiIgnore(sprite);
+        this.alienSprites.set(alien.id, sprite);
+      }
+      sprite.setPosition(alien.x, alien.y);
+      if (sprite.setRotation) sprite.setRotation(alien.aim || 0);
+    }
+    for (const [id, sprite] of this.alienSprites) {
+      if (seen.has(id)) continue;
+      sprite.destroy();
+      this.alienSprites.delete(id);
+    }
+    if (!this.alienShotGfx) {
+      this.alienShotGfx = this.add.graphics().setDepth(8);
+      this.refreshUiIgnore(this.alienShotGfx);
+    }
+    const gfx = this.alienShotGfx;
+    gfx.clear();
+    for (const shot of this.state.alienShots || []) {
+      if (shot.layer !== this.state.layer) continue;
+      gfx.fillStyle(shot.color || 0x7dff9a, 1);
+      if (shot.kind === 'ring') {
+        gfx.lineStyle(3, shot.color || 0xff7ab8, 0.9);
+        gfx.strokeCircle(shot.x, shot.y, shot.r || 20);
+      } else {
+        gfx.fillCircle(shot.x, shot.y, shot.r || 6);
+      }
     }
   }
 
@@ -1085,6 +1162,7 @@ export default class PlayScene extends Phaser.Scene {
     }
     this.syncPlates();
     this.syncBodies();
+    this.syncAliens();
     this.syncPilotArrows();
     const mouse = this.inputCtl && this.inputCtl.mouse;
     if (!mouse || !Number.isFinite(mouse.worldX) || !Number.isFinite(mouse.worldY)) return;

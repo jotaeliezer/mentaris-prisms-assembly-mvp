@@ -15,6 +15,7 @@ import {
   signInAccount,
   signOutPilot,
 } from '../save/cloud.js';
+import { deleteLocalFlight, listLocalFlights } from '../save/local.js';
 import SettingsPanel, { DEFAULT_MISSION, DEFAULT_SEED, GearIcon } from './SettingsPanel.jsx';
 import { useMultiplayer } from './SessionControls.jsx';
 
@@ -37,6 +38,7 @@ export default function Title({ bridge }) {
   const [mission, setMission] = useState(DEFAULT_MISSION);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assemblies, setAssemblies] = useState([]);
+  const [localFlights, setLocalFlights] = useState([]);
   const [cloudOn, setCloudOn] = useState(false);
   const [account, setAccount] = useState(null);
   const [authMode, setAuthMode] = useState('');
@@ -62,6 +64,7 @@ export default function Title({ bridge }) {
   }
 
   async function refreshHome() {
+    setLocalFlights(listLocalFlights());
     if (!cloudConfigured()) {
       setCloudOn(false);
       setAccount(null);
@@ -140,6 +143,26 @@ export default function Title({ bridge }) {
     }
     setCloudNote('');
     refreshHome();
+  }
+
+  function continueLocal(row) {
+    if (busy || live.needsShip || live.sessionFull || !row || !row.progress) return;
+    bridge.emit('uiBeep');
+    bridge.emit('startMission', {
+      missionId: row.missionId,
+      seed: row.seed,
+      progress: row.progress,
+    });
+  }
+
+  function removeLocal(id) {
+    if (confirmDelete !== 'local:' + id) {
+      setConfirmDelete('local:' + id);
+      return;
+    }
+    deleteLocalFlight(id);
+    setConfirmDelete('');
+    setLocalFlights(listLocalFlights());
   }
 
   async function beginAssembly(row) {
@@ -322,11 +345,44 @@ export default function Title({ bridge }) {
               onBlur={() => setPilot(writePilotName(pilot))}
             />
           </label>
+          {localFlights.length ? (
+            <div className="assembly-board">
+              <p className="assembly-label">Saved on this browser</p>
+              <ul className="assembly-list">
+                {localFlights.map((row) => (
+                  <li key={row.id} className="assembly-row">
+                    <div className="assembly-copy">
+                      <strong>{row.name}</strong>
+                      <span>
+                        Layer {row.layer} · {row.solved} solved · {row.seed}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn assembly-continue"
+                      disabled={busy || live.needsShip || live.sessionFull}
+                      onClick={() => continueLocal(row)}
+                    >
+                      Continue
+                    </button>
+                    <button
+                      type="button"
+                      className="assembly-delete"
+                      disabled={busy}
+                      onClick={() => removeLocal(row.id)}
+                    >
+                      {confirmDelete === 'local:' + row.id ? 'Confirm' : 'Delete'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {cloudOn && account && !account.signedIn ? (
             <div className="assembly-board">
               <p className="assembly-label">Save</p>
               <p className="assembly-empty">
-                Sign in before you pick an assembly. An account keeps the worlds with you. This browser keeps them here only.
+                An account keeps assemblies with you. A flight can also be saved from the pause menu on this browser, with no sign-in, and launched from the list above.
               </p>
               <div className="auth-actions">
                 <button className="btn btn-primary" type="button" disabled={busy} onClick={useThisBrowser}>

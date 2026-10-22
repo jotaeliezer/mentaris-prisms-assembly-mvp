@@ -2,9 +2,9 @@
 
 Each picture is its own alien. Movement, the way it closes, the attack, the drop, and the place it prefers are fixed to that picture.
 
-The eight drops are items. They can sit in the hotbar or the cargo. The Core cannon is a bench weapon that spends one Alien core, and that recipe stays hidden until a core is in the hold. No alien is in the belt. Nothing drops a part until a lair opens.
+The eight drops are items. They can sit in the hotbar or the cargo. The Core cannon is a bench weapon that spends one Alien core, and that recipe stays hidden until a core is in the hold. While the main star is up, one alien can be out on the layer you are flying. A broken alien drops the part in its row.
 
-The main star is on the flight view. Its name comes from the seed, and every cluster in that game shares it. The dot on the arc is the spawn clock. Up means a lair would be open. Down means it would be shut. The lair itself is not placed yet, so the arc does not let an alien out. See `SPACE_OBJECT.md`.
+The main star is on the flight view. Its name comes from the seed, and every cluster in that game shares it. The dot on the arc is the spawn clock. Up means the lair is open. Down means it is shut, and the alien leaves without a drop. The lair is one mouth on the arrival layer of each cluster. See `SPACE_OBJECT.md`.
 
 Weights are out of 100. They are the chance a new alien is that type when the layer has none of that alien's source. Common fliers show up often. The brain and the saucer are rare.
 
@@ -31,11 +31,11 @@ The dot travels a full turn in eight minutes. The seed also picks where on that 
 - Dusk is the right end. The lair would shut.
 - Night is the same path under the line. The dot is dim.
 
-Up is the open half, from dawn until the dot touches the right end. Down is the shut half, from that touch until the next dawn. A Core cannon hit will count as two of the three hits once an alien is out. The arc does not spawn one.
+Up is the open half, from dawn until the dot touches the right end. Down is the shut half, from that touch until the next dawn. A Core cannon hit counts as two of the three hits. While the sun is up, one alien is out. When it sets, that alien leaves and does not drop a part.
 
 ## Where they hunt
 
-The weight is the ordinary chance. The source is where that alien is rampant. When the source is on the layer, the clock prefers that alien. A nebula layer leans toward scouts. A layer that still has pale rocks leans toward spiders. An outer layer leans toward dartwings. The size of that lean waits until a lair opens. The source is fixed here.
+The weight is the ordinary chance. The source is where that alien is rampant. When the source is on the layer, the roll leans that way. A pale layer star leans toward scouts until a nebula exists. A layer that still has pale rocks leans toward spiders. An outer layer leans toward dartwings. A glint star leans toward eyes until a black hole exists. An ion stream leans toward pincers. Virid rocks lean toward golems. A stronghold leans toward saucers. The lair leans toward the brain.
 
 ## The eight
 
@@ -150,7 +150,7 @@ Drop: 1 Alien core. The core is the part for the heaviest weapon at the bench, a
 
 ## What this leaves alone
 
-- No alien on screen. The arc shows the clock. The lair is not placed, and the dot does not let anyone out.
+- One alien can be on screen while the main star is up. The lair is on the arrival layer. Down sends the alien away with no drop.
 - No second question UI. Free combat and the duel stay as written in their own files.
 - No ore from an alien.
 - Shared alien sounds stay shared. This file does not assign a sound per picture.

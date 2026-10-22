@@ -1,5 +1,7 @@
 /** Placement, snap, and strength. Recipes live in items.js. This module does not spend inventory. */
 
+import { grantMilestone } from './milestones.js';
+
 export const PIECE_SPAN = 110;
 
 const SNAP_DIST = 28;
@@ -196,6 +198,9 @@ export function placePiece(state, itemId, x, y) {
     if (!other.connections.includes(uid)) other.connections.push(uid);
   }
   state.station.pieces.push(piece);
+  if (itemId === 'wall') {
+    grantMilestone(state, 'wall');
+  }
   return true;
 }
 

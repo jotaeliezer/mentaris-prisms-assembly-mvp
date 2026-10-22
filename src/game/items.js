@@ -98,7 +98,9 @@ const ALIEN_ICON = {
  * Ores copy the mineral crystal. Crafted parts, station pieces, and space finds use painted pictures. Weapons reuse a bullet or shot. Alien parts use their own picture.
  */
 export function slotIcon(id) {
-  if (id === 'star-clock') return '/images/stars/star-pale.png';
+  if (id === 'star-clock' || id === 'dust-pale') return '/images/stars/star-pale.png';
+  if (id === 'dust-cinder') return '/images/stars/star-cinder.png';
+  if (id === 'dust-glint') return '/images/stars/star-glint.png';
   if (Object.prototype.hasOwnProperty.call(ORE_SPRITE, id)) return '/assets/asteroids/mineral.png';
   const made = MADE_ICON[id];
   if (made) return '/images/items/' + made;
@@ -113,7 +115,7 @@ export function slotIcon(id) {
 /** Phaser texture key for a drop that has its own picture. Ores stay on the mineral sprite. */
 export function dropSpriteKey(id) {
   const icon = slotIcon(id);
-  if (!icon.startsWith('/images/items/')) return '';
+  if (!icon.startsWith('/images/items/') && !icon.startsWith('/images/stars/')) return '';
   return icon.slice(icon.lastIndexOf('/') + 1);
 }
 
@@ -144,7 +146,10 @@ export const ITEMS = {
   hint: { id: 'hint', name: 'Math hint', mark: 'Hi', color: '#ffe08a', tint: 0xffe08a, kind: 'ship', use: 'hint', about: 'A hint for the rock you are nearest. Use it from the hotbar. It tells you if a one-digit answer is odd or even, or the first digit of a longer one. Useful when you are stuck on an extract.' },
   map: { id: 'map', name: 'Layer map', mark: 'Mp', color: '#9ad7ff', tint: 0x9ad7ff, kind: 'hud', use: 'map', about: 'The small map in the bottom right of the flight view. Fabricating it turns that map on for this layer. Useful when you need to see rocks and the gate without flying blind.' },
   compass: { id: 'compass', name: 'Layer compass', mark: 'Lc', color: '#d2fff8', tint: 0xd2fff8, kind: 'hud', about: 'A hull instrument. Once it is worn, the flight view draws this layer as a line, with a dot for where the ship sits between the two ends, and the layer number beside that line. It is not used up from the hotbar. Useful after several jumps, when you need to know if you are far to the left or the right.' },
-  'star-clock': { id: 'star-clock', name: 'Star clock', mark: 'Sc', color: '#ffe7a8', tint: 0xffe7a8, kind: 'hud', about: 'A carried instrument for the belt sun. The sun’s name is always on the flight view. Carry this and that line also draws the sun’s arc, and whether the sun is up or down. Up is the half of the turn when a lair would be open.' },
+  'star-clock': { id: 'star-clock', name: 'Star clock', mark: 'Sc', color: '#ffe7a8', tint: 0xffe7a8, kind: 'hud', about: 'A carried copy of the belt sun. The sun’s name and arc are already on the flight view. Up is the half of the turn when a lair can let an alien out.' },
+  'dust-pale': { id: 'dust-pale', name: 'Pale dust', mark: 'Pd', color: '#e7f4ff', tint: 0xe7f4ff, kind: 'space', about: 'One mote shaken loose from a pale star’s halo. It is not Pale ore, and it cannot pay an ore cost.' },
+  'dust-cinder': { id: 'dust-cinder', name: 'Cinder dust', mark: 'Ci', color: '#ffb15a', tint: 0xffb15a, kind: 'space', about: 'One mote from a cinder star’s halo. It is not Amber ore.' },
+  'dust-glint': { id: 'dust-glint', name: 'Glint dust', mark: 'Gd', color: '#ffe27a', tint: 0xffe27a, kind: 'space', about: 'One mote from a glint star’s halo. It is not Glint ore.' },
   ping: { id: 'ping', name: 'Ore ping', mark: 'Op', color: '#ffd7a1', tint: 0xffd7a1, kind: 'hud', use: 'ping', about: 'Reports how far the nearest dropped mineral is. Use it from the hotbar. Useful when an extract dropped ore and you flew past it.' },
   gate: { id: 'gate', name: 'Gate marker', mark: 'Gm', color: '#d2b4ff', tint: 0xd2b4ff, kind: 'hud', use: 'gate', about: 'Reports how far the wormhole or return gate is. Use it from the hotbar. Useful when the quota is met and you are looking for the jump.' },
   repair: { id: 'repair', name: 'Repair patch', mark: 'Rp', color: '#8dffb0', tint: 0x8dffb0, kind: 'ability', use: 'repair', about: 'Restores 40 hull, up to the maximum. Use it from the hotbar. Useful just after a bump, before the hull reaches zero.' },
