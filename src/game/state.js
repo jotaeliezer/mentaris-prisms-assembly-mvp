@@ -118,7 +118,7 @@ export function spawnAsteroid(state, operation, difficulty, place, options) {
   for (let guard = 0; guard < 40; guard++) {
     if (place === 'near' || place === 'mid') {
       const angle = state.rng() * Math.PI * 2;
-      const dist = place === 'near' ? 220 + state.rng() * 70 : 980 + state.rng() * 800;
+      const dist = place === 'near' ? 420 + state.rng() * 120 : 980 + state.rng() * 800;
       x = clamp(state.ship.x + Math.cos(angle) * dist, 160, WORLD.w - 160);
       y = clamp(state.ship.y + Math.sin(angle) * dist, 160, WORLD.h - 160);
     } else {
@@ -129,11 +129,11 @@ export function spawnAsteroid(state, operation, difficulty, place, options) {
     const shipDist = Math.hypot(x - state.ship.x, y - state.ship.y);
     const clearOfShip =
       place === 'near'
-        ? shipDist > 200 && shipDist < 300
+        ? shipDist > 400 && shipDist < 580
         : place === 'mid'
           ? shipDist > 900 && shipDist < 1900
           : shipDist > minShip;
-    const gap = place === 'near' ? 150 : 520;
+    const gap = place === 'near' ? 240 : 520;
     const clearOfRocks = state.asteroids.every((rock) => Math.hypot(x - rock.x, y - rock.y) > gap);
     if (clearOfShip && clearOfRocks) break;
   }
@@ -186,7 +186,7 @@ export function ensureBelt(state, operation) {
       const key = gx + ',' + gy;
       if (state.beltCells.has(key)) continue;
       state.beltCells.add(key);
-      if (Math.hypot(gx - sx, gy - sy) < 400) continue;
+      if (Math.hypot(gx - sx, gy - sy) < 640) continue;
       const rockKey = beltRockKey(state, gx, gy);
       if (state.goneRocks && state.goneRocks.has(rockKey)) continue;
       const rng = makeRng(beltCellSeed(state, gx, gy));

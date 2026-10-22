@@ -43,8 +43,9 @@ export default function App({ bridge }) {
 
   useEffect(() => {
     if (!flightSettingsOpen) return;
+    if (live.role !== 'join') return;
     if (live.code) setFlightSeed(live.code);
-    if (live.role === 'join' && live.hostMission) setFlightMission(live.hostMission);
+    if (live.hostMission) setFlightMission(live.hostMission);
   }, [flightSettingsOpen, live.code, live.role, live.hostMission]);
 
   const closeFlightSettings = useCallback(() => {

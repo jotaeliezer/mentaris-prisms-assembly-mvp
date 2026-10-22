@@ -30,15 +30,15 @@ function hotbarPose(index, selected, count, open) {
     const row = index < 5 ? 0 : 1;
     const along = index % 5;
     const t = along / 4;
-    const angle = 16 + 146 * t;
-    const scale = index === selected ? 1.24 : 1;
-    return { ...arcPoint(angle, row === 0 ? 250 : 188), scale, visible: true };
+    const angle = 22 + 48 * t;
+    const scale = index === selected ? 1.2 : 1;
+    return { ...arcPoint(angle, row === 0 ? 292 : 244), scale, visible: true };
   }
   let delta = index - selected;
   if (delta > n / 2) delta -= n;
   if (delta < -n / 2) delta += n;
   const angle = 50 + delta * (360 / n);
-  const visible = angle > -6 && angle < 104;
+  const visible = angle > 4 && angle < 86;
   const scale = delta === 0 ? 1.62 : Math.abs(delta) === 1 ? 1.02 : 0.86;
   return { ...arcPoint(angle, 158), scale, visible };
 }
@@ -48,8 +48,8 @@ function cargoPose(index, count) {
   const along = Math.floor(index / 2);
   const band = index % 2;
   const t = rows <= 1 ? 0.5 : along / (rows - 1);
-  const angle = 12 + 156 * t;
-  return { ...arcPoint(angle, band === 0 ? 400 : 318), scale: 0.92, visible: true };
+  const angle = 16 + 58 * t;
+  return { ...arcPoint(angle, band === 0 ? 430 : 340), scale: 0.96, visible: true };
 }
 
 function ringStyle(pose) {
@@ -213,6 +213,13 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
     setDrag(null);
   }
 
+  function onHotbarWheel(event, slot) {
+    if (!cargoOpen || !slot.available) return;
+    event.preventDefault();
+    event.stopPropagation();
+    bridge.emit('shiftOne', { index: slot.index, dir: event.deltaY > 0 ? 1 : -1 });
+  }
+
   function slotProps(area, slot) {
     return {
       'data-slot-area': area,
@@ -233,6 +240,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
         setTip((current) => (current ? { ...current, x: event.clientX, y: event.clientY } : current));
       },
       onMouseLeave: () => setTip(null),
+      onWheel: area === 'hotbar' ? (event) => onHotbarWheel(event, slot) : undefined,
     };
   }
 
@@ -323,7 +331,6 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       <HintBar text={hud.hint || ''} besideMap={!!snapshot.mapUnlocked} />
       {showHull && (
         <div id="hull" className="hull-drawer" aria-label="Hull">
-          <p className="hull-title">Hull</p>
           <div className="hull-grid">
             {hullSlots.map((slot) => (
               <div
@@ -346,32 +353,10 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                   }
                   {...slotProps('hull', slot)}
                 >
-                  <span className="hull-slot-label">{slot.slotLabel}</span>
                   {slot.available ? (
                     <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
                   ) : null}
-                  {slot.levelLabel ? <span className="hull-level">{slot.levelLabel}</span> : null}
                 </button>
-                {slot.canLevel ? (
-                  <button
-                    type="button"
-                    className={`hull-level-btn${slot.levelReady ? '' : ' is-short'}`}
-                    aria-label={
-                      'Raise ' +
-                      slot.slotLabel +
-                      ' to level ' +
-                      (Number(slot.level) + 1) +
-                      '. Costs 3 Pale ore. Stand-in.'
-                    }
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      bridge.emit('raiseBow');
-                    }}
-                  >
-                    {slot.levelAction}
-                  </button>
-                ) : null}
               </div>
             ))}
           </div>

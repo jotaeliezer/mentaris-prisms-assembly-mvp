@@ -20,7 +20,7 @@ import { multiplayer } from '../../multiplayer/session.js';
 import { saveAssembly } from '../../save/cloud.js';
 import { saveLocalFlight } from '../../save/local.js';
 import { mainStarName } from '../star.js';
-import { dropSpriteKey, inventoryClick, inventoryDrag, itemById, itemTint } from '../items.js';
+import { dropSpriteKey, inventoryClick, inventoryDrag, itemById, itemTint, shiftOne } from '../items.js';
 import { ghostPose, visiblePieces } from '../construct.js';
 import { readPilotName } from '../pilot.js';
 import { createState, WORLD } from '../state.js';
@@ -248,8 +248,6 @@ export default class PlayScene extends Phaser.Scene {
     };
     window.addEventListener('pagehide', this.onPageHide);
 
-    this.spawnPresenceSprites();
-
     this.events.once('shutdown', this.shutdown, this);
     this.events.once('destroy', this.shutdown, this);
 
@@ -266,21 +264,6 @@ export default class PlayScene extends Phaser.Scene {
     });
     if (saved.ok) this.state.localFlightId = saved.id;
     return saved;
-  }
-
-  /** A shield and a spare round, left in the belt as scenery. */
-  spawnPresenceSprites() {
-    const cx = this.state.ship.x;
-    const cy = this.state.ship.y;
-    const specs = [
-      { key: 'powerup_shield.png', x: cx - 640, y: cy + 520, size: 40 },
-      { key: 'bullet_single.png', x: cx + 420, y: cy + 680, size: 24 },
-    ];
-    for (const { key, x, y, size } of specs) {
-      if (!this.textures.exists(key)) continue;
-      const sprite = this.add.image(x, y, key).setDisplaySize(size, size).setDepth(6);
-      this.refreshUiIgnore(sprite);
-    }
   }
 
   onResize(gameSize) {
@@ -419,6 +402,14 @@ export default class PlayScene extends Phaser.Scene {
     this.unsubs.push(
       bridge.on('raiseBow', () => {
         raiseBow(this.state, this.audio);
+        this.publishSnapshot(true);
+      })
+    );
+
+    this.unsubs.push(
+      bridge.on('shiftOne', (payload) => {
+        if (!payload) return;
+        shiftOne(this.state, Number(payload.index), Number(payload.dir));
         this.publishSnapshot(true);
       })
     );
@@ -976,12 +967,15 @@ export default class PlayScene extends Phaser.Scene {
           ? this.add.image(missile.x, missile.y, texture)
           : this.add.circle(missile.x, missile.y, 4, 0xb9f3ff, 1);
         sprite.setDepth(11);
-        if (sprite.setDisplaySize) sprite.setDisplaySize(18, 18);
+        if (sprite.setDisplaySize && texture) {
+          const draw = hullDraw(this, texture, 28);
+          sprite.setDisplaySize(draw.w, draw.h);
+        }
         this.refreshUiIgnore(sprite);
         this.shotSprites.set(key, sprite);
       }
       sprite.setPosition(missile.x, missile.y);
-      if (sprite.setRotation) sprite.setRotation(Math.atan2(missile.vy, missile.vx));
+      if (sprite.setRotation) sprite.setRotation(Math.atan2(missile.vy, missile.vx) + Math.PI / 2);
     });
     for (const [key, sprite] of this.shotSprites) {
       if (seen.has(key)) continue;

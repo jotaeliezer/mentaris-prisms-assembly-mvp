@@ -508,6 +508,41 @@ export function moveHotbarToCargo(state, hotbarIndex) {
   return true;
 }
 
+/** Move a single piece between one hotbar slot and cargo. dir 1 pulls from cargo; dir -1 sends one out. */
+export function shiftOne(state, hotbarIndex, dir) {
+  ensureInventory(state);
+  if (!Number.isInteger(hotbarIndex) || hotbarIndex < 0 || hotbarIndex >= state.hotbar.length) return false;
+  const stack = state.hotbar[hotbarIndex];
+  if (!stack || !stack.id) return false;
+  if (dir < 0) {
+    if (stack.count <= 0) return false;
+    const room = [];
+    state.cargoSlots.forEach((slot, index) => {
+      if (!slot || (slot.id === stack.id && slot.count < STACK_MAX)) room.push(index);
+    });
+    if (!room.length) return false;
+    const pick = room[Math.floor(Math.random() * room.length)];
+    const dest = state.cargoSlots[pick];
+    if (!dest) state.cargoSlots[pick] = { id: stack.id, count: 1, ...(stack.level ? { level: stack.level } : {}) };
+    else dest.count += 1;
+    stack.count -= 1;
+    if (stack.count <= 0) state.hotbar[hotbarIndex] = null;
+    return true;
+  }
+  if (stack.count >= STACK_MAX) return false;
+  const sources = [];
+  state.cargoSlots.forEach((slot, index) => {
+    if (slot && slot.id === stack.id && slot.count > 0) sources.push(index);
+  });
+  if (!sources.length) return false;
+  const pick = sources[Math.floor(Math.random() * sources.length)];
+  const src = state.cargoSlots[pick];
+  src.count -= 1;
+  if (src.count <= 0) state.cargoSlots[pick] = null;
+  stack.count += 1;
+  return true;
+}
+
 function slotList(state, area) {
   ensureInventory(state);
   ensureHull(state);

@@ -95,7 +95,7 @@ export default function SessionControls({
     const { code, done } = multiplayer.host(
       live && live.seed ? { seed: String(live.seed), missionId: live.missionId || '' } : null
     );
-    if (onSeed) onSeed(code);
+    if (onSeed && !inGame) onSeed(code);
     const ok = await done;
     setBusy(false);
     if (!ok) return;

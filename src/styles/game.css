@@ -489,8 +489,8 @@ button:disabled,
 .hull-drawer {
   position: absolute;
   left: 16px;
-  top: 22%;
-  bottom: auto;
+  bottom: 16px;
+  top: auto;
   transform: none;
   z-index: 4;
   display: flex;
@@ -498,9 +498,9 @@ button:disabled,
   gap: 6px;
   padding: 8px;
   width: max-content;
-  background: rgba(8, 12, 24, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.16);
-  border-radius: 6px;
+  background: rgba(8, 12, 24, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
   pointer-events: auto;
 }
 
@@ -514,7 +514,7 @@ button:disabled,
 
 .hull-grid {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 6px;
 }
 
@@ -525,13 +525,11 @@ button:disabled,
 }
 
 .hull-slot {
-  width: 232px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 0 8px;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  padding: 0;
 }
 
 .hull-slot.empty {
@@ -1526,11 +1524,11 @@ button:disabled {
   .hull-meter { width: 220px; }
   .hull-drawer {
     left: 12px;
-    top: 18%;
-    bottom: auto;
+    bottom: 12px;
+    top: auto;
     transform: none;
   }
-  .hull-slot { width: min(220px, 52vw); }
+  .hull-slot { width: 46px; height: 46px; }
   .hotbar-slot { width: 48px; height: 48px; }
   .hotbar-slot img,
   .drag-ghost img { width: 30px; height: 30px; }

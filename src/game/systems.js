@@ -1617,23 +1617,35 @@ export function respawnShip(state, audio) {
   const originX = state.wreckX || ship.x;
   const originY = state.wreckY || ship.y;
   let placed = false;
-  for (let i = 0; i < 16; i++) {
-    const angle = (i / 16) * Math.PI * 2;
-    const x = clamp(originX + Math.cos(angle) * 460, 80, WORLD.w - 80);
-    const y = clamp(originY + Math.sin(angle) * 460, 80, WORLD.h - 80);
-    const clear = state.asteroids.every(
-      (rock) => !rock.alive || Math.hypot(rock.x - x, rock.y - y) > 220
-    );
-    if (clear) {
-      ship.x = x;
-      ship.y = y;
-      placed = true;
-      break;
+  let best = null;
+  let bestGap = -1;
+  for (const radius of [720, 980, 1280]) {
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const x = clamp(originX + Math.cos(angle) * radius, 80, WORLD.w - 80);
+      const y = clamp(originY + Math.sin(angle) * radius, 80, WORLD.h - 80);
+      let gap = Infinity;
+      for (const rock of state.asteroids) {
+        if (!rock.alive) continue;
+        const room = Math.hypot(rock.x - x, rock.y - y) - rockTouchDistance(rock);
+        if (room < gap) gap = room;
+      }
+      if (gap > bestGap) {
+        bestGap = gap;
+        best = { x, y };
+      }
+      if (gap > 120) {
+        ship.x = x;
+        ship.y = y;
+        placed = true;
+        break;
+      }
     }
+    if (placed) break;
   }
-  if (!placed) {
-    ship.x = originX;
-    ship.y = originY;
+  if (!placed && best) {
+    ship.x = best.x;
+    ship.y = best.y;
   }
   state.camera.x = ship.x;
   state.camera.y = ship.y;

@@ -64,9 +64,13 @@ assert(
   'title camera follows the ship',
 );
 const titleNear = title.asteroids.filter(
-  (rock) => Math.hypot(rock.x - title.ship.x, rock.y - title.ship.y) < 300,
+  (rock) => Math.hypot(rock.x - title.ship.x, rock.y - title.ship.y) < 600,
 );
 assert(titleNear.length >= 3, 'title rocks still gather near the ship');
+assert(
+  title.asteroids.every((rock) => !rock.alive || Math.hypot(rock.x - title.ship.x, rock.y - title.ship.y) > 360),
+  'the ship starts clear of the opening rocks'
+);
 
 const first = createState();
 startMission(first, 'add', 'belt-7', null);
@@ -95,7 +99,7 @@ for (let n = 0; n < 40; n++) {
   startMission(state, n % 2 ? 'sub' : 'add', 'seed-' + n, null);
   assert(insideBelt(state.ship.x, state.ship.y), 'seeded ship inset ' + n);
   const near = state.asteroids.filter(
-    (rock) => Math.hypot(rock.x - state.ship.x, rock.y - state.ship.y) < 320,
+    (rock) => Math.hypot(rock.x - state.ship.x, rock.y - state.ship.y) < 600,
   ).length;
   if (near >= 3) nearMissions += 1;
   if (state.wormhole) {
@@ -146,7 +150,7 @@ assert(travel.ship.x === origin.x && travel.ship.y === origin.y, 'a layer shift 
 const layerMinusOneRocks = travel.asteroids.map((rock) => rock.id);
 assert(
   layerMinusOneRocks.length > 0 &&
-    travel.asteroids.some((rock) => Math.hypot(rock.x - travel.ship.x, rock.y - travel.ship.y) < 320),
+    travel.asteroids.some((rock) => Math.hypot(rock.x - travel.ship.x, rock.y - travel.ship.y) < 600),
   'a fresh layer still scatters rocks near the ship',
 );
 
@@ -204,7 +208,7 @@ assert(jump.layer === 0, 'a new cluster starts on layer 0');
 assert(insideBelt(jump.ship.x, jump.ship.y), 'arrival stays inside the edge inset');
 assert(jump.home.x === jump.ship.x && jump.home.y === jump.ship.y, 'arrival home follows the ship');
 assert(
-  jump.asteroids.some((rock) => Math.hypot(rock.x - jump.ship.x, rock.y - jump.ship.y) < 320),
+  jump.asteroids.some((rock) => Math.hypot(rock.x - jump.ship.x, rock.y - jump.ship.y) < 600),
   'arrival rocks follow the ship',
 );
 assert(jump.returnHole, 'arrival opens a return wormhole');

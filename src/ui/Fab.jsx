@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -30,8 +31,51 @@ export default function Fab({ bridge, snapshot }) {
   const recipes = Array.isArray(snapshot.recipes) ? snapshot.recipes : [];
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
+  const [hoverId, setHoverId] = useState(null);
+  const [point, setPoint] = useState(null);
+  const hideTimer = useRef(null);
   const visible = recipes.filter((recipe) => filter === 'all' || recipe.category === filter);
   const selected = recipes.find((recipe) => recipe.id === selectedId) || null;
+  const hovered = recipes.find((recipe) => recipe.id === hoverId) || null;
+  const category = hovered ? CATEGORIES.find((cat) => cat.id === hovered.category) : null;
+
+  function clearHide() {
+    if (hideTimer.current) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  }
+
+  function showCard(id, x, y) {
+    clearHide();
+    setHoverId(id);
+    if (Number.isFinite(x) && Number.isFinite(y)) setPoint({ x, y });
+  }
+
+  function scheduleHide() {
+    clearHide();
+    hideTimer.current = window.setTimeout(() => setHoverId(null), 160);
+  }
+
+  useEffect(() => () => clearHide(), []);
+
+  function cardStyle() {
+    if (!point) return { left: 8, top: 8 };
+    const width = 300;
+    let left = point.x + 16;
+    let top = point.y + 16;
+    if (left > window.innerWidth - width - 8) left = point.x - width - 16;
+    if (top > window.innerHeight - 220) top = Math.max(8, point.y - 200);
+    return { left: Math.max(8, left), top: Math.max(8, top) };
+  }
+
+  const card = hovered && point ? (
+    <aside className="fab-info fab-info-float" style={cardStyle()} onPointerEnter={clearHide} onPointerLeave={scheduleHide}>
+      <p className="fab-readout-name">{hovered.name}</p>
+      {category ? <p className="fab-info-cat">{category.label}</p> : null}
+      <p className="fab-readout-body">{hovered.about || 'A fabrication count.'}</p>
+    </aside>
+  ) : null;
 
   return (
     <div id="fab" className="overlay">
@@ -75,6 +119,8 @@ export default function Fab({ bridge, snapshot }) {
                 className={`fab-icon-btn${selectedId === recipe.id ? ' is-hot' : ''}${recipe.ready ? '' : ' is-short'}`}
                 aria-pressed={selectedId === recipe.id}
                 aria-label={recipe.name}
+                onPointerEnter={(event) => showCard(recipe.id, event.clientX, event.clientY)}
+                onPointerLeave={scheduleHide}
                 onClick={() => {
                   beep(bridge);
                   setSelectedId(recipe.id);
@@ -129,6 +175,7 @@ export default function Fab({ bridge, snapshot }) {
           </button>
         </div>
       </div>
+      {card && typeof document !== 'undefined' ? createPortal(card, document.body) : null}
     </div>
   );
 }
