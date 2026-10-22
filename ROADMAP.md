@@ -8,7 +8,7 @@ What is already in the game, then the work that is still only written down. The 
 - Five asteroid pictures. Each picture drops its own mineral. Size and a hard question change how many crystals fall. Rarer pictures spawn less often. See `ASTEROID_TYPE.md`.
 - The extract pad names the rock, uses one pixel face, and a click outside it returns to flight. Hovering a rock shows one star or three.
 - Hotbar, cargo on C, drag between them, and a name when you hover a slot. A held stack follows the cursor until it is placed.
-- Fabrication on F. Prism glass and the Fabrication bench are hand recipes. The bench, worn in the hull panel, opens the rest. See `STATIONS.md`.
+- Fabrication on F. Immediate Fabrication is Prism glass and the Fabrication bench. The bench, worn in the hull panel, opens the rest. See `STATIONS.md`.
 - One count recipe each for Slate, Virid, and Glint, behind the Fabrication bench. Slate wire, Virid foil, and a Glint gem can be stored. They have no use.
 - The hull panel stays on screen in flight, on the left edge. It holds the layer jumper, the fabrication bench, and the layer compass. The compass is a line for this layer, with the ship as a dot and the layer number in bold beside it. Q and E need the jumper installed there.
 - Bow plating in that panel. One worn slot. A rock hit does less damage, and that piece can be raised from level 1 to 3. A worn part lights up, and an empty slot stays dim. The other three armor slots are still waiting. See `HULL.md`.

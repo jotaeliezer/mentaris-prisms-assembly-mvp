@@ -23,7 +23,7 @@ export const MISSIONS = [
 ];
 
 const DEFAULT_NOTE =
-  'The same seed builds the same belt. Launch uses the mission and seed chosen here.';
+  'A new game rolls a new seed. The same seed builds the same belt. Change the seed here before launch if you want a chosen belt.';
 
 export function GearIcon() {
   return (

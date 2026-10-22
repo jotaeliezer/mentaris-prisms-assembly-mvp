@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { readPilotName, writePilotName } from '../game/pilot.js';
 import { cleanSeed } from '../game/state.js';
-import { generateSessionCode } from '../multiplayer/sessionCode.js';
+import { freshFlightSeed, generateSessionCode } from '../multiplayer/sessionCode.js';
 import {
   ASSEMBLY_LIMIT,
   cloudConfigured,
@@ -34,7 +34,7 @@ const FLOATERS = [
 
 export default function Title({ bridge }) {
   const [pilot, setPilot] = useState(readPilotName);
-  const [seed, setSeed] = useState(DEFAULT_SEED);
+  const [seed, setSeed] = useState(freshFlightSeed);
   const [mission, setMission] = useState(DEFAULT_MISSION);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assemblies, setAssemblies] = useState([]);

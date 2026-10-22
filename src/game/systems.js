@@ -3081,7 +3081,7 @@ export function buildFabFields(state) {
   return {
     fabCopy: countItem(state, 'bench')
       ? 'The Fabrication Tool is in your hold, so the rest of the bay is open. Each entry is still a count of materials.'
-      : 'Without the tool, the bay only runs Prism glass and the Fabrication Tool. Carry the tool to open the rest of the index.',
+      : 'Immediate Fabrication is Prism glass and the Fabrication Tool. Carry the tool to open the rest of the index.',
     recipes,
     fabBankLabel: '',
     fabDriveLabel: '',

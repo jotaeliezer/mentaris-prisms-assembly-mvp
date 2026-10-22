@@ -182,7 +182,7 @@ export const ITEMS = {
   'core-cannon': { id: 'core-cannon', name: 'Core cannon', mark: 'Cn', color: '#ff8ec8', tint: 0xff8ec8, kind: 'weapon', use: 'core', about: 'The heavy weapon. Select it and left click. It reaches farther than the Arc missile, and one shot breaks one rock. On an alien it counts as two of the three hits. The count spends an Alien core and stays hidden until a core is in the hold.' },
   wall: { id: 'wall', name: 'Wall', mark: 'Wa', color: '#d5e2ec', tint: 0xd5e2ec, kind: 'construction', about: 'A thin bar. It is placed from the hotbar by clicking in space.' },
   panel: { id: 'panel', name: 'Panel', mark: 'Pn', color: '#9eb6c8', tint: 0x9eb6c8, kind: 'construction', about: 'A quadrilateral plane. It is placed from the hotbar by clicking in space.' },
-  corner: { id: 'corner', name: 'Corner', mark: 'Cr', color: '#e7d3b0', tint: 0xe7d3b0, kind: 'construction', about: 'A turn off a straight run. It is placed from the hotbar by clicking in space.' },
+  corner: { id: 'corner', name: 'Corner', mark: 'Cr', color: '#e7d3b0', tint: 0xe7d3b0, kind: 'construction', about: 'A right-angle joint for a station. It turns a straight run of walls so the build can branch. Fabricate it at the bench, then place it from the hotbar.' },
   bunker: { id: 'bunker', name: 'Bunker', mark: 'Bk', color: '#7f97ab', tint: 0x7f97ab, kind: 'construction', about: 'A closed room on the station. It is placed from the hotbar by clicking in space.' },
   telescope: { id: 'telescope', name: 'Telescope', mark: 'Ts', color: '#8ecfff', tint: 0x8ecfff, kind: 'construction', about: 'A scope pointed along the belt. It is placed from the hotbar by clicking in space.' },
   satellite: { id: 'satellite', name: 'Satellite', mark: 'Sa', color: '#c4b4ef', tint: 0xc4b4ef, kind: 'construction', about: 'A small dish. It is placed from the hotbar by clicking in space.' },
@@ -231,10 +231,10 @@ export const RECIPES = [
   { id: 'quiet', category: 'abilities', result: 'quiet', station: 'bench', count: 1, costs: [{ id: 'amber', n: 1 }, { id: 'pale', n: 2 }] },
   { id: 'wall', category: 'construction', result: 'wall', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }, { id: 'slate', n: 2 }] },
   { id: 'panel', category: 'construction', result: 'panel', station: 'bench', count: 1, costs: [{ id: 'pale', n: 2 }, { id: 'slate', n: 4 }] },
-  { id: 'corner', category: 'construction', result: 'corner', count: 1, costs: [{ id: 'pale', n: 4 }, { id: 'slate', n: 2 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
-  { id: 'bunker', category: 'construction', result: 'bunker', count: 1, costs: [{ id: 'pale', n: 8 }, { id: 'slate', n: 4 }, { id: 'wall', n: 2 }, { id: 'panel', n: 1 }] },
-  { id: 'telescope', category: 'construction', result: 'telescope', count: 1, costs: [{ id: 'pale', n: 6 }, { id: 'slate', n: 2 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
-  { id: 'satellite', category: 'construction', result: 'satellite', count: 1, costs: [{ id: 'pale', n: 6 }, { id: 'slate', n: 4 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
+  { id: 'corner', category: 'construction', result: 'corner', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }, { id: 'slate', n: 2 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
+  { id: 'bunker', category: 'construction', result: 'bunker', station: 'bench', count: 1, costs: [{ id: 'pale', n: 8 }, { id: 'slate', n: 4 }, { id: 'wall', n: 2 }, { id: 'panel', n: 1 }] },
+  { id: 'telescope', category: 'construction', result: 'telescope', station: 'bench', count: 1, costs: [{ id: 'pale', n: 6 }, { id: 'slate', n: 2 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
+  { id: 'satellite', category: 'construction', result: 'satellite', station: 'bench', count: 1, costs: [{ id: 'pale', n: 6 }, { id: 'slate', n: 4 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
   { id: 'dock', category: 'construction', result: 'dock', station: 'bench', count: 1, costs: [{ id: 'pale', n: 40 }, { id: 'slate', n: 24 }, { id: 'amber', n: 16 }, { id: 'glass', n: 8 }, { id: 'iron', n: 4 }, { id: 'wall', n: 2 }, { id: 'panel', n: 2 }] },
   { id: 'gunship', category: 'construction', result: 'gunship', station: 'bench', count: 1, costs: [{ id: 'pale', n: 30 }, { id: 'amber', n: 20 }, { id: 'virid', n: 10 }, { id: 'iron', n: 6 }, { id: 'filament', n: 4 }, { id: 'gland', n: 1 }, { id: 'wall', n: 2 }, { id: 'panel', n: 1 }] },
   { id: 'drill', category: 'construction', result: 'drill', station: 'bench', count: 1, costs: [{ id: 'pale', n: 36 }, { id: 'slate', n: 18 }, { id: 'amber', n: 12 }, { id: 'virid', n: 8 }, { id: 'glint', n: 4 }, { id: 'iron', n: 6 }, { id: 'core', n: 1 }, { id: 'wall', n: 2 }, { id: 'panel', n: 2 }] },
@@ -243,7 +243,7 @@ export const RECIPES = [
   { id: 'beacon', category: 'construction', result: 'beacon', station: 'bench', count: 1, costs: [{ id: 'pale', n: 20 }, { id: 'slate', n: 10 }, { id: 'amber', n: 6 }, { id: 'glass', n: 4 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
 ];
 
-/** A recipe with no station is hand work. The rest need that item in the hotbar or cargo. */
+/** Immediate Fabrication has no station. The rest need that item in the hull. */
 export function recipeOpen(state, recipe) {
   if (!recipe || !recipe.station) return true;
   return hullHas(state, recipe.station);
