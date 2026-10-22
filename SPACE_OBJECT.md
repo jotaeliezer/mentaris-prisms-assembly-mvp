@@ -66,9 +66,9 @@ A lair is the mouth the aliens leave. It is not the abandoned stronghold. The st
 
 Each cluster has one lair, on one layer, rolled from the seed. It sits fixed. It is larger than a stronghold and smaller than a small planet. A dark mouth, with no bay to dock in. It does not shoot, and it does not drop ore.
 
-The main star in `ALIENS.md` is the clock, and every cluster shares that star. When the star is up, every lair is open together. When the star is down, every lair is shut together. Aliens come out of the open mouth and go back when it shuts. The brain stays by that mouth. The other seven leave it for the place named as their source.
+The main star in `ALIENS.md` is the clock, and every cluster shares that star. When the star is up, the lair on the arrival layer is open. When the star is down, it is shut. One alien comes out of the open mouth. If the ship is far from that mouth, the alien appears near the ship so the open sun is not an empty sky. It goes back when the sun sets. The brain stays by that mouth when the ship is close. The other seven still prefer the place named as their source.
 
-The lair is not placed yet. The star's arc is already on the flight view. The arc does not let an alien out.
+The lair is placed on the arrival layer of each cluster. The star's arc is on the flight view, and while the sun is up one alien can leave.
 
 ## What else belongs here
 
@@ -105,7 +105,7 @@ None of these spawn on top of the ship. None of them cover the wormhole. A black
 ## What this is not
 
 - Not planets, layer stars, or asteroids. Those have their own files. The main star in `ALIENS.md` is the session sun, shared by every cluster. It is not one of these objects, and it is not a star you fly to.
-- Not built yet, except the main star's name and its arc. No pull, no cloud depth, no ruin, and no lair in the belt.
+- Not built yet, except the main star's name and its arc, the lair on the arrival layer, and the debris field, ion stream, prism ring, comet, and stronghold already in the belt. No pull, no cloud depth, and no black hole yet.
 - Not the cluster wormhole. A black hole does not advance the cluster. A prism ring does not either.
 - Not a damage zone the pilot cannot leave. The black hole can be flown out of. The nebula can be flown out of. The ion stream can be flown against.
 - Not a second combat mode. Strongholds are looted, not sieges.

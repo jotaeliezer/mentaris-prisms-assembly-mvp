@@ -137,6 +137,11 @@ export function buildProgressSnapshot(state) {
     planets: copyJson(state.planets || []),
     sunBodies: copyJson(state.sunBodies || []),
     spaceObjects: copyJson(state.spaceObjects || []),
+    aliens: copyJson((state.aliens || []).filter((alien) => alien && !alien.gone)),
+    alienNext: Number(state.alienNext) || 0,
+    milestones: copyJson(state.milestones || {}),
+    localFlightId: state.localFlightId || '',
+    starWasUp: typeof state.starWasUp === 'boolean' ? state.starWasUp : null,
     nextId: state.nextId,
   };
 }

@@ -2,7 +2,7 @@
 
 Bright stars sit in a layer. The ship can collect star dust and light rays from them. Those are fabrication materials. They are not ores, and they are not alien parts.
 
-This is a plan. Nothing here is built.
+This is a plan. Layer stars are already in the belt. Flying into the core is a light bump. The first pass through the halo shakes one mote of that star's dust loose. The drifting cloud, the light rays, and the bench recipe that spends Pale dust are not built yet.
 
 Ores come from asteroids and, later, from digging in `PLANETS.md`. Alloys are made at the Fabrication bench. Star dust and light rays are a third pile: things the ship only gets by flying to a star.
 
