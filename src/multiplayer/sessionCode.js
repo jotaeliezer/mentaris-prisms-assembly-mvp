@@ -44,3 +44,8 @@ export function sessionCodeError(code) {
 export function seedFromSessionCode(code) {
   return cleanSeed(normalizeSessionCode(code));
 }
+
+/** A new solo flight. A different roll each time a new game starts. */
+export function freshFlightSeed(random = Math.random) {
+  return cleanSeed(generateSessionCode(random));
+}

@@ -161,8 +161,7 @@ const TEN = {
   ]),
 };
 
-const HAND = ['corner', 'bunker', 'telescope', 'satellite'];
-const BENCH = ['wall', 'panel', 'dock', 'gunship', 'drill', 'extension', 'vault', 'beacon'];
+const BENCH = ['wall', 'panel', 'corner', 'bunker', 'telescope', 'satellite', 'dock', 'gunship', 'drill', 'extension', 'vault', 'beacon'];
 const HALF = PIECE_SPAN / 2;
 const PANEL_SHORT = 22;
 
@@ -190,14 +189,11 @@ for (const id of Object.keys(TEN)) {
   const recipe = recipeById(id);
   assert(recipe, id + ' is a recipe');
   assert(sameCosts(recipe.costs, TEN[id]), id + ' costs match the tail plus wall and panel counts');
-  if (HAND.includes(id)) {
-    assert(!recipe.station, id + ' has no station and can be crafted by hand');
-    assert(recipeOpen(flyState(), recipe), id + ' is open without a bench');
-  }
 }
 for (const id of BENCH) {
   const recipe = recipeById(id);
   assert(recipe && recipe.station === 'bench', id + ' waits on the bench');
+  assert(!recipeOpen(flyState(), recipe), id + ' stays closed without a bench');
 }
 
 const spend = flyState();

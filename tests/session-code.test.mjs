@@ -7,6 +7,7 @@ import {
   normalizeSessionCode,
   seedFromSessionCode,
   sessionCodeError,
+  freshFlightSeed,
 } from '../src/multiplayer/sessionCode.js';
 import {
   SEND_INTERVAL_MS,
@@ -68,6 +69,11 @@ const shared = 'K7NPQM';
 assert(seedFromSessionCode(shared) === cleanSeed(shared), 'session code cleans to the world seed');
 assert(seedFromSessionCode('k7npqm') === seedFromSessionCode('K7NPQM'), 'either case is the same belt');
 assert(seedFromSessionCode(shared) === 'k7npqm', 'seed is the lowercase code');
+const rolledA = freshFlightSeed(lcg(11));
+const rolledB = freshFlightSeed(lcg(29));
+assert(rolledA !== 'belt-7' && rolledB !== 'belt-7', 'a new game does not start on belt-7');
+assert(rolledA !== rolledB, 'two new games roll two seeds');
+assert(freshFlightSeed(lcg(11)) === rolledA, 'one roll stays the same belt');
 
 const tags = assignPlayerTags([
   { id: 'b', joinedAt: 20 },

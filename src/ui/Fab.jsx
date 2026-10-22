@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
-  { id: 'basics', label: 'Direct', icon: '/images/categories/basics.png' },
+  { id: 'basics', label: 'Immediate Fabrication', icon: '/images/categories/basics.png' },
   { id: 'alloys', label: 'Alloys', icon: '/images/categories/alloys.png' },
   { id: 'weapons', label: 'Weapons', icon: '/images/categories/weapons.png' },
   { id: 'ship', label: 'Ship improvements', icon: '/images/categories/ship.png' },

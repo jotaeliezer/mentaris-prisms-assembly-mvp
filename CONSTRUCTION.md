@@ -64,11 +64,9 @@ Tips are written in local space, then turned by `rot`.
 
 ## Bench gate
 
-A recipe with `station: 'bench'` opens only while the Fabrication bench is carried in a hull slot. `recipeOpen` checks that with `hullHas`. A recipe with no `station` field is open in the hand.
+A recipe with `station: 'bench'` opens only while the Fabrication bench is carried in a hull slot. `recipeOpen` checks that with `hullHas`. Immediate Fabrication is the recipes with no `station` field: Prism glass and the bench.
 
-`station: 'bench'`: wall, panel, and the six rooms — dock, gunship, drill, extension, vault, beacon.
-
-No `station` field, so they can be crafted by hand: corner, bunker, telescope, and satellite.
+`station: 'bench'`: wall, panel, corner, bunker, telescope, satellite, and the six rooms — dock, gunship, drill, extension, vault, beacon.
 
 ## Once, at place time only
 
@@ -97,10 +95,10 @@ These ten recipes keep the material tails below and add the wall and panel count
 
 | Id | What it is | Edges | What it can join | Cost | Station | Place | Strength |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `corner` | A turn, so the build can branch off a straight run. | One end along `rot`, one end perpendicular to `rot`. | Any piece that exposes an end. | 4 pale + 2 slate + 1 wall + 1 panel | none | repeatable | 8 |
-| `bunker` | A closed room on the station. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 8 pale + 4 slate + 2 wall + 1 panel | none | repeatable | 14 |
-| `telescope` | A scope pointed along the belt. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 6 pale + 2 slate + 1 wall + 1 panel | none | repeatable | 8 |
-| `satellite` | A small dish. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 6 pale + 4 slate + 1 wall + 1 panel | none | once, place time only | 8 |
+| `corner` | A turn, so the build can branch off a straight run. | One end along `rot`, one end perpendicular to `rot`. | Any piece that exposes an end. | 4 pale + 2 slate + 1 wall + 1 panel | `bench` | repeatable | 8 |
+| `bunker` | A closed room on the station. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 8 pale + 4 slate + 2 wall + 1 panel | `bench` | repeatable | 14 |
+| `telescope` | A scope pointed along the belt. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 6 pale + 2 slate + 1 wall + 1 panel | `bench` | repeatable | 8 |
+| `satellite` | A small dish. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 6 pale + 4 slate + 1 wall + 1 panel | `bench` | once, place time only | 8 |
 | `dock` | A fueling dock. Refueling is a later job. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 40 pale + 24 slate + 16 amber + 8 glass + 4 iron + 2 wall + 2 panel | `bench` | once, place time only | 20 |
 | `gunship` | A turret housing fixed to the station. Firing is a later job. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 30 pale + 20 amber + 10 virid + 6 iron + 4 filament + 1 gland + 2 wall + 1 panel | `bench` | once, place time only | 16 |
 | `drill` | A drill head fixed to the station. Shorter questions are a later job. | Two opposite tips at ±span/2 along `rot`. | Any piece that exposes an end. | 36 pale + 18 slate + 12 amber + 8 virid + 4 glint + 6 iron + 1 core + 2 wall + 2 panel | `bench` | once, place time only | 18 |
