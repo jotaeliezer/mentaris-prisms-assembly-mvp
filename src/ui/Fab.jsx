@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -30,103 +29,9 @@ function itemPicture(item) {
 export default function Fab({ bridge, snapshot }) {
   const recipes = Array.isArray(snapshot.recipes) ? snapshot.recipes : [];
   const [filter, setFilter] = useState('all');
-  const [hoverId, setHoverId] = useState(null);
-  const [point, setPoint] = useState(null);
-  const hideTimer = useRef(null);
-  const cardRef = useRef(null);
-  const following = useRef(true);
+  const [selectedId, setSelectedId] = useState(null);
   const visible = recipes.filter((recipe) => filter === 'all' || recipe.category === filter);
-  const hovered = recipes.find((recipe) => recipe.id === hoverId) || null;
-  const category = hovered ? CATEGORIES.find((cat) => cat.id === hovered.category) : null;
-
-  function clearHide() {
-    if (hideTimer.current) {
-      window.clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
-  }
-
-  function showCard(id, x, y) {
-    clearHide();
-    following.current = true;
-    setHoverId(id);
-    if (Number.isFinite(x) && Number.isFinite(y)) setPoint({ x, y });
-  }
-
-  function scheduleHide() {
-    clearHide();
-    hideTimer.current = window.setTimeout(() => setHoverId(null), 220);
-  }
-
-  useEffect(() => () => clearHide(), []);
-
-  useEffect(() => {
-    if (!hoverId) return undefined;
-    function onMove(event) {
-      if (!following.current) return;
-      setPoint({ x: event.clientX, y: event.clientY });
-    }
-    window.addEventListener('pointermove', onMove);
-    return () => window.removeEventListener('pointermove', onMove);
-  }, [hoverId]);
-
-  function cardStyle() {
-    if (!point) return { left: 8, top: 8 };
-    const width = 320;
-    const height = cardRef.current ? cardRef.current.offsetHeight : 300;
-    let left = point.x + 18;
-    let top = point.y + 18;
-    const maxX = window.innerWidth - width - 8;
-    const maxY = window.innerHeight - height - 8;
-    if (left > maxX) left = point.x - width - 18;
-    if (top > maxY) top = point.y - height - 18;
-    return { left: Math.max(8, left), top: Math.max(8, top) };
-  }
-
-  const card = hovered && point ? (
-    <aside
-      ref={cardRef}
-      className="fab-info fab-info-float"
-      style={cardStyle()}
-      onPointerEnter={() => {
-        following.current = false;
-        clearHide();
-      }}
-      onPointerLeave={scheduleHide}
-    >
-      <div className="fab-info-head">
-        {itemPicture(hovered)}
-        <div>
-          <p className="fab-readout-name">{hovered.name}</p>
-          {category ? <p className="fab-info-cat">{category.label}</p> : null}
-        </div>
-      </div>
-      <p className="fab-readout-body">{hovered.about || 'A fabrication count.'}</p>
-      <p className="fab-info-label">Inputs</p>
-      <ul className="fab-recipe">
-        {(hovered.costs || []).map((cost) => (
-          <li key={cost.id}>
-            {itemPicture(cost)}
-            <span>
-              {cost.n} {cost.name}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <button
-        type="button"
-        className="btn btn-primary"
-        disabled={!hovered.ready}
-        onClick={() => {
-          if (!hovered.ready) return;
-          beep(bridge);
-          bridge.emit('craft', hovered.id);
-        }}
-      >
-        {hovered.ready ? 'Fabricate' : 'Missing materials'}
-      </button>
-    </aside>
-  ) : null;
+  const selected = recipes.find((recipe) => recipe.id === selectedId) || null;
 
   return (
     <div id="fab" className="overlay">
@@ -151,8 +56,7 @@ export default function Fab({ bridge, snapshot }) {
                 onClick={() => {
                   beep(bridge);
                   setFilter(cat.id);
-                  setHoverId(null);
-                  setPoint(null);
+                  setSelectedId(null);
                 }}
               >
                 {cat.icon ? <img className="fab-cat-icon" src={cat.icon} alt="" /> : null}
@@ -168,20 +72,12 @@ export default function Fab({ bridge, snapshot }) {
                 key={recipe.id}
                 id={'craft-' + recipe.id}
                 type="button"
-                className={`fab-icon-btn${hoverId === recipe.id ? ' is-hot' : ''}${recipe.ready ? '' : ' is-short'}`}
+                className={`fab-icon-btn${selectedId === recipe.id ? ' is-hot' : ''}${recipe.ready ? '' : ' is-short'}`}
+                aria-pressed={selectedId === recipe.id}
                 aria-label={recipe.name}
-                onPointerEnter={(event) => {
-                  if (event.pointerType === 'touch') return;
-                  showCard(recipe.id, event.clientX, event.clientY);
-                }}
-                onPointerLeave={(event) => {
-                  if (event.pointerType === 'touch') return;
-                  scheduleHide();
-                }}
-                onPointerDown={(event) => {
-                  if (event.pointerType !== 'touch') return;
-                  showCard(recipe.id, event.clientX, event.clientY);
-                  following.current = false;
+                onClick={() => {
+                  beep(bridge);
+                  setSelectedId(recipe.id);
                 }}
               >
                 {itemPicture(recipe)}
@@ -189,6 +85,35 @@ export default function Fab({ bridge, snapshot }) {
               </button>
             ))}
           </div>
+          <aside className="fab-side" aria-live="polite">
+            {selected ? (
+              <>
+                <p className="fab-readout-name">{selected.name}</p>
+                <div className="fab-cost-row">
+                  {(selected.costs || []).map((cost) => (
+                    <div key={cost.id} className="fab-cost" title={cost.name}>
+                      {itemPicture(cost)}
+                      <span className="fab-cost-badge">{cost.n}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!selected.ready}
+                  onClick={() => {
+                    if (!selected.ready) return;
+                    beep(bridge);
+                    bridge.emit('craft', selected.id);
+                  }}
+                >
+                  {selected.ready ? 'Fabricate' : 'Missing materials'}
+                </button>
+              </>
+            ) : (
+              <p className="fab-readout-body">Click an icon. Its inputs sit here.</p>
+            )}
+          </aside>
         </div>
         <div className="missions fab-footer">
           <button
@@ -204,7 +129,6 @@ export default function Fab({ bridge, snapshot }) {
           </button>
         </div>
       </div>
-      {card && typeof document !== 'undefined' ? createPortal(card, document.body) : null}
     </div>
   );
 }

@@ -19,24 +19,24 @@ function typewriterPlan(length) {
 function arcPoint(angleDeg, radius) {
   const rad = (angleDeg * Math.PI) / 180;
   return {
-    left: Math.cos(rad) * radius,
+    right: Math.cos(rad) * radius,
     bottom: Math.sin(rad) * radius,
   };
 }
 
 function hotbarPose(index, selected, count, open) {
   const n = Math.max(count, 1);
+  if (open) {
+    const row = index < 5 ? 0 : 1;
+    const along = index % 5;
+    const t = along / 4;
+    const angle = 16 + 146 * t;
+    const scale = index === selected ? 1.24 : 1;
+    return { ...arcPoint(angle, row === 0 ? 250 : 188), scale, visible: true };
+  }
   let delta = index - selected;
   if (delta > n / 2) delta -= n;
   if (delta < -n / 2) delta += n;
-  if (open) {
-    const span = 132;
-    const start = 16;
-    const t = n <= 1 ? 0.5 : index / (n - 1);
-    const angle = start + span * t;
-    const scale = index === selected ? 1.28 : 1;
-    return { ...arcPoint(angle, 196), scale, visible: true };
-  }
   const angle = 50 + delta * (360 / n);
   const visible = angle > -6 && angle < 104;
   const scale = delta === 0 ? 1.62 : Math.abs(delta) === 1 ? 1.02 : 0.86;
@@ -48,18 +48,18 @@ function cargoPose(index, count) {
   const along = Math.floor(index / 2);
   const band = index % 2;
   const t = rows <= 1 ? 0.5 : along / (rows - 1);
-  const angle = 14 + 152 * t;
-  return { ...arcPoint(angle, band === 0 ? 348 : 268), scale: 0.78, visible: true };
+  const angle = 12 + 156 * t;
+  return { ...arcPoint(angle, band === 0 ? 400 : 318), scale: 0.92, visible: true };
 }
 
 function ringStyle(pose) {
   return {
-    left: pose.left,
+    right: pose.right,
     bottom: pose.bottom,
-    transform: `translate(-50%, 50%) scale(${pose.scale})`,
     opacity: pose.visible ? 1 : 0,
     pointerEvents: pose.visible ? 'auto' : 'none',
     zIndex: Math.round(pose.scale * 10),
+    '--slot-scale': String(pose.scale),
   };
 }
 

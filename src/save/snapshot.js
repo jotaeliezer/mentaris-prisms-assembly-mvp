@@ -139,6 +139,7 @@ export function buildProgressSnapshot(state) {
     spaceObjects: copyJson(state.spaceObjects || []),
     aliens: copyJson((state.aliens || []).filter((alien) => alien && !alien.gone)),
     alienNext: Number(state.alienNext) || 0,
+    lairSeenDown: state.lairSeenDown === true,
     milestones: copyJson(state.milestones || {}),
     localFlightId: state.localFlightId || '',
     starWasUp: typeof state.starWasUp === 'boolean' ? state.starWasUp : null,

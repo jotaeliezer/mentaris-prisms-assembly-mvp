@@ -424,7 +424,10 @@ export function tickAliens(state, dt) {
   const cluster = state.cluster || 1;
   const mine = state.aliens.filter((alien) => alien && !alien.gone && alien.layer === state.layer && alien.cluster === cluster);
   if (!up) {
+    state.lairSeenDown = true;
     for (const alien of mine) alien.leaving = true;
+  } else if (!state.lairSeenDown) {
+    // A fresh flight stays empty until the sun has been down once.
   } else if (!mine.length && (Number(state.alienNext) || 0) <= (Number(state.clock) || 0)) {
     const type = rollAlienType(state);
     const spot = spawnPoint(state, type);

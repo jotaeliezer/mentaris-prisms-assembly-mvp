@@ -821,6 +821,7 @@ export function resumeAssembly(state, progress, audio, assemblyId) {
   state.aliens = Array.isArray(progress.aliens) ? progress.aliens.map((alien) => ({ ...alien })) : [];
   state.alienShots = [];
   state.alienNext = Number(progress.alienNext) || 0;
+  state.lairSeenDown = progress.lairSeenDown === true || (Number(progress.clock) || 0) > 20;
   state.starWasUp = progress.starWasUp === true ? true : progress.starWasUp === false ? false : undefined;
   state.station = progress.station && Array.isArray(progress.station.pieces) ? progress.station : null;
   state.planets = Array.isArray(progress.planets) ? progress.planets : [];
@@ -919,6 +920,7 @@ export function startMission(state, id, seed, audio, assemblyId) {
   state.aliens = [];
   state.alienShots = [];
   state.alienNext = 0;
+  state.lairSeenDown = false;
   state.starWasUp = undefined;
   state.planets = [];
   state.sunBodies = [];

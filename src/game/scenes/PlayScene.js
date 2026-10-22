@@ -1071,7 +1071,12 @@ export default class PlayScene extends Phaser.Scene {
           ? this.add.image(alien.x, alien.y, key)
           : this.add.circle(alien.x, alien.y, 28, 0x7dff9a, 1);
         sprite.setDepth(7);
-        if (sprite.setDisplaySize) sprite.setDisplaySize(84, 84);
+        if (sprite.setDisplaySize && key) {
+          const draw = hullDraw(this, key, 84);
+          sprite.setDisplaySize(draw.w, draw.h);
+        } else if (sprite.setDisplaySize) {
+          sprite.setDisplaySize(84, 84);
+        }
         this.refreshUiIgnore(sprite);
         this.alienSprites.set(alien.id, sprite);
       }
