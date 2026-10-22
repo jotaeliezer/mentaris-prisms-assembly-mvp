@@ -47,6 +47,23 @@ const WEAPON_BULLET = {
   'arc-missile': 'bullet_missile.png',
   'pulse-lance': 'bullet_laser.png',
   flare: 'bullet_fire1.png',
+  'ice-shot': 'bullet_ice.png',
+  'fire-shot': 'bullet_fire1.png',
+  'laser-shot': 'bullet_laser.png',
+  'electric-shot': 'bullet_electric1.png',
+  'bola-shot': 'bullet_bola.png',
+  'plasma-shot': 'bullet_orb.png',
+  'rail-shot': 'bullet_rail.png',
+};
+
+const SHOT_ICON = {
+  'ice-shot': 'shot_ice.png',
+  'fire-shot': 'shot_fire.png',
+  'laser-shot': 'shot_laser.png',
+  'electric-shot': 'shot_electric.png',
+  'bola-shot': 'shot_bola.png',
+  'plasma-shot': 'shot_plasma.png',
+  'rail-shot': 'shot_rail.png',
 };
 
 /** Pictures cut from the alien that drops the part. The cannon is the weapon that spends a core. */
@@ -70,6 +87,8 @@ export function slotIcon(id) {
   if (Object.prototype.hasOwnProperty.call(ORE_SPRITE, id)) return '/assets/asteroids/mineral.png';
   const made = MADE_ICON[id];
   if (made) return '/images/items/' + made;
+  const shot = SHOT_ICON[id];
+  if (shot) return '/images/shots/' + shot;
   const bullet = WEAPON_BULLET[id];
   if (bullet) return '/images/bullets/' + bullet;
   const alien = ALIEN_ICON[id];
@@ -128,6 +147,17 @@ export const ITEMS = {
   spike: { id: 'spike', name: 'Spike crystal', mark: 'Sp', color: '#b7c9d6', tint: 0xb7c9d6, kind: 'alien', about: 'A spike from a golem. It is the material for raising bow plating once the Pale ore stand-in is replaced. Store it until then.' },
   chart: { id: 'chart', name: 'Alien chart', mark: 'Ac', color: '#e7eef5', tint: 0xe7eef5, kind: 'alien', about: 'A one-use note from a saucer. When strongholds exist, using it shows the layer and the direction of another stronghold, or of a black hole, in this cluster. Store it until then.' },
   core: { id: 'core', name: 'Alien core', mark: 'Co', color: '#ff7ab8', tint: 0xff7ab8, kind: 'alien', about: 'The heart of a brain. The Core cannon spends one, and the mega drill spends one. Store it, then fabricate the cannon at the bench.' },
+  salvage: { id: 'salvage', name: 'Hull salvage', mark: 'Vg', color: '#c5ced6', tint: 0xc5ced6, kind: 'space', about: 'A broken plate from a debris field. It is weaker than ore and cannot replace an alloy. Shot recipes can spend it.' },
+  comet: { id: 'comet', name: 'Comet dust', mark: 'Cd', color: '#ffe7b0', tint: 0xffe7b0, kind: 'space', about: 'Dust from a comet tail. It is not star dust. Fire and heat shots spend it.' },
+  ion: { id: 'ion', name: 'Ion mote', mark: 'Io', color: '#b7e4ff', tint: 0xb7e4ff, kind: 'space', about: 'A pinch of current from an ion stream. Electric shots spend it.' },
+  prism: { id: 'prism', name: 'Prism mote', mark: 'Pm', color: '#e7d6ff', tint: 0xe7d6ff, kind: 'space', about: 'A spark left by flying through a prism ring. The rail shot spends one.' },
+  'ice-shot': { id: 'ice-shot', name: 'Ice shot', mark: 'Ic', color: '#b7f4ff', tint: 0xb7f4ff, kind: 'weapon', use: 'shot', about: 'A cold bolt. Select it and left click. It breaks one rock in range. The recipe spends slate, a hull shard, and hull salvage.' },
+  'fire-shot': { id: 'fire-shot', name: 'Fire shot', mark: 'Fi', color: '#ffb15a', tint: 0xffb15a, kind: 'weapon', use: 'shot', about: 'A flame bolt. Select it and left click. It breaks one rock in range. The recipe spends amber, a spike crystal, and comet dust.' },
+  'laser-shot': { id: 'laser-shot', name: 'Laser shot', mark: 'Lz', color: '#8dffb0', tint: 0x8dffb0, kind: 'weapon', use: 'shot', about: 'A straight green beam. Select it and left click. It breaks one rock in range. The recipe spends glass, a cold lamp, and pale ore.' },
+  'electric-shot': { id: 'electric-shot', name: 'Electric shot', mark: 'El', color: '#7ad7ff', tint: 0x7ad7ff, kind: 'weapon', use: 'shot', about: 'A crackling bolt. Select it and left click. It breaks one rock in range. The recipe spends slate wire, a spark gland, and an ion mote.' },
+  'bola-shot': { id: 'bola-shot', name: 'Bola shot', mark: 'Bo', color: '#d5d8df', tint: 0xd5d8df, kind: 'weapon', use: 'shot', about: 'A piercing pair. Select it and left click. It breaks one rock in range. The recipe spends belt iron, grip fiber, and hull salvage.' },
+  'plasma-shot': { id: 'plasma-shot', name: 'Plasma shot', mark: 'Pl', color: '#c9b6ff', tint: 0xc9b6ff, kind: 'weapon', use: 'shot', about: 'A violet orb. Select it and left click. It breaks one rock in range. The recipe spends void filament, a cold lamp, and virid ore.' },
+  'rail-shot': { id: 'rail-shot', name: 'Rail shot', mark: 'Rl', color: '#ffe27a', tint: 0xffe27a, kind: 'weapon', use: 'shot', about: 'A heavy rail dart. Select it and left click. It reaches farther and breaks one rock. The recipe spends a glint gem, a spike crystal, and a prism mote.' },
   'core-cannon': { id: 'core-cannon', name: 'Core cannon', mark: 'Cn', color: '#ff8ec8', tint: 0xff8ec8, kind: 'weapon', use: 'core', about: 'The heavy weapon. Select it and left click. It reaches farther than the Arc missile, and one shot breaks one rock. On an alien it counts as two of the three hits. The recipe spends an Alien core and stays hidden until a core is in the hold.' },
   wall: { id: 'wall', name: 'Wall', mark: 'Wa', color: '#d5e2ec', tint: 0xd5e2ec, kind: 'construction', about: 'A thin bar. It is placed from the hotbar by clicking in space.' },
   panel: { id: 'panel', name: 'Panel', mark: 'Pn', color: '#9eb6c8', tint: 0x9eb6c8, kind: 'construction', about: 'A quadrilateral plane. It is placed from the hotbar by clicking in space.' },
@@ -151,6 +181,13 @@ export const RECIPES = [
   { id: 'pulse-lance', category: 'weapons', result: 'pulse-lance', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'amber', n: 1 }] },
   { id: 'core-cannon', category: 'weapons', result: 'core-cannon', station: 'bench', reveal: 'core', count: 1, costs: [{ id: 'core', n: 1 }, { id: 'iron', n: 2 }, { id: 'glass', n: 1 }] },
   { id: 'flare', category: 'weapons', result: 'flare', station: 'bench', count: 1, costs: [{ id: 'pale', n: 1 }, { id: 'glass', n: 1 }] },
+  { id: 'ice-shot', category: 'weapons', result: 'ice-shot', station: 'bench', count: 1, costs: [{ id: 'slate', n: 2 }, { id: 'shard', n: 1 }, { id: 'salvage', n: 1 }] },
+  { id: 'fire-shot', category: 'weapons', result: 'fire-shot', station: 'bench', count: 1, costs: [{ id: 'amber', n: 2 }, { id: 'spike', n: 1 }, { id: 'comet', n: 1 }] },
+  { id: 'laser-shot', category: 'weapons', result: 'laser-shot', station: 'bench', count: 1, costs: [{ id: 'glass', n: 1 }, { id: 'lamp', n: 1 }, { id: 'pale', n: 2 }] },
+  { id: 'electric-shot', category: 'weapons', result: 'electric-shot', station: 'bench', count: 1, costs: [{ id: 'wire', n: 1 }, { id: 'gland', n: 1 }, { id: 'ion', n: 1 }] },
+  { id: 'bola-shot', category: 'weapons', result: 'bola-shot', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'fiber', n: 1 }, { id: 'salvage', n: 2 }] },
+  { id: 'plasma-shot', category: 'weapons', result: 'plasma-shot', station: 'bench', count: 1, costs: [{ id: 'filament', n: 1 }, { id: 'lamp', n: 1 }, { id: 'virid', n: 1 }] },
+  { id: 'rail-shot', category: 'weapons', result: 'rail-shot', station: 'bench', count: 1, costs: [{ id: 'gem', n: 1 }, { id: 'spike', n: 1 }, { id: 'prism', n: 1 }] },
   { id: 'drive', category: 'ship', result: 'drive', station: 'bench', count: 1, costs: [{ id: 'iron', n: 3 }, { id: 'pale', n: 1 }] },
   { id: 'hull', category: 'ship', result: 'hull', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'pale', n: 2 }] },
   { id: 'hint', category: 'ship', result: 'hint', station: 'bench', count: 1, costs: [{ id: 'glass', n: 1 }] },

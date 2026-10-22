@@ -694,6 +694,7 @@ export default class PlayScene extends Phaser.Scene {
       layer: this.state.layer,
       sprite: snap.ship || ship.sprite,
       thrusting: !!ship.thrusting,
+      thrust: ship.thrust || 0,
       extracting: this.state.mode === 'extract',
       hp: ship.hp,
       maxHp: ship.maxHp,
@@ -728,22 +729,24 @@ export default class PlayScene extends Phaser.Scene {
         const draw = hullDraw(this, key, SHIP_BASE);
         sprite.setDisplaySize(draw.w, draw.h);
         sprite.setDepth(9);
-        const label = this.add.text(remote.x, remote.y - 48, remote.tag || '', {
-          fontFamily: '"Segoe UI", "Avenir Next", "Helvetica Neue", sans-serif',
-          fontSize: '13px',
-          color: '#e8ecff',
-          backgroundColor: '#0b1220',
-          padding: { left: 5, right: 5, top: 2, bottom: 2 },
+        const label = this.add.text(remote.x, remote.y - 64, '', {
+          fontFamily: '"Oxanium", "Segoe UI", sans-serif',
+          fontSize: '16px',
+          color: '#f4fbff',
+          backgroundColor: '#0b1220cc',
+          padding: { left: 6, right: 6, top: 3, bottom: 3 },
         });
         label.setOrigin(0.5, 1);
-        label.setDepth(12);
+        label.setDepth(40);
         this.refreshUiIgnore(sprite);
         this.refreshUiIgnore(label);
         const drill = this.add.graphics().setDepth(11);
         this.refreshUiIgnore(drill);
         const hull = this.add.graphics().setDepth(12);
         this.refreshUiIgnore(hull);
-        view = { sprite, label, drill, hull };
+        const flame = this.add.graphics().setDepth(8);
+        this.refreshUiIgnore(flame);
+        view = { sprite, label, drill, hull, flame };
         this.remoteViews.set(remote.id, view);
       } else if (view.sprite.texture.key !== key) {
         view.sprite.setTexture(key);
@@ -753,10 +756,24 @@ export default class PlayScene extends Phaser.Scene {
       const draw = hullDraw(this, key, SHIP_BASE);
       view.sprite.setDisplaySize(draw.w, draw.h);
       view.sprite.setVisible(visible);
-      const tag = remote.pilot || remote.tag || '';
+      const name = remote.pilot || 'Pilot';
+      const tag = remote.tag && remote.tag !== name ? name + ' · ' + remote.tag : name;
       if (view.label.text !== tag) view.label.setText(tag);
-      view.label.setPosition(remote.x, remote.y - 56);
-      view.label.setVisible(visible && tag.length > 0);
+      view.label.setPosition(remote.x, remote.y - 64);
+      view.label.setVisible(visible);
+      if (!view.flame) {
+        view.flame = this.add.graphics().setDepth(8);
+        this.refreshUiIgnore(view.flame);
+      }
+      if (view.flame) {
+        syncFlame(
+          view.flame,
+          { x: remote.x, y: remote.y, aim: remote.aim, thrust: visible ? remote.thrust || 0 : 0 },
+          1,
+          this.state.clock || 0
+        );
+        view.flame.setVisible(visible && (remote.thrust || 0) >= 0.04);
+      }
       this.syncRemoteHull(view.hull, remote, visible);
       this.syncRemoteDrill(view.drill, remote, visible);
     }
@@ -766,6 +783,7 @@ export default class PlayScene extends Phaser.Scene {
       view.label.destroy();
       if (view.drill) view.drill.destroy();
       if (view.hull) view.hull.destroy();
+      if (view.flame) view.flame.destroy();
       this.remoteViews.delete(id);
     }
     this.syncRemoteGathers(showAny, layer);
@@ -923,7 +941,8 @@ export default class PlayScene extends Phaser.Scene {
         sprite = null;
       }
       if (!sprite) {
-        const texture = this.textures.exists('bullet_single.png') ? 'bullet_single.png' : null;
+        const face = missile.face && this.textures.exists(missile.face) ? missile.face : 'bullet_single.png';
+        const texture = this.textures.exists(face) ? face : null;
         sprite = texture
           ? this.add.image(missile.x, missile.y, texture)
           : this.add.circle(missile.x, missile.y, 4, 0xb9f3ff, 1);
@@ -975,7 +994,7 @@ export default class PlayScene extends Phaser.Scene {
   syncBodies() {
     if (!this.bodySprites) this.bodySprites = new Map();
     const bodies = []
-      .concat(this.state.planets || [], this.state.sunBodies || [])
+      .concat(this.state.planets || [], this.state.sunBodies || [], this.state.spaceObjects || [])
       .filter((body) => body.layer === this.state.layer);
     const seen = new Set();
     for (const body of bodies) {

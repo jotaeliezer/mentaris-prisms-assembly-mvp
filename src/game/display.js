@@ -33,7 +33,7 @@ export function syncStars(gfx, stars, camera, w, h, fade = 1) {
 export function syncFlame(gfx, ship, shipScale = 1, time = 0) {
   gfx.clear();
   const burn = ship && ship.thrust ? ship.thrust : 0;
-  if (!ship || !ship.thrusting || burn < 0.04) {
+  if (!ship || burn < 0.04) {
     gfx.setVisible(false);
     return;
   }

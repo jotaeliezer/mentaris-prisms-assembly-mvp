@@ -11,6 +11,7 @@ import GameOver from './GameOver.jsx';
 import SettingsPanel, { DEFAULT_MISSION, DEFAULT_SEED } from './SettingsPanel.jsx';
 import { useMultiplayer } from './SessionControls.jsx';
 import ShipChoice from './ShipChoice.jsx';
+import SessionChat from './SessionChat.jsx';
 
 const FLIGHT_SETTINGS_NOTE =
   'The same seed builds the same belt. Close resumes this flight. A changed seed or mission starts that flight.';
@@ -29,6 +30,7 @@ function beepFreshNotices(bridge, notices) {
 export default function App({ bridge }) {
   const [snapshot, setSnapshot] = useState(() => bridge.getSnapshot());
   const [flightSettingsOpen, setFlightSettingsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [flightSeed, setFlightSeed] = useState(DEFAULT_SEED);
   const [flightMission, setFlightMission] = useState(DEFAULT_MISSION);
   const live = useMultiplayer();
@@ -138,6 +140,11 @@ export default function App({ bridge }) {
       }
       if (event.code === 'KeyM' && mode !== 'title') {
         bridge.emit('toggleMute');
+        return;
+      }
+      if (event.code === 'KeyT' && mode !== 'title' && mode !== 'extract') {
+        event.preventDefault();
+        setChatOpen((open) => !open);
       }
       if (event.code === 'Enter' && mode === 'clear') {
         bridge.emit('startMission', { missionId: 'add' });
@@ -209,6 +216,7 @@ export default function App({ bridge }) {
         </div>
       )}
       <ShipChoice bridge={bridge} />
+      <SessionChat open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }

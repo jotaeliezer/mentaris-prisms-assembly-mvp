@@ -136,6 +136,7 @@ export function buildProgressSnapshot(state) {
     station: copyJson(state.station),
     planets: copyJson(state.planets || []),
     sunBodies: copyJson(state.sunBodies || []),
+    spaceObjects: copyJson(state.spaceObjects || []),
     nextId: state.nextId,
   };
 }

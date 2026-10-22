@@ -84,15 +84,24 @@ export default function Title({ bridge }) {
     if (busy) return;
     setBusy(true);
     bridge.emit('uiBeep');
+    writePilotName(pilot);
     const result = await playOnThisBrowser();
     setBusy(false);
     if (!result.ok) {
-      setCloudNote(result.error || 'Could not save on this browser.');
+      setCloudNote(result.error || 'Could not save on this browser. Starting this belt without an assembly.');
+      launchFresh();
       return;
     }
+    setAccount({
+      signedIn: true,
+      anonymous: result.anonymous !== false,
+      email: result.email || '',
+    });
     setCloudNote('');
     setAuthMode('');
-    refreshHome();
+    const listed = await listAssemblies();
+    if (listed.error) setCloudNote(listed.error);
+    setAssemblies(listed.assemblies || []);
   }
 
   async function submitAccount(event) {

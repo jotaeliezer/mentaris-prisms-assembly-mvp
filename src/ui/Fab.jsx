@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 const CATEGORIES = [
+  { id: 'all', label: 'All' },
   { id: 'basics', label: 'By hand', icon: '/images/categories/basics.svg' },
   { id: 'alloys', label: 'Alloys', icon: '/images/categories/alloys.svg' },
   { id: 'weapons', label: 'Weapons', icon: '/images/categories/weapons.svg' },
@@ -14,10 +15,24 @@ function beep(bridge) {
   bridge.emit('uiBeep');
 }
 
+function itemPicture(item) {
+  if (!item || !item.icon) return null;
+  return (
+    <img
+      src={item.icon}
+      alt=""
+      style={item.iconFilter && item.iconFilter !== 'none' ? { filter: item.iconFilter } : undefined}
+    />
+  );
+}
+
 export default function Fab({ bridge, snapshot }) {
   const recipes = Array.isArray(snapshot.recipes) ? snapshot.recipes : [];
-  const [hoverId, setHoverId] = useState(null);
-  const hover = recipes.find((recipe) => recipe.id === hoverId) || null;
+  const [filter, setFilter] = useState('all');
+  const [selectedId, setSelectedId] = useState(null);
+  const visible = recipes.filter((recipe) => filter === 'all' || recipe.category === filter);
+  const selected = recipes.find((recipe) => recipe.id === selectedId) || null;
+  const category = selected ? CATEGORIES.find((cat) => cat.id === selected.category) : null;
 
   return (
     <div id="fab" className="overlay">
@@ -27,64 +42,88 @@ export default function Fab({ bridge, snapshot }) {
         <p className="lede" id="fab-copy">
           {snapshot.fabCopy}
         </p>
-        <div className="fab-readout" aria-live="polite">
-          {hover ? (
-            <>
-              <p className="fab-readout-name">{hover.name}</p>
-              <p className="fab-readout-body">{hover.about}</p>
-            </>
-          ) : (
-            <p className="fab-readout-body">Hover a card to read what it is and what it is for.</p>
-          )}
-        </div>
-        <div className="fab-board">
+        <div className="fab-cats" role="tablist" aria-label="Recipe categories">
           {CATEGORIES.map((cat) => {
-            const list = recipes.filter((recipe) => recipe.category === cat.id);
-            if (!list.length) return null;
+            const count =
+              cat.id === 'all' ? recipes.length : recipes.filter((recipe) => recipe.category === cat.id).length;
+            if (cat.id !== 'all' && !count) return null;
             return (
-              <section key={cat.id} className="fab-col" aria-label={cat.label}>
-                <h3>
-                  <img className="fab-cat-icon" src={cat.icon} alt="" />
-                  {cat.label}
-                </h3>
-                <div className="missions fab-recipes">
-                  {list.map((recipe) => (
-                    <button
-                      key={recipe.id}
-                      id={'craft-' + recipe.id}
-                      className={`btn btn-primary fab-card${hoverId === recipe.id ? ' is-hot' : ''}${
-                        recipe.ready ? '' : ' is-short'
-                      }`}
-                      type="button"
-                      aria-disabled={recipe.ready ? 'false' : 'true'}
-                      onMouseEnter={() => setHoverId(recipe.id)}
-                      onMouseLeave={() => setHoverId((current) => (current === recipe.id ? null : current))}
-                      onFocus={() => setHoverId(recipe.id)}
-                      onBlur={() => setHoverId((current) => (current === recipe.id ? null : current))}
-                      onClick={() => {
-                        if (!recipe.ready) return;
-                        beep(bridge);
-                        bridge.emit('craft', recipe.id);
-                      }}
-                    >
-                      <span className="fab-name">
-                        {recipe.icon ? (
-                          <img
-                            className="fab-item-icon"
-                            src={recipe.icon}
-                            alt=""
-                            style={recipe.iconFilter && recipe.iconFilter !== 'none' ? { filter: recipe.iconFilter } : undefined}
-                          />
-                        ) : null}
-                        {recipe.name}
-                      </span>
-                      <span className="fab-cost">{recipe.costText}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
+              <button
+                key={cat.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === cat.id}
+                className={`btn fab-cat${filter === cat.id ? ' active' : ''}`}
+                onClick={() => {
+                  beep(bridge);
+                  setFilter(cat.id);
+                }}
+              >
+                {cat.icon ? <img className="fab-cat-icon" src={cat.icon} alt="" /> : null}
+                {cat.label}
+              </button>
             );
           })}
+        </div>
+        <div className="fab-layout">
+          <div className="fab-icon-grid" role="list">
+            {visible.map((recipe) => (
+              <button
+                key={recipe.id}
+                id={'craft-' + recipe.id}
+                type="button"
+                role="listitem"
+                className={`fab-icon-btn${selectedId === recipe.id ? ' is-hot' : ''}${recipe.ready ? '' : ' is-short'}`}
+                aria-label={recipe.name}
+                aria-pressed={selectedId === recipe.id}
+                onClick={() => {
+                  beep(bridge);
+                  setSelectedId(recipe.id);
+                }}
+              >
+                {itemPicture(recipe)}
+              </button>
+            ))}
+          </div>
+          <aside className="fab-info" aria-live="polite">
+            {selected ? (
+              <>
+                <div className="fab-info-head">
+                  {itemPicture(selected)}
+                  <div>
+                    <p className="fab-readout-name">{selected.name}</p>
+                    {category ? <p className="fab-info-cat">{category.label}</p> : null}
+                  </div>
+                </div>
+                <p className="fab-readout-body">{selected.about || 'A fabrication count.'}</p>
+                <p className="fab-info-label">Recipe</p>
+                <ul className="fab-recipe">
+                  {(selected.costs || []).map((cost) => (
+                    <li key={cost.id}>
+                      {itemPicture(cost)}
+                      <span>
+                        {cost.n} {cost.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!selected.ready}
+                  onClick={() => {
+                    if (!selected.ready) return;
+                    beep(bridge);
+                    bridge.emit('craft', selected.id);
+                  }}
+                >
+                  {selected.ready ? 'Fabricate' : 'Missing materials'}
+                </button>
+              </>
+            ) : (
+              <p className="fab-readout-body">Choose an icon to read the item and its recipe.</p>
+            )}
+          </aside>
         </div>
         <div className="missions fab-footer">
           <button

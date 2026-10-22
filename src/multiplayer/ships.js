@@ -134,6 +134,7 @@ export function createRemoteShip(pose, now) {
     layer: pose.layer | 0,
     sprite: pose.sprite || '',
     thrusting: !!pose.thrusting,
+    thrust: Number.isFinite(Number(pose.thrust)) ? Math.max(0, Math.min(1, Number(pose.thrust))) : pose.thrusting ? 1 : 0,
     extracting: !!pose.extracting,
     pilot: pose.pilot || '',
     hp: finiteHp(pose.hp, 100),
@@ -165,6 +166,8 @@ export function pushRemotePose(ship, pose, now, blendMs = POSE_BLEND_MS) {
   ship.layer = pose.layer | 0;
   if (pose.sprite) ship.sprite = pose.sprite;
   ship.thrusting = !!pose.thrusting;
+  if (pose.thrust != null) ship.thrust = Math.max(0, Math.min(1, Number(pose.thrust) || 0));
+  else if (!pose.thrusting) ship.thrust = 0;
   ship.extracting = !!pose.extracting;
   if (pose.hp != null) ship.hp = finiteHp(pose.hp, ship.hp);
   if (pose.maxHp != null) ship.maxHp = finiteHp(pose.maxHp, ship.maxHp) || ship.maxHp || 100;
@@ -175,6 +178,10 @@ export function pushRemotePose(ship, pose, now, blendMs = POSE_BLEND_MS) {
 }
 
 export function stepRemoteShip(ship, now) {
+  const prev = ship.stepAt || now;
+  const dt = Math.min(0.05, Math.max(0, (now - prev) / 1000));
+  ship.stepAt = now;
+  if (!ship.thrusting) ship.thrust = Math.max(0, (ship.thrust || 0) - dt / 0.72);
   const span = ship.t1 - ship.t0;
   if (!(span > 0)) {
     ship.x = ship.toX;

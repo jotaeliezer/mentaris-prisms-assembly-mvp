@@ -424,6 +424,89 @@ export function ensureScenery(state) {
       });
     }
   }
+  if (!state.spaceObjects) state.spaceObjects = [];
+  if (!state.spaceObjects.some((object) => object.layer === state.layer && object.cluster === cluster)) {
+    const rng = makeRng((state.seed || 'belt') + '|space|' + cluster + '|' + state.layer);
+    const place = (kind, key, r, extra) => {
+      const angle = rng() * Math.PI * 2;
+      const dist = 1800 + rng() * 2200;
+      state.spaceObjects.push({
+        id: kind + ':' + cluster + ':' + state.layer + ':' + state.spaceObjects.length,
+        layer: state.layer,
+        cluster,
+        kind,
+        key,
+        r,
+        x: clamp(state.ship.x + Math.cos(angle) * dist, 600, WORLD.w - 600),
+        y: clamp(state.ship.y + Math.sin(angle) * dist, 600, WORLD.h - 600),
+        taken: false,
+        lootLeft: kind === 'debris' ? 3 : kind === 'comet' ? 2 : 1,
+        vx: kind === 'comet' ? Math.cos(angle) * 40 : 0,
+        vy: kind === 'comet' ? Math.sin(angle) * 40 : 0,
+        ...extra,
+      });
+    };
+    place('debris', 'debris-field.jpg', 420);
+    if (rng() < 0.7) place('ion', 'ion-stream.jpg', 180);
+    if (rng() < 0.45) place('prism', 'prism-ring.jpg', 90);
+    if (rng() < 0.35) place('stronghold', 'stronghold.jpg', 160);
+    if (rng() < 0.4) place('comet', 'comet.jpg', 70);
+  }
+}
+
+function spillFind(state, itemId, x, y) {
+  state.drops.push({
+    id: state.nextId++,
+    x,
+    y,
+    itemId,
+    count: 1,
+    life: 90,
+    maxLife: 90,
+  });
+}
+
+function tickSpaceObjects(state, dt) {
+  const ship = state.ship;
+  if (!ship || !state.spaceObjects) return;
+  for (const object of state.spaceObjects) {
+    if (object.layer !== state.layer) continue;
+    if (object.kind === 'comet') {
+      object.x += (object.vx || 0) * dt;
+      object.y += (object.vy || 0) * dt;
+    }
+    const dist = Math.hypot(ship.x - object.x, ship.y - object.y);
+    if (object.kind === 'debris' && dist < object.r) {
+      object.touch = (object.touch || 0) + dt;
+      if (object.touch > 1.6 && object.lootLeft > 0) {
+        object.touch = 0;
+        object.lootLeft -= 1;
+        spillFind(state, 'salvage', ship.x + 30, ship.y);
+        if (state.bumpCooldown <= 0 && !(state.quiet > 0)) {
+          state.bumpCooldown = 0.7;
+          ship.hp = Math.max(0, ship.hp - 3);
+        }
+      }
+    }
+    if (object.kind === 'ion' && dist < object.r && !object.taken) {
+      object.taken = true;
+      ship.vx += 40;
+      spillFind(state, 'ion', ship.x, ship.y + 24);
+    }
+    if (object.kind === 'prism' && dist < object.r && !object.taken) {
+      object.taken = true;
+      spillFind(state, 'prism', object.x, object.y);
+    }
+    if (object.kind === 'comet' && dist < 160 && object.lootLeft > 0) {
+      object.lootLeft -= 1;
+      spillFind(state, 'comet', object.x, object.y);
+    }
+    if (object.kind === 'stronghold' && dist < object.r && !object.taken) {
+      object.taken = true;
+      const parts = ['gland', 'shard', 'lamp', 'chart', 'core'];
+      spillFind(state, parts[Math.floor(state.rng() * parts.length)], object.x, object.y);
+    }
+  }
 }
 
 export function placeWormhole(state) {
@@ -730,6 +813,7 @@ export function resumeAssembly(state, progress, audio, assemblyId) {
   state.station = progress.station && Array.isArray(progress.station.pieces) ? progress.station : null;
   state.planets = Array.isArray(progress.planets) ? progress.planets : [];
   state.sunBodies = Array.isArray(progress.sunBodies) ? progress.sunBodies : [];
+  state.spaceObjects = Array.isArray(progress.spaceObjects) ? progress.spaceObjects : [];
   backfillStation(state.station);
   if (Number.isFinite(progress.nextId)) state.nextId = progress.nextId;
   const restoredPieces = state.station && state.station.pieces;
@@ -1038,7 +1122,7 @@ function copyRock(rock) {
 }
 
 /** Unused for rocks (extract is primary). Kept for the crafted arc missile. */
-function launchMissile(state, rock, audio, heavy) {
+function launchMissile(state, rock, audio, heavy, face, soundKey) {
   const ship = state.ship;
   const x = ship.x + Math.cos(ship.aim) * 40;
   const y = ship.y + Math.sin(ship.aim) * 40;
@@ -1050,11 +1134,15 @@ function launchMissile(state, rock, audio, heavy) {
   const facing = nx * Math.cos(ship.aim) + ny * Math.sin(ship.aim);
   const bend = facing >= 0 ? 1 : -1;
   state.missiles.push({
+    id: state.nextId++,
     x,
     y,
     vx: Math.cos(ship.aim) * 80,
     vy: Math.sin(ship.aim) * 80,
     bend,
+    straight: !!face,
+    single: !!face,
+    face: face || '',
     targetId: rock.id,
     targetKey: rock.key,
     tx: rock.x,
@@ -1074,8 +1162,11 @@ function launchMissile(state, rock, audio, heavy) {
     ty: round1(rock.y),
     bend,
     heavy: heavy ? 1 : 0,
+    single: face ? 1 : 0,
+    face: face || '',
   });
-  if (audio) audio.shot();
+  if (audio && soundKey && typeof audio.playShot === 'function') audio.playShot(soundKey);
+  else if (audio) audio.shot();
 }
 
 function rockYieldSize(rock) {
@@ -2031,6 +2122,7 @@ function applyShotWorld(state, event, selfId) {
     heavy: !!event.heavy,
     single: !!event.single,
     straight: !!event.single,
+    face: typeof event.face === 'string' ? event.face : '',
     power: event.heavy ? 2 : 1,
   });
 }
@@ -2280,7 +2372,7 @@ export function updatePhysics(state, dt, input) {
   const strafe = input.strafe();
   ship.thrusting = thrust > 0 && !brake;
   if (ship.thrusting) ship.thrust = Math.min(1, (ship.thrust || 0) + dt / 0.34);
-  else ship.thrust = Math.max(0, (ship.thrust || 0) - dt / 0.16);
+  else ship.thrust = Math.max(0, (ship.thrust || 0) - dt / 0.72);
 
   const accel = 520;
   const reverseAccel = accel * 1.45;
@@ -2337,6 +2429,7 @@ export function updateFly(state, dt, ctx) {
 
   updatePhysics(state, dt, input);
   ensureScenery(state);
+  tickSpaceObjects(state, dt);
   if (audio && typeof audio.syncMotionLoops === 'function') {
     audio.syncMotionLoops(!!ship.thrusting, state.mode === 'fly');
   }
@@ -2667,8 +2760,30 @@ function noteStatus(state, text) {
   state.statusTime = 3.2;
 }
 
-function applyUse(state, use) {
+const SHOT_STYLE = {
+  'ice-shot': { face: 'bullet_ice.png', sound: 'ice_shot', reach: 720 },
+  'fire-shot': { face: 'bullet_fire1.png', sound: 'flame_shot', reach: 720 },
+  'laser-shot': { face: 'bullet_laser.png', sound: 'gun2', reach: 860 },
+  'electric-shot': { face: 'bullet_electric1.png', sound: 'electric_shot', reach: 720 },
+  'bola-shot': { face: 'bullet_bola.png', sound: 'gun1', reach: 640 },
+  'plasma-shot': { face: 'bullet_orb.png', sound: 'shot_orb', reach: 780 },
+  'rail-shot': { face: 'bullet_rail.png', sound: 'shot_railbeam', reach: 1200, heavy: true },
+};
+
+function applyUse(state, use, audio) {
   const ship = state.ship;
+  if (use === 'shot') {
+    const stack = selectedStack(state);
+    const style = stack && SHOT_STYLE[stack.id];
+    if (!style) return false;
+    const rock = nearestAsteroid(state, style.reach);
+    if (!rock || rock.depleted) {
+      noteStatus(state, 'No rock in range for that weapon.');
+      return false;
+    }
+    launchMissile(state, rock, audio, !!style.heavy, style.face, style.sound);
+    return true;
+  }
   if (use === 'missile' || use === 'core') {
     const heavy = use === 'core';
     const rock = nearestAsteroid(state, heavy ? 1200 : 720);
@@ -2794,10 +2909,10 @@ export function useSelectedHotbar(state, audio) {
   if (!stack) return false;
   const item = itemById(stack.id);
   if (!item || !item.use) return false;
-  if (!applyUse(state, item.use)) return false;
+  if (!applyUse(state, item.use, audio)) return false;
   stack.count -= 1;
   if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
-  if (audio) {
+  if (audio && item.use !== 'shot') {
     if ((item.use === 'missile' || item.use === 'core') && typeof audio.shot === 'function') audio.shot();
     else if (typeof audio.correct === 'function') audio.correct();
   }
@@ -2887,7 +3002,13 @@ function RECIPES_FOR_FAB(state) {
     about: ITEMS[recipe.result] && ITEMS[recipe.result].about ? ITEMS[recipe.result].about : '',
     costText: costLabel(recipe.costs) + (recipe.standIn ? ' (stand-in)' : ''),
     ready: canAfford(state, recipe.costs),
-    costs: recipe.costs.map((cost) => ({ id: cost.id, n: cost.n })),
+    costs: recipe.costs.map((cost) => ({
+      id: cost.id,
+      n: cost.n,
+      name: ITEMS[cost.id] ? ITEMS[cost.id].name : cost.id,
+      icon: slotIcon(cost.id),
+      iconFilter: iconFilter(cost.id),
+    })),
   }));
 }
 

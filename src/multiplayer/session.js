@@ -83,6 +83,7 @@ function emptySnapshot(available) {
     needsShip: false,
     sessionFull: false,
     connected: false,
+    chats: [],
   };
 }
 
@@ -91,6 +92,7 @@ export function createMultiplayerSession(options = {}) {
   const playerId = options.playerId || createPlayerId();
   const listeners = new Set();
   const remotes = new Map();
+  const chats = [];
   let snapshot = emptySnapshot(!!config);
   let client = null;
   let channel = null;
@@ -255,6 +257,7 @@ export function createMultiplayerSession(options = {}) {
       layer: finite(payload.layer, 0),
       sprite: typeof payload.sprite === 'string' ? payload.sprite : '',
       thrusting: !!payload.thrusting,
+      thrust: Math.max(0, Math.min(1, finite(payload.thrust, payload.thrusting ? 1 : 0))),
       extracting: !!payload.extracting,
       pilot: typeof payload.pilot === 'string' ? payload.pilot : '',
       hp: finite(payload.hp, 100),
@@ -391,6 +394,10 @@ export function createMultiplayerSession(options = {}) {
         if (gen !== generation) return;
         ingestWorld(payload);
       });
+      ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
+        if (gen !== generation) return;
+        ingestChat(payload);
+      });
       ch.on('presence', { event: 'sync' }, () => {
         if (gen !== generation) return;
         syncPresence();
@@ -503,6 +510,7 @@ export function createMultiplayerSession(options = {}) {
     lastSentLayer = null;
     lastSentExtracting = false;
     gathers.length = 0;
+    chats.length = 0;
     worldNotes.length = 0;
     seenWorld.clear();
     shipOffer = [];
@@ -510,6 +518,38 @@ export function createMultiplayerSession(options = {}) {
     trackingShip = '';
     lastSentHp = null;
     notify(emptySnapshot(!!config));
+  }
+
+  function rememberChat(entry) {
+    chats.push(entry);
+    if (chats.length > 40) chats.splice(0, chats.length - 40);
+    notify({ chats: chats.slice() });
+  }
+
+  function ingestChat(payload) {
+    if (!payload || typeof payload.text !== 'string') return;
+    const text = payload.text.trim().slice(0, 140);
+    if (!text) return;
+    rememberChat({
+      id: String(payload.id || ''),
+      pilot: typeof payload.pilot === 'string' && payload.pilot.trim() ? payload.pilot.trim().slice(0, 28) : 'Pilot',
+      text,
+      t: Number(payload.t) || Date.now(),
+    });
+  }
+
+  function publishChat(text, pilot) {
+    const clean = String(text || '').trim().slice(0, 140);
+    if (!clean || !channel || snapshot.status !== 'connected') return false;
+    const entry = {
+      id: playerId,
+      pilot: typeof pilot === 'string' && pilot.trim() ? pilot.trim().slice(0, 28) : 'Pilot',
+      text: clean,
+      t: Date.now(),
+    };
+    rememberChat(entry);
+    channel.send({ type: 'broadcast', event: 'chat', payload: entry }).catch(() => {});
+    return true;
   }
 
   function noteFlight(next) {
@@ -557,6 +597,7 @@ export function createMultiplayerSession(options = {}) {
       hp,
       maxHp,
       pilot: typeof pose.pilot === 'string' ? pose.pilot.slice(0, 28) : '',
+      thrust: Math.max(0, Math.min(1, finite(pose.thrust, pose.thrusting ? 1 : 0))),
     };
     channel.send({ type: 'broadcast', event: 'pose', payload }).catch(() => {});
   }
@@ -756,6 +797,7 @@ export function createMultiplayerSession(options = {}) {
     publishRock,
     publishFire,
     publishWorld,
+    publishChat,
     takeWorldNotes,
     chooseShip,
     takeRockNotes,

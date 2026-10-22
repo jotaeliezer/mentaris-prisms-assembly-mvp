@@ -218,6 +218,11 @@ export function listPhaserImages() {
     ['star-pale.jpg', 'images/stars'],
     ['star-cinder.jpg', 'images/stars'],
     ['star-glint.jpg', 'images/stars'],
+    ['debris-field.jpg', 'images/space'],
+    ['comet.jpg', 'images/space'],
+    ['prism-ring.jpg', 'images/space'],
+    ['stronghold.jpg', 'images/space'],
+    ['ion-stream.jpg', 'images/space'],
   ];
   for (const [name, folder] of plates) {
     entries.push({ key: name, url: assetUrl(folder, name) });
