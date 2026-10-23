@@ -102,6 +102,8 @@ export const ITEM_ICON_FILES = [
   "fire-ammo.png",
   "laser-ammo.png",
   "rail-ammo.png",
+  "excavator.png",
+  "c4.png",
 ];
 
 export const BULLET_FILES = [

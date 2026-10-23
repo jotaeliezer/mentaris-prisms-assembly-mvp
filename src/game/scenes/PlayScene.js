@@ -24,7 +24,7 @@ import { mainStarName } from '../star.js';
 import { dropSpriteKey, inventoryClick, inventoryDrag, itemById, itemTint, shiftOne } from '../items.js';
 import { ghostPose, visiblePieces } from '../construct.js';
 import { readPilotName } from '../pilot.js';
-import { createState, WORLD } from '../state.js';
+import { createState, rockRank, WORLD } from '../state.js';
 import {
   applyFriendlyFire,
   applySharedRock,
@@ -576,7 +576,7 @@ export default class PlayScene extends Phaser.Scene {
     const canvas = this.game && this.game.canvas;
     const rect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
     this.state.rockTip = {
-      stars: best.difficulty === 'hard' ? '★★★' : '★',
+      stars: '★'.repeat(rockRank(best)),
       x: rect.left + mouse.x,
       y: rect.top + mouse.y,
     };

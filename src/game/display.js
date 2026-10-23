@@ -291,7 +291,8 @@ export function syncMinimap(gfx, state, w, h) {
     if (!rock.alive) continue;
     const px = x + (rock.x / state.world.w) * mw;
     const py = y + (rock.y / state.world.h) * mh;
-    gfx.fillStyle(rock.difficulty === 'hard' ? 0xffb15a : 0x8dffb0, 1);
+    const rank = Number.isFinite(rock.rank) ? rock.rank : rock.difficulty === 'hard' ? 3 : 1;
+    gfx.fillStyle(rank >= 3 ? 0xffb15a : 0x8dffb0, 1);
     gfx.fillRect(px - 1.5, py - 1.5, 3, 3);
   }
   if (state.wormhole) {

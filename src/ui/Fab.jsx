@@ -223,7 +223,11 @@ export default function Fab({ bridge, snapshot }) {
                     <p className="fab-gate-question">
                       {gate.a} × {gate.b}
                     </p>
-                    <p className="fab-readout-body">Scroll a digit. Then press Ready.</p>
+                    <p className="fab-readout-body">
+                      {gate.hard
+                        ? 'Marked ore is in the hold, so this count is a little harder. Scroll a digit, then press Ready.'
+                        : 'Scroll a digit. Then press Ready.'}
+                    </p>
                     <div className="fab-gate-digits">
                       {[
                         ['tens', 'Tens', gate.tens],
@@ -274,9 +278,10 @@ export default function Fab({ bridge, snapshot }) {
                     onClick={() => {
                       if (!selected.ready) return;
                       beep(bridge);
-                      const a = 1 + Math.floor(Math.random() * 9);
-                      const b = 1 + Math.floor(Math.random() * 9);
-                      setGate({ recipeId: selected.id, a, b, tens: 0, ones: 0 });
+                      const hard = !!snapshot.taintedHold;
+                      const a = hard ? 6 + Math.floor(Math.random() * 4) : 1 + Math.floor(Math.random() * 9);
+                      const b = hard ? 6 + Math.floor(Math.random() * 4) : 1 + Math.floor(Math.random() * 9);
+                      setGate({ recipeId: selected.id, a, b, tens: 0, ones: 0, hard });
                     }}
                   >
                     {selected.ready ? 'Fabricate' : 'Missing materials'}

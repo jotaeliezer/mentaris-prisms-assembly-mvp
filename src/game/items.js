@@ -50,6 +50,9 @@ const MADE_ICON = {
   dock: 'dock.png',
   gunship: 'gunship.png',
   drill: 'drill.png',
+  'belt-drill': 'drill.png',
+  excavator: 'excavator.png',
+  c4: 'c4.png',
   extension: 'extension.png',
   vault: 'vault.png',
   beacon: 'beacon.png',
@@ -189,6 +192,9 @@ export const ITEMS = {
   quiet: { id: 'quiet', name: 'Quiet running', mark: 'Qr', color: '#9bb0c0', tint: 0x9bb0c0, kind: 'ability', use: 'quiet', about: 'For a few seconds, bumping a rock does not damage the hull. Use it from the hotbar. Useful when you must squeeze between rocks to reach a drop.' },
   cloak: { id: 'cloak', name: 'Cloak', mark: 'Ck', color: '#c9b6ff', tint: 0xc9b6ff, kind: 'ability', use: 'cloak', about: 'Aliens lose sight of the ship for a few seconds. Select it and left click. Rocks can still bump the hull.' },
   dash: { id: 'dash', name: 'Dash', mark: 'Ds', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'ability', use: 'dash', about: 'A short burst along the nose. Press Left Shift while flying, or select it and left click. Each use spends one charge.' },
+  'belt-drill': { id: 'belt-drill', name: 'Drill', mark: 'Di', color: '#e8a05a', tint: 0xe8a05a, kind: 'ability', about: 'Stays with the ship after it is fabricated. An asteroid breaks after two correct answers instead of three. A question does not use it up. The Mega drill on a station is a different piece.' },
+  excavator: { id: 'excavator', name: 'Excavator', mark: 'Ev', color: '#ffb15a', tint: 0xffb15a, kind: 'ability', about: 'Stays with the ship after it is fabricated. An asteroid breaks after one correct answer. If a Drill is also carried, the excavator is the one that counts.' },
+  c4: { id: 'c4', name: 'C4', mark: 'C4', color: '#ff6b6b', tint: 0xff6b6b, kind: 'ability', use: 'c4', about: 'Select it and click an asteroid. The rock breaks with no question, and that charge is spent. Ore from the blast is marked. While any marked ore is in the hold, fabrication questions are a little harder.' },
   shock: { id: 'shock', name: 'Shockwave', mark: 'Sw', color: '#d7f6ff', tint: 0xd7f6ff, kind: 'ability', use: 'shock', about: 'A ring that shoves nearby aliens away and hurts them. Select it and left click.' },
   shield: { id: 'shield', name: 'Shield', mark: 'Sh', color: '#9be7ff', tint: 0x9be7ff, kind: 'ability', use: 'shield', about: 'The next rock bump or alien hit is absorbed. Select it and left click before you take the hit.' },
   teleport: { id: 'teleport', name: 'Teleport', mark: 'Tp', color: '#e7d6ff', tint: 0xe7d6ff, kind: 'ability', use: 'teleport', about: 'Vanishes and reappears a long hop along the nose, the way the scout frame does. Select it and left click.' },
@@ -219,8 +225,8 @@ export const ITEMS = {
   'laser-ammo': { id: 'laser-ammo', name: 'Laser rounds', mark: 'Lr', color: '#8dffb0', tint: 0x8dffb0, kind: 'ammo', about: 'Rounds for the Laser shot. They sit in the cargo. One click of the weapon spends one round.' },
   'rail-ammo': { id: 'rail-ammo', name: 'Rail rounds', mark: 'Rr', color: '#ffe27a', tint: 0xffe27a, kind: 'ammo', about: 'Rounds for the Rail shot. They sit in the cargo. One click of the weapon spends one round.' },
   'electric-shot': { id: 'electric-shot', name: 'Electric shot', mark: 'El', color: '#7ad7ff', tint: 0x7ad7ff, kind: 'weapon', use: 'shot', about: 'A crackling bolt. Select it and left click. It breaks one rock in range. The count spends slate wire, a spark gland, and an ion mote.' },
-  'bola-shot': { id: 'bola-shot', name: 'Bola shot', mark: 'Bo', color: '#d5d8df', tint: 0xd5d8df, kind: 'weapon', use: 'shot', about: 'A piercing pair. Select it and left click. It breaks one rock in range. The count spends belt iron, grip fiber, and hull salvage.' },
-  'plasma-shot': { id: 'plasma-shot', name: 'Plasma shot', mark: 'Pl', color: '#c9b6ff', tint: 0xc9b6ff, kind: 'weapon', use: 'shot', about: 'A violet orb. Select it and left click. It breaks one rock in range. The count spends void filament, a cold lamp, and virid ore.' },
+  'bola-shot': { id: 'bola-shot', name: 'Bola shot', mark: 'Bo', color: '#d5d8df', tint: 0xd5d8df, kind: 'weapon', use: 'shot', about: 'Select it and left click an asteroid. The rock becomes four stars and the shot keeps flying. Finish that rock’s questions and the bola breaks the closest asteroid ahead for extra ore.' },
+  'plasma-shot': { id: 'plasma-shot', name: 'Plasma shot', mark: 'Pl', color: '#c9b6ff', tint: 0xc9b6ff, kind: 'weapon', use: 'shot', about: 'Hits aliens and asteroids. A three-star rock or higher drops to two stars, and then it can be answered. It does not break the rock by itself.' },
   'core-cannon': { id: 'core-cannon', name: 'Core cannon', mark: 'Cn', color: '#ff8ec8', tint: 0xff8ec8, kind: 'weapon', use: 'core', about: 'The heavy weapon. Select it and left click. It reaches farther than the Arc missile, and one shot breaks one rock. On an alien it counts as two of the three hits. The count spends an Alien core and stays hidden until a core is in the hold.' },
   wall: { id: 'wall', name: 'Wall', mark: 'Wa', color: '#d5e2ec', tint: 0xd5e2ec, kind: 'construction', about: 'A thin bar. It is placed from the hotbar by clicking in space.' },
   panel: { id: 'panel', name: 'Panel', mark: 'Pn', color: '#9eb6c8', tint: 0x9eb6c8, kind: 'construction', about: 'A quadrilateral plane. It is placed from the hotbar by clicking in space.' },
@@ -277,6 +283,9 @@ export const RECIPES = [
   { id: 'quiet', category: 'abilities', result: 'quiet', station: 'bench', count: 1, costs: [{ id: 'amber', n: 1 }, { id: 'pale', n: 2 }] },
   { id: 'cloak', category: 'abilities', result: 'cloak', station: 'bench', count: 1, costs: [{ id: 'filament', n: 2 }, { id: 'resin', n: 1 }, { id: 'glass', n: 1 }, { id: 'amber', n: 2 }] },
   { id: 'dash', category: 'abilities', result: 'dash', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'amber', n: 2 }, { id: 'pale', n: 2 }] },
+  { id: 'belt-drill', category: 'abilities', result: 'belt-drill', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'slate', n: 2 }, { id: 'pale', n: 4 }] },
+  { id: 'excavator', category: 'abilities', result: 'excavator', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'amber', n: 2 }, { id: 'virid', n: 1 }, { id: 'glass', n: 1 }] },
+  { id: 'c4', category: 'abilities', result: 'c4', station: 'bench', count: 1, costs: [{ id: 'glint', n: 2 }, { id: 'virid', n: 2 }, { id: 'amber', n: 2 }, { id: 'resin', n: 1 }, { id: 'spike', n: 1 }, { id: 'comet', n: 2 }] },
   { id: 'shock', category: 'abilities', result: 'shock', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'comet', n: 2 }, { id: 'spike', n: 1 }, { id: 'glass', n: 1 }] },
   { id: 'shield', category: 'abilities', result: 'shield', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'foil', n: 1 }, { id: 'shard', n: 1 }, { id: 'salvage', n: 2 }] },
   { id: 'teleport', category: 'abilities', result: 'teleport', station: 'bench', count: 1, costs: [{ id: 'filament', n: 2 }, { id: 'lamp', n: 1 }, { id: 'glass', n: 2 }, { id: 'prism', n: 1 }] },
@@ -405,11 +414,17 @@ export function settleHotbar(state) {
     const stack = state.hotbar[i];
     if (!stack || staysOnHotbar(stack.id)) continue;
     const before = stack.count;
+    const tainted = Math.min(stack.tainted || 0, before);
     const left = addInto(state.cargoSlots, stack.id, stack.count, stack.level);
     const sent = before - Math.max(0, left);
+    const sentTaint = Math.min(tainted, sent);
     if (sent <= 0) continue;
     if (left <= 0) state.hotbar[i] = null;
-    else stack.count = left;
+    else {
+      stack.count = left;
+      stack.tainted = Math.min(left, Math.max(0, tainted - sentTaint));
+    }
+    if (sentTaint > 0) markTaint(state, stack.id, sentTaint, [state.cargoSlots]);
     const item = ITEMS[stack.id];
     if (item && item.kind === 'mineral') moved.push(item.name);
   }
@@ -426,6 +441,28 @@ export function settleHotbar(state) {
     if (state.notices.length > 3) state.notices.splice(0, state.notices.length - 3);
   }
   return moved;
+}
+
+export function markTaint(state, id, n, lists) {
+  let left = n;
+  const piles = lists || [state.cargoSlots, state.hotbar, state.hullSlots];
+  for (const list of piles) {
+    if (!list || left <= 0) continue;
+    for (const stack of list) {
+      if (!stack || stack.id !== id || left <= 0) continue;
+      const room = stack.count - (stack.tainted || 0);
+      if (room <= 0) continue;
+      const take = Math.min(room, left);
+      stack.tainted = (stack.tainted || 0) + take;
+      left -= take;
+    }
+  }
+}
+
+export function holdHasTaint(state) {
+  if (!state) return false;
+  const lists = [state.hotbar, state.cargoSlots, state.hullSlots];
+  return lists.some((list) => (list || []).some((stack) => stack && stack.tainted > 0));
 }
 
 export function countItem(state, id) {
@@ -496,6 +533,7 @@ export function removeItems(state, id, count) {
       if (!stack || stack.id !== id) continue;
       const take = Math.min(stack.count, left);
       stack.count -= take;
+      stack.tainted = Math.max(0, (stack.tainted || 0) - take);
       left -= take;
       if (stack.count <= 0) list[i] = null;
     }
@@ -516,6 +554,7 @@ function spendHotbarThenCargo(state, id, count) {
       if (!stack || stack.id !== id) continue;
       const take = Math.min(stack.count, left);
       stack.count -= take;
+      stack.tainted = Math.max(0, (stack.tainted || 0) - take);
       left -= take;
       if (stack.count <= 0) list[i] = null;
     }

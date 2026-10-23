@@ -1,4 +1,4 @@
-import { nextProblem, problemSpec } from './questions.js';
+import { nextProblem, problemForRank, problemSpec } from './questions.js';
 import { clamp, makeRng, rand } from './util.js';
 import { DEFAULT_SHIP } from './assetsManifest.js';
 import { CARGO_SIZE, emptyStacks } from './items.js';
@@ -43,12 +43,35 @@ export const ASTEROID_TYPES = [
   { sprite: 4, mineral: 'glint', name: 'Glint rock', weight: 4 },
 ];
 
-export function rollAsteroidType(rng) {
-  const total = ASTEROID_TYPES.reduce((sum, type) => sum + type.weight, 0);
+/** How far a point sits from the middle of the layer, 0 at the center and 1 at the corner. */
+export function layerReach(x, y) {
+  const nx = (x - WORLD.w / 2) / (WORLD.w / 2);
+  const ny = (y - WORLD.h / 2) / (WORLD.h / 2);
+  return Math.min(1, Math.hypot(nx, ny));
+}
+
+/** Center is mostly pale and slate. The rim shifts toward amber, virid, and glint without emptying the commons. */
+const RIM_BANDS = [
+  { until: 0.42, weights: [62, 28, 8, 2, 0] },
+  { until: 0.72, weights: [34, 28, 22, 12, 4] },
+  { until: 1.01, weights: [16, 22, 28, 22, 12] },
+];
+
+export function rollAsteroidType(rng, x, y) {
+  let weights = null;
+  if (Number.isFinite(x) && Number.isFinite(y)) {
+    const reach = layerReach(x, y);
+    const band = RIM_BANDS.find((entry) => reach <= entry.until) || RIM_BANDS[RIM_BANDS.length - 1];
+    const outlier = reach <= RIM_BANDS[0].until && rng() < 0.08;
+    weights = outlier ? RIM_BANDS[2].weights : band.weights;
+  }
+  const total = weights
+    ? weights.reduce((sum, weight) => sum + weight, 0)
+    : ASTEROID_TYPES.reduce((sum, type) => sum + type.weight, 0);
   let roll = rng() * total;
-  for (const type of ASTEROID_TYPES) {
-    roll -= type.weight;
-    if (roll <= 0) return type;
+  for (let i = 0; i < ASTEROID_TYPES.length; i += 1) {
+    roll -= weights ? weights[i] : ASTEROID_TYPES[i].weight;
+    if (roll <= 0) return ASTEROID_TYPES[i];
   }
   return ASTEROID_TYPES[0];
 }
@@ -62,10 +85,18 @@ export function mineralYield(type, size, difficulty) {
   return Math.min(4, band + hard);
 }
 
+/** 1 and 2 can be answered. 3 waits for plasma. 4 is a bola-raised rock. */
+export function rockRank(rock) {
+  if (!rock) return 1;
+  if (Number.isFinite(rock.rank)) return Math.max(1, Math.min(4, Math.round(rock.rank)));
+  return rock.difficulty === 'hard' ? 3 : 1;
+}
+
 export function placeAsteroidAt(state, operation, difficulty, x, y, options) {
   const rng = options && options.rng ? options.rng : state.rng;
-  const type = rollAsteroidType(rng);
-  const question = nextProblem(problemSpec(operation, difficulty || 'easy'), rng);
+  const type = rollAsteroidType(rng, x, y);
+  const rank = difficulty === 'hard' ? 3 : 1;
+  const question = nextProblem(problemForRank(operation, rank), rng);
   const size = 120 + rng() * 70;
   const radius = size * 0.34;
   const key =
@@ -91,7 +122,8 @@ export function placeAsteroidAt(state, operation, difficulty, x, y, options) {
     near: false,
     question,
     operation,
-    difficulty: question.difficulty,
+    rank,
+    difficulty: rank >= 3 ? 'hard' : 'easy',
     outline: false,
     key,
   });

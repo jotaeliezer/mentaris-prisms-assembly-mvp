@@ -181,6 +181,21 @@ export function nextProblem(options, rng) {
     return subtractionProblem(questionMode, difficulty, rng);
   }
 
+  if (questionMode === "mul_wide") {
+    const left = randi(rng, 12, 30);
+    const right = randi(rng, 3, 9);
+    return finish({
+      a: left,
+      b: right,
+      op: "×",
+      answer: left * right,
+      prompt: left + " × " + right,
+      questionMode,
+      difficulty,
+      operation: "mul",
+    });
+  }
+
   if (questionMode === "mul_2by1") {
     const left = randi(rng, 10, 99);
     const right = randi(rng, 1, 9);
@@ -246,6 +261,24 @@ export function nextProblem(options, rng) {
     difficulty,
     operation: isAdd ? "add" : "mul",
   });
+}
+
+/** Question band for a rock's star rank. Rank 2 sits between easy and hard. Rank 4 is past hard. */
+export function problemForRank(operation, rank) {
+  const op = operation || "add";
+  const stars = Math.max(1, Math.min(4, rank || 1));
+  if (stars >= 4) {
+    if (op === "sub") return { operation: "sub", questionMode: "sub_hard", difficulty: "hard" };
+    if (op === "mul") return { operation: "mul", questionMode: "mul_wide", difficulty: "hard" };
+    return { operation: "add", questionMode: "", difficulty: "hard", ranges: { a1: 24, a2: 60, b1: 18, b2: 50 } };
+  }
+  if (stars >= 3) return problemSpec(op, "hard");
+  if (stars === 2) {
+    if (op === "sub") return { operation: "sub", questionMode: "sub_easy", difficulty: "easy" };
+    if (op === "mul") return { operation: "mul", questionMode: "", difficulty: "easy", ranges: { a1: 3, a2: 9, b1: 3, b2: 9 } };
+    return { operation: "add", questionMode: "", difficulty: "easy", ranges: { a1: 6, a2: 18, b1: 4, b2: 14 } };
+  }
+  return problemSpec(op, "easy");
 }
 
 export function problemSpec(operation, difficulty) {

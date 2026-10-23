@@ -1,5 +1,5 @@
 import { clamp, len, makeRng, wrapAngle } from './util.js';
-import { nextProblem, problemSpec } from './questions.js';
+import { nextProblem, problemForRank, problemSpec } from './questions.js';
 import {
   APPROACH,
   ASTEROID_TYPES,
@@ -13,6 +13,7 @@ import {
   ensureBelt,
   randomInteriorPoint,
   mineralYield,
+  rockRank,
   spawnAsteroid,
 } from './state.js';
 import { buildProgressSnapshot, decodeBanks, decodeClusters } from '../save/snapshot.js';
@@ -44,6 +45,8 @@ import {
   canAfford,
   costLabel,
   countItem,
+  holdHasTaint,
+  markTaint,
   emptyStacks,
   ensureHull,
   ensureInventory,
@@ -101,7 +104,13 @@ function oreLanding(state, rock, index, count) {
   };
 }
 
-function queueExtractPops(state, rock, mineral, count) {
+function extractNeed(state) {
+  if (countItem(state, 'excavator') > 0) return 1;
+  if (countItem(state, 'belt-drill') > 0) return 2;
+  return 3;
+}
+
+function queueExtractPops(state, rock, mineral, count, tainted) {
   if (!state.oreBursts) state.oreBursts = [];
   const pieces = [];
   for (let i = 0; i < count; i += 1) {
@@ -116,6 +125,7 @@ function queueExtractPops(state, rock, mineral, count) {
       step: rock.extractCount + ':' + i,
       rockKey: rock.key,
       rockId: rock.id,
+      tainted: !!tainted,
     });
   }
   state.oreBursts.push({ rockId: rock.id, pieces, next: 0 });
@@ -144,6 +154,7 @@ function releasePop(state, piece, audio) {
     popDur: 0.42,
     popScale: 0.15,
     burstRockId: piece.rockId,
+    tainted: !!piece.tainted,
   });
   if (audio && typeof audio.pop === 'function') audio.pop();
 }
@@ -329,6 +340,10 @@ export function openExtract(state, rockId, audio) {
   if (!rock) return;
   ensureRockExtractFields(rock);
   if (rock.depleted) return;
+  if (rockRank(rock) === 3) {
+    noteStatus(state, 'This rock is three stars. A plasma shot brings it down to two.');
+    return;
+  }
   state.mode = 'extract';
   state.extractRockId = id;
   state.targetId = id;
@@ -1392,7 +1407,7 @@ function applyExtractImpact(state, rock, audio) {
   const claim = pending.claim;
   rock.extractCount += 1;
 
-  if (rock.extractCount >= 3) {
+  if (rock.extractCount >= extractNeed(state)) {
     const mineral = rock.mineral || 'pale';
     const count = Math.max(1, mineralYield({ mineral }, rockYieldSize(rock), rock.difficulty));
     burstExplosion(state, rock.x, rock.y);
@@ -1416,6 +1431,7 @@ function applyExtractImpact(state, rock, audio) {
         t: Date.now(),
       });
     }
+    releaseBola(state, rock);
     forgetAsteroid(state, rock);
     leaveExtract(state);
   } else {
@@ -1947,6 +1963,10 @@ export function applyFlyClick(state, worldX, worldY, audio) {
     !hit.depleted &&
     Math.hypot(hit.x - state.ship.x, hit.y - state.ship.y) <= APPROACH;
   if (near) {
+    if (rockRank(hit) === 3) {
+      noteStatus(state, 'This rock is three stars. A plasma shot brings it down to two.');
+      return true;
+    }
     state.extractAvailable = hit.id;
     openExtract(state, hit.id, audio);
     return true;
@@ -1972,6 +1992,106 @@ function handleClicks(state, input, view, audio) {
     const world = clickWorld(state, view, click);
     if (applyFlyClick(state, world.x, world.y, audio)) return;
   }
+}
+
+function setRockRank(state, rock, rank) {
+  rock.rank = rank;
+  rock.difficulty = rank >= 3 ? 'hard' : 'easy';
+  const operation =
+    rock.operation ||
+    (state.mission && state.mission.operation ? state.mission.operation : 'add');
+  const previous = rock.question && rock.question.prompt;
+  let next = nextProblem(problemForRank(operation, rank), state.rng);
+  for (let attempt = 0; attempt < 8 && previous && next.prompt === previous; attempt += 1) {
+    next = nextProblem(problemForRank(operation, rank), state.rng);
+  }
+  rock.question = next;
+}
+
+function softenWithPlasma(state, rock) {
+  if (rockRank(rock) < 3) {
+    noteStatus(state, 'Plasma only softens a three-star rock or higher.');
+    return;
+  }
+  setRockRank(state, rock, 2);
+  noteStatus(state, 'Plasma brought the rock down to two stars. Click it to answer.');
+}
+
+function raiseWithBola(state, rock, missile) {
+  if (!rock.bolaArmed) {
+    rock.bolaArmed = true;
+    rock.bolaHeading = Math.atan2(missile.vy, missile.vx);
+    setRockRank(state, rock, 4);
+    noteStatus(state, 'Bola raised the rock to four stars. Finish the questions and the shot goes on.');
+  }
+  missile.bolaSkip = rock.id;
+  missile.bolaRockId = rock.id;
+  missile.bolaLive = true;
+  missile.targetId = -1;
+  missile.targetKey = '';
+  missile.life = Math.max(missile.life, 6);
+  missile.maxRange = Math.max(missile.maxRange || 0, 2200);
+}
+
+function destroyBonusRock(state, rock, audio) {
+  if (!rock || !rock.alive || rock.depleted) return;
+  const mineral = rock.mineral || 'pale';
+  const count = Math.max(1, mineralYield({ mineral }, rockYieldSize(rock), rock.difficulty)) + 2;
+  burstExplosion(state, rock.x, rock.y);
+  if (audio && typeof audio.explode === 'function') audio.explode();
+  queueExtractPops(state, rock, mineral, count, false);
+  forgetAsteroid(state, rock);
+  noteStatus(state, 'The bola broke a second rock.');
+}
+
+function closestAhead(state, rock, heading) {
+  let ahead = null;
+  let aheadDist = Infinity;
+  let any = null;
+  let anyDist = Infinity;
+  for (const item of state.asteroids || []) {
+    if (!item || !item.alive || item.depleted || item.id === rock.id) continue;
+    const dx = item.x - rock.x;
+    const dy = item.y - rock.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < anyDist) {
+      any = item;
+      anyDist = dist;
+    }
+    let diff = Math.atan2(dy, dx) - heading;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (Math.abs(diff) > 0.9 || dist >= aheadDist) continue;
+    ahead = item;
+    aheadDist = dist;
+  }
+  return ahead || any;
+}
+
+function releaseBola(state, rock) {
+  if (!rock || !rock.bolaArmed || rock.bolaReleased) return;
+  rock.bolaReleased = true;
+  const heading = Number.isFinite(rock.bolaHeading) ? rock.bolaHeading : 0;
+  const live = (state.missiles || []).find(
+    (missile) => missile.bolaLive && missile.bolaRockId === rock.id && missile.life > 0
+  );
+  if (live) {
+    live.bolaKill = true;
+    live.life = Math.max(live.life, 3);
+    live.maxRange = Math.max(live.maxRange || 0, 2200);
+    return;
+  }
+  const next = closestAhead(state, rock, heading);
+  if (!next) return;
+  launchBolt(state, Math.atan2(next.y - rock.y, next.x - rock.x), {
+    face: 'bullet_bola.png',
+    speed: 900,
+    maxRange: 2400,
+    bola: true,
+    bolaKill: true,
+    targetId: next.id,
+    targetKey: next.key || '',
+  });
 }
 
 function strikeAlien(state, missile, alien, audio) {
@@ -2041,11 +2161,34 @@ function stepOneMissile(state, missile, dt, onHit, audio) {
         return;
       }
     }
-    if (rock) {
+    if (rock && missile.bolaSkip !== rock.id) {
       const gap = Math.hypot(rock.x - missile.x, rock.y - missile.y);
       if (gap < (rock.radius || 28) + 36) {
+        if (missile.plasma) {
+          missile.life = 0;
+          softenWithPlasma(state, rock);
+          return;
+        }
+        if (missile.bola && !missile.bolaKill) {
+          raiseWithBola(state, rock, missile);
+          return;
+        }
         missile.life = 0;
-        if (onHit) onHit(rock);
+        if (missile.bolaKill) destroyBonusRock(state, rock, audio);
+        else if (onHit) onHit(rock);
+      }
+    } else if (missile.bolaKill) {
+      const victim = (state.asteroids || []).find(
+        (item) =>
+          item &&
+          item.alive &&
+          !item.depleted &&
+          item.id !== missile.bolaSkip &&
+          Math.hypot(item.x - missile.x, item.y - missile.y) < (item.radius || 28) + 36
+      );
+      if (victim) {
+        missile.life = 0;
+        destroyBonusRock(state, victim, audio);
       }
     }
     return;
@@ -2451,9 +2594,10 @@ function grantDrop(state, drop, audio) {
   const received = count - Math.max(0, left);
     if (received > 0) {
     announceCrafts(state);
+    if (drop.tainted) markTaint(state, itemId, received);
     if (!state.oreGranted) state.oreGranted = new Map();
     state.oreGranted.set(drop.id, { itemId, count: received });
-    notePickup(state, itemId);
+    notePickup(state, itemId, drop.tainted);
     playPickup(audio);
   }
   return received;
@@ -2512,9 +2656,10 @@ function updateDrops(state, dt, audio) {
       const left = addItem(state, itemId, count, drop.level);
       if (left < count) {
         announceCrafts(state);
+        if (drop.tainted) markTaint(state, itemId, count - left);
         if (!state.sharedGathers) state.sharedGathers = [];
         state.sharedGathers.push({ x: drop.x, y: drop.y, itemId });
-        notePickup(state, itemId);
+        notePickup(state, itemId, drop.tainted);
         playPickup(audio);
       }
       if (left <= 0) {
@@ -2617,11 +2762,12 @@ function pushNotice(state, text, kind, time) {
   if (state.notices.length > 3) state.notices.splice(0, state.notices.length - 3);
 }
 
-function notePickup(state, itemId) {
+function notePickup(state, itemId, tainted) {
   const picked = itemById(itemId);
   const name = picked ? picked.name : 'Item';
-  if (picked && picked.kind === 'mineral') pushNotice(state, name + ' moved to the cargo.', 'loot', 2.2);
-  else pushNotice(state, name + ' added.', 'loot');
+  const mark = tainted ? ' It is marked from C4.' : '';
+  if (picked && picked.kind === 'mineral') pushNotice(state, name + ' moved to the cargo.' + mark, 'loot', 2.2);
+  else pushNotice(state, name + ' added.' + mark, 'loot');
 }
 
 /** The first time a count becomes affordable, say so and point at F. */
@@ -2829,12 +2975,15 @@ function rockTypeName(rock) {
   return type ? type.name : '';
 }
 
+function starMarks(rock) {
+  return '★'.repeat(rockRank(rock)) + '  ';
+}
+
 function extractQuestionReadout(state) {
   if (state.mode !== 'extract') return '';
   const rock = extractRock(state);
   if (!rock || !rock.question) return '';
-  const stars = rock.difficulty === 'hard' ? '★★★  ' : '★  ';
-  return stars + rock.question.prompt;
+  return starMarks(rock) + rock.question.prompt;
 }
 
 export function questionReadout(state) {
@@ -2842,12 +2991,10 @@ export function questionReadout(state) {
   const near = state.asteroids.some((rock) => rock.near);
   const quota = state.mission && state.mission.quota ? state.mission.quota : 0;
   if (state.hint && active) {
-    const stars = active.difficulty === 'hard' ? '★★★  ' : '★  ';
-    return stars + active.question.prompt + '  ' + state.hint;
+    return starMarks(active) + active.question.prompt + '  ' + state.hint;
   }
   if (active) {
-    const stars = active.difficulty === 'hard' ? '★★★  ' : '★  ';
-    return stars + active.question.prompt;
+    return starMarks(active) + active.question.prompt;
   }
   if (state.statusTime > 0) return state.status;
   if (
@@ -2869,7 +3016,7 @@ export function questionReadout(state) {
           '.';
   }
   if (near) {
-    return 'One star is easier. Three stars are harder. Click to see the question.';
+    return 'One and two stars can be answered. Three stars need a plasma shot first.';
   }
   if (state.wormhole) {
     return state.wormhole.locked
@@ -3103,8 +3250,8 @@ const SHOT_STYLE = {
   'fire-shot': { face: 'bullet_fire1.png', sound: 'flame_shot', reach: 280, flame: true, aliensOnly: true },
   'laser-shot': { face: 'bullet_laser.png', sound: 'gun2', reach: 720, burst: 3, speed: 1180, aliensOnly: true },
   'electric-shot': { face: 'bullet_electric1.png', sound: 'electric_shot', reach: 720 },
-  'bola-shot': { face: 'bullet_bola.png', sound: 'gun1', reach: 640 },
-  'plasma-shot': { face: 'bullet_orb.png', sound: 'shot_orb', reach: 780 },
+  'bola-shot': { face: 'bullet_bola.png', sound: 'gun1', reach: 1600, speed: 720, bola: true },
+  'plasma-shot': { face: 'bullet_orb.png', sound: 'shot_orb', reach: 780, plasma: true },
   'rail-shot': { face: 'bullet_rail.png', sound: 'shot_railbeam', reach: 1700, speed: 1900, heavy: true, power: 2, recoil: 2.4, aliensOnly: true },
 };
 
@@ -3136,6 +3283,10 @@ function launchBolt(state, angle, extra) {
     maxRange: reach,
     freeze: !!(extra && extra.freeze),
     flame: !!(extra && extra.flame),
+    plasma: !!(extra && extra.plasma),
+    bola: !!(extra && extra.bola),
+    bolaKill: !!(extra && extra.bolaKill),
+    bolaRockId: extra && extra.bolaRockId ? extra.bolaRockId : 0,
   });
 }
 
@@ -3280,6 +3431,40 @@ function applyUse(state, use, audio, world) {
       if (!style.recoil) kickRecoil(state, 1);
       return true;
     }
+    if (style.plasma) {
+      let hard = null;
+      let hardDist = Infinity;
+      for (const item of state.asteroids) {
+        if (!item.alive || item.depleted || rockRank(item) < 3) continue;
+        const dist = Math.hypot(item.x - ship.x, item.y - ship.y);
+        if (dist > style.reach || dist >= hardDist) continue;
+        hard = item;
+        hardDist = dist;
+      }
+      const alien = nearestAlien(state, style.reach);
+      if (!hard && !alien) {
+        noteStatus(state, 'No three-star rock or alien in range for plasma.');
+        return false;
+      }
+      const plasmaTarget = hard
+        ? { x: hard.x, y: hard.y, rockId: hard.id, rockKey: hard.key }
+        : { x: alien.x, y: alien.y, alienId: alien.id };
+      aimBolt(state, style, plasmaTarget);
+      if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
+      kickRecoil(state, 1);
+      return true;
+    }
+    if (style.bola) {
+      const rock = nearestAsteroid(state, style.reach);
+      if (!rock) {
+        noteStatus(state, 'No asteroid in range for the bola.');
+        return false;
+      }
+      aimBolt(state, style, { x: rock.x, y: rock.y, rockId: rock.id, rockKey: rock.key });
+      if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
+      kickRecoil(state, 1);
+      return true;
+    }
     const found = acquireShot(state, style.reach);
     if (!found) {
       noteStatus(state, 'Nothing in range for that weapon.');
@@ -3302,6 +3487,27 @@ function applyUse(state, use, audio, world) {
     }
     launchAt(state, found, audio, heavy, heavy ? '' : 'bullet_missile.png', heavy ? 'gun1' : 'shot_missile', { arc: !heavy, speed: heavy ? 900 : 620 });
     if (heavy) grantMilestone(state, 'core-cannon');
+    return true;
+  }
+  if (use === 'c4') {
+    const hit = world ? asteroidAt(state, world.x, world.y) : null;
+    const near =
+      hit &&
+      hit.alive &&
+      !hit.depleted &&
+      Math.hypot(hit.x - ship.x, hit.y - ship.y) <= APPROACH;
+    if (!near) {
+      noteStatus(state, 'Click an asteroid to set the C4.');
+      return false;
+    }
+    const mineral = hit.mineral || 'pale';
+    const count = Math.max(1, mineralYield({ mineral }, rockYieldSize(hit), hit.difficulty));
+    burstExplosion(state, hit.x, hit.y);
+    if (audio && typeof audio.explode === 'function') audio.explode();
+    queueExtractPops(state, hit, mineral, count, true);
+    forgetAsteroid(state, hit);
+    if (state.mode === 'extract' && state.extractRockId === hit.id) leaveExtract(state);
+    noteStatus(state, 'C4 broke the rock. Its ore is marked, so fabrication counts are a little harder while you hold it.');
     return true;
   }
   if (use === 'flare') {
@@ -3634,6 +3840,7 @@ export function buildSnapshotPatch(state, muted) {
     fxGreen: state.fxGreen > 0,
     correctAnswer: state.fxGreen > 0 ? state.correctAnswer || '' : '',
     fxFlash: state.fxFlash > 0,
+    taintedHold: holdHasTaint(state),
     cargoOpen: state.mode === 'cargo',
     cargoHold: buildCargo(state),
     hullRack: buildHull(state),
