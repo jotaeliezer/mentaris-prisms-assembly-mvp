@@ -108,12 +108,12 @@ function cargoPose(index, layout) {
   return { ...quarterPoint(t, radius, layout.center), scale: layout.fit, visible: true, z: 2 };
 }
 
-function platePath(center, outer, inner, size, t0, t1) {
-  const steps = 22;
+function platePath(center, outer, inner, box, bleed, t0, t1) {
+  const steps = 24;
   const pts = [];
   const push = (t, radius) => {
     const point = quarterPoint(t, radius, center);
-    pts.push({ x: size - point.right, y: size - point.bottom });
+    pts.push({ x: box - bleed - point.right, y: box - bleed - point.bottom });
   };
   for (let i = 0; i <= steps; i += 1) push(t0 + ((t1 - t0) * i) / steps, outer);
   for (let i = steps; i >= 0; i -= 1) push(t0 + ((t1 - t0) * i) / steps, inner);
@@ -125,11 +125,18 @@ function platePath(center, outer, inner, size, t0, t1) {
   );
 }
 
-function ArcPlate({ size, center, outer, inner, tone, t0 = 0, t1 = 1 }) {
+function ArcPlate({ size, center, outer, inner, tone, t0 = -0.1, t1 = 1.1, bleed = 56 }) {
   if (!(outer > inner + 6) || !size) return null;
-  const d = platePath(center, outer, Math.max(8, inner), size, t0, t1);
+  const box = size + bleed;
+  const d = platePath(center, outer, Math.max(8, inner), box, bleed, t0, t1);
   return (
-    <svg className={`arc-plate arc-plate-${tone}`} width={size} height={size} aria-hidden="true">
+    <svg
+      className={`arc-plate arc-plate-${tone}`}
+      width={box}
+      height={box}
+      style={{ right: -bleed, bottom: -bleed }}
+      aria-hidden="true"
+    >
       <path d={d} />
     </svg>
   );
@@ -485,30 +492,20 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
           ) : null}
           {cargoOpen && (
             <ArcPlate
-              size={layout.center + 48}
+              size={layout.center + 96}
               center={layout.center}
-              outer={layout.cargoOuter + 32}
-              inner={layout.cargoOuter - (layout.bands - 1) * layout.cargoRadial - 32}
+              outer={layout.cargoOuter + 68}
+              inner={layout.cargoOuter - (layout.bands - 1) * layout.cargoRadial - 68}
               tone="cargo"
             />
           )}
-          {cargoOpen ? (
+          {cargoOpen && (
             <ArcPlate
-              size={layout.center + 48}
+              size={layout.center + 96}
               center={layout.center}
-              outer={layout.hotOuter + 34}
-              inner={layout.hotOuter - layout.hotRadial - 34}
+              outer={layout.hotOuter + 66}
+              inner={layout.hotOuter - layout.hotRadial - 66}
               tone="hot"
-            />
-          ) : (
-            <ArcPlate
-              size={layout.closedCenter + 56}
-              center={layout.closedCenter}
-              outer={layout.closedRadius + 36}
-              inner={layout.closedRadius - 36}
-              tone="hot"
-              t0={0.18}
-              t1={0.82}
             />
           )}
           {cargoOpen && (

@@ -946,7 +946,7 @@ export default class PlayScene extends Phaser.Scene {
     if (this.inputCtl && controls && (mode === 'fly' || mode === 'cargo')) {
       const wheel = this.inputCtl.takeWheel();
       if (wheel) {
-        cycleHotbar(this.state, wheel);
+        cycleHotbar(this.state, -wheel);
         this.publishSnapshot(true);
       }
     } else if (this.inputCtl) {

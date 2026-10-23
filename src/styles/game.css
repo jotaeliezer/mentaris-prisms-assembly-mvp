@@ -159,9 +159,10 @@ button, input {
 
 .main-star-name {
   color: #ffe27a;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: "Spac3 Halftone", "Oxanium", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
 }
@@ -293,9 +294,10 @@ button:disabled,
   background: rgba(3, 14, 6, 0.84);
   border: 1px solid rgba(57, 255, 20, 0.55);
   color: #39ff14;
-  font-size: 21px;
+  font-family: "Syndra", "Segoe UI", sans-serif;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.45;
   letter-spacing: 0.01em;
   text-align: center;
   text-shadow:
@@ -857,21 +859,21 @@ button:disabled,
 
 .extract-panel .eyebrow {
   font-family: "Spac3 Halftone", "Oxanium", sans-serif;
-  font-size: 10px;
+  font-size: 18px;
   font-weight: 400;
   font-synthesis: none;
-  letter-spacing: 0.04em;
-  line-height: 1.6;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
 }
 
 .extract-question {
-  margin: 0 0 14px;
-  font-family: "Spac3 Halftone", "Oxanium", sans-serif;
-  font-size: 13px;
-  font-weight: 400;
+  margin: 4px 0 16px;
+  font-family: "Syndra", "Segoe UI", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
   font-synthesis: none;
-  letter-spacing: 0;
-  line-height: 1.7;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
   color: var(--ink);
 }
 
@@ -883,7 +885,7 @@ button:disabled,
   border: 1px solid var(--line);
   background: rgba(8, 24, 36, 0.85);
   font-family: "Syndra", "Segoe UI", sans-serif;
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 400;
   font-synthesis: none;
   letter-spacing: 0.06em;
@@ -913,21 +915,21 @@ button:disabled,
 }
 
 .extract-key {
-  min-height: 52px;
+  min-height: 58px;
   padding: 12px 6px;
   font-family: "Syndra", "Segoe UI", sans-serif;
-  font-size: 13px;
-  font-weight: 400;
+  font-size: 22px;
+  font-weight: 600;
   font-synthesis: none;
   letter-spacing: 0;
-  line-height: 1.5;
+  line-height: 1.3;
   white-space: nowrap;
 }
 
 .extract-key:not(.extract-key-wide) {
   font-family: "Syndra", "Segoe UI", sans-serif;
-  font-size: 13px;
-  font-weight: 400;
+  font-size: 22px;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -938,8 +940,8 @@ button:disabled,
 .extract-key-wide {
   grid-column: span 1;
   font-family: "Syndra", "Segoe UI", sans-serif;
-  font-size: 10px;
-  font-weight: 400;
+  font-size: 16px;
+  font-weight: 600;
   font-synthesis: none;
   letter-spacing: 0;
 }
@@ -957,11 +959,11 @@ button:disabled,
   color: var(--muted);
   padding: 12px 8px;
   font-family: "Syndra", "Segoe UI", sans-serif;
-  font-size: 10px;
-  font-weight: 400;
+  font-size: 16px;
+  font-weight: 600;
   font-synthesis: none;
-  letter-spacing: 0;
-  line-height: 1.6;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
@@ -1525,8 +1527,7 @@ button:disabled,
 h1, h2, h3,
 #title.home-menu h1,
 #title.home-menu h2,
-#title.home-menu .eyebrow,
-.extract-question {
+#title.home-menu .eyebrow {
   font-family: "Spac3 Halftone", "Oxanium", sans-serif;
   letter-spacing: 0.02em;
 }
@@ -2250,9 +2251,10 @@ button:disabled {
 .pilot-name {
   pointer-events: none;
   color: #f4fbff;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: "Spac3 Halftone", "Oxanium", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
 }
