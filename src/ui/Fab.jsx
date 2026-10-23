@@ -81,6 +81,16 @@ export default function Fab({ bridge, snapshot }) {
       ? snapshot.hud.hotbar.slots.filter((slot) => slot.available)
       : [];
 
+  function showHoldTip(slot, event) {
+    const count = Number(slot.badge);
+    setCostTip({
+      name: slot.name || slot.label || 'Item',
+      have: Number.isFinite(count) && count > 0 ? count : 1,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  }
+
   const card = hovered && point ? (
     <aside className="fab-info fab-info-float" style={cardStyle()} onPointerEnter={clearHide} onPointerLeave={scheduleHide}>
       <p className="fab-readout-name">{hovered.name}</p>
@@ -102,7 +112,7 @@ export default function Fab({ bridge, snapshot }) {
             setSelectedId(null);
           }}
         >
-          {onlyReady ? 'Show all' : 'Craftable only'}
+          {onlyReady ? 'Show all' : 'Fabricate ready'}
         </button>
         <p className="eyebrow">Fabrication bay</p>
         <h2>Fabrication index</h2>
@@ -154,7 +164,13 @@ export default function Fab({ bridge, snapshot }) {
                 <span className="fab-icon-name">{recipe.name}</span>
               </button>
             ))}
-            {!visible.length ? <p className="fab-readout-body">Nothing in this group can be fabricated right now.</p> : null}
+            {!visible.length ? (
+              <p className="fab-readout-body">
+                {onlyReady
+                  ? 'Nothing in this group can be made from what is on the hotbar and in the cargo.'
+                  : 'Nothing in this group.'}
+              </p>
+            ) : null}
           </div>
           <aside className="fab-side" aria-live="polite">
             {selected ? (
@@ -208,7 +224,15 @@ export default function Fab({ bridge, snapshot }) {
           {barSlots.length ? (
             <div className="fab-cargo-row">
               {barSlots.map((slot) => (
-                <div key={slot.id} className="fab-cost fab-cargo-slot">
+                <div
+                  key={slot.id}
+                  className="fab-cost fab-cargo-slot"
+                  onPointerEnter={(event) => showHoldTip(slot, event)}
+                  onPointerMove={(event) =>
+                    setCostTip((current) => (current ? { ...current, x: event.clientX, y: event.clientY } : current))
+                  }
+                  onPointerLeave={() => setCostTip(null)}
+                >
                   {itemPicture(slot)}
                   <span className="fab-cost-badge">{slot.badge || '1'}</span>
                 </div>
@@ -231,7 +255,7 @@ export default function Fab({ bridge, snapshot }) {
             <p className="fab-readout-body">Cargo is empty.</p>
           )}
         </div>
-        <div className="missions fab-footer">
+        <div className="fab-footer">
           <button
             id="close-fab"
             className="btn"

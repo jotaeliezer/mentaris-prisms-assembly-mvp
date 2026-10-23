@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { readPilotName } from '../game/pilot.js';
 import { GearIcon } from './SettingsPanel.jsx';
 import SessionControls from './SessionControls.jsx';
@@ -247,6 +247,23 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const cargoOpen = !!snapshot.cargoOpen;
   const [drag, setDrag] = useState(null);
   const [tip, setTip] = useState(null);
+  const tipTimer = useRef(null);
+
+  function showSlotTip(slot, event) {
+    if (!slot.available && !slot.slotLabel) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTip({
+      name: slot.available ? slot.name || slot.label : slot.slotLabel,
+      x: rect.left,
+      y: rect.top,
+    });
+    if (tipTimer.current) window.clearTimeout(tipTimer.current);
+    tipTimer.current = window.setTimeout(() => setTip(null), 3000);
+  }
+
+  useEffect(() => () => {
+    if (tipTimer.current) window.clearTimeout(tipTimer.current);
+  }, []);
   const hull = snapshot.hullRack;
   const hullSlots = hull && Array.isArray(hull.slots) ? hull.slots : [];
   const showHull = !!(hull && hull.visible);
@@ -335,18 +352,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       onPointerMove: moveDrag,
       onPointerUp: endDrag,
       onPointerCancel: () => setDrag(null),
-      onMouseEnter: (event) => {
-        if (!slot.available && !slot.slotLabel) return;
-        setTip({
-          name: slot.available ? slot.name : slot.slotLabel,
-          x: event.clientX,
-          y: event.clientY,
-        });
-      },
-      onMouseMove: (event) => {
-        setTip((current) => (current ? { ...current, x: event.clientX, y: event.clientY } : current));
-      },
-      onMouseLeave: () => setTip(null),
+      onMouseEnter: (event) => showSlotTip(slot, event),
       onWheel: area === 'hotbar' ? (event) => onHotbarWheel(event, slot) : undefined,
     };
   }

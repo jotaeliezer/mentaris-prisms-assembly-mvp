@@ -1,6 +1,44 @@
-const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+import { useEffect, useState } from 'react';
+
+const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const PANEL_W = 340;
-const PANEL_H = 430;
+const PANEL_H = 390;
+const TYPE_MS = 32;
+
+function TypeLine({ text }) {
+  const full = text || '';
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!full) {
+      setCount(0);
+      return undefined;
+    }
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      setCount(full.length);
+      return undefined;
+    }
+    setCount(0);
+    let shown = 0;
+    let timer = 0;
+    const tick = () => {
+      shown = Math.min(full.length, shown + 1);
+      setCount(shown);
+      if (shown < full.length) timer = window.setTimeout(tick, TYPE_MS);
+    };
+    timer = window.setTimeout(tick, TYPE_MS);
+    return () => window.clearTimeout(timer);
+  }, [full]);
+
+  const typing = count < full.length;
+  return (
+    <>
+      {full.slice(0, count)}
+      {typing ? <span className="extract-caret" aria-hidden="true" /> : null}
+    </>
+  );
+}
 
 function placeExtractPanel(anchor) {
   const vw = anchor && anchor.vw ? anchor.vw : 1280;
@@ -40,11 +78,6 @@ export default function Extract({ bridge, snapshot }) {
     bridge.emit('extractDigit', { digit: 'backspace' });
   }
 
-  function submit() {
-    bridge.emit('uiBeep');
-    bridge.emit('extractSubmit');
-  }
-
   function cancel() {
     bridge.emit('uiBeep');
     bridge.emit('cancelExtract');
@@ -72,8 +105,8 @@ export default function Extract({ bridge, snapshot }) {
             onClick={(event) => event.stopPropagation()}
           >
             <p className="eyebrow">{snapshot.extractRockName || 'Extraction'}</p>
-            <h2 id="extract-question" className="extract-question">
-              {snapshot.extractQuestion || 'Solve to extract'}
+            <h2 id="extract-question" className="extract-question" aria-label={snapshot.extractQuestion || 'Solve to extract'}>
+              <TypeLine text={snapshot.extractQuestion || 'Solve to extract'} />
             </h2>
             <div
               id="extract-buffer"
@@ -95,26 +128,23 @@ export default function Extract({ bridge, snapshot }) {
               <button
                 type="button"
                 className="btn extract-key extract-key-wide"
+                aria-label="Backspace"
                 onClick={backspace}
               >
                 ⌫
               </button>
+              <button type="button" className="btn extract-key" onClick={() => digit('0')}>
+                0
+              </button>
               <button
+                id="cancel-extract"
                 type="button"
-                className="btn btn-primary extract-key extract-key-wide extract-key-submit"
-                onClick={submit}
+                className="btn extract-key extract-cancel"
+                onClick={cancel}
               >
-                Enter
+                Esc
               </button>
             </div>
-            <button
-              id="cancel-extract"
-              type="button"
-              className="btn extract-cancel"
-              onClick={cancel}
-            >
-              Cancel · Esc
-            </button>
           </div>
         </div>
       )}

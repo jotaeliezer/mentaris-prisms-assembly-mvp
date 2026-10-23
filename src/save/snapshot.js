@@ -125,6 +125,7 @@ export function buildProgressSnapshot(state) {
       sprite: ship.sprite,
     },
     home: copyJson(state.home),
+    birth: copyJson(state.birth),
     hotbar: copyJson(state.hotbar || []),
     cargoSlots: copyJson(state.cargoSlots || []),
     hullSlots: copyJson(state.hullSlots || []),

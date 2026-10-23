@@ -270,7 +270,10 @@ assert(wreck.mode === 'fly', 'respawn continues the flight');
 assert(wreck.ship.hp === wreck.ship.maxHp, 'respawn restores the hull');
 assert(wreck.asteroids.length === rocks && wreck.layer === layer, 'respawn stays on this layer');
 assert(wreck.drops.some((drop) => drop.itemId === 'pale'), 'dropped items are still there');
-assert(Math.hypot(wreck.ship.x - wreckX, wreck.ship.y - wreckY) > 200, 'respawn steps away from the wreck');
+assert(
+  Math.hypot(wreck.ship.x - wreck.home.x, wreck.ship.y - wreck.home.y) < 2,
+  'respawn returns to where the flight began'
+);
 
 const locked = createState();
 startMission(locked, 'roam', 'no-jumper', null);

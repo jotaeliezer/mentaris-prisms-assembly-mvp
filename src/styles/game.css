@@ -341,7 +341,8 @@ button:disabled,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hint-caret { animation: none; }
+  .hint-caret,
+  .extract-caret { animation: none; }
 }
 
 /* Corner-hugging hotbar. Cargo opens on the bottom-right quarter of a circle centered inside the screen. */
@@ -475,7 +476,7 @@ button:disabled,
 .slot-tip {
   position: fixed;
   z-index: 40;
-  transform: translate(-50%, -140%);
+  transform: translate(calc(-100% - 8px), calc(-100% - 6px));
   padding: 4px 8px;
   border-radius: 6px;
   background: rgba(8, 12, 24, 0.94);
@@ -933,10 +934,6 @@ button:disabled,
   letter-spacing: 0;
 }
 
-.extract-key:nth-child(10) {
-  grid-column: 2;
-}
-
 .extract-key-wide {
   grid-column: span 1;
   font-family: "Syndra", "Segoe UI", sans-serif;
@@ -946,25 +943,23 @@ button:disabled,
   letter-spacing: 0;
 }
 
-.extract-key-wide:nth-last-child(2) {
-  grid-column: 1;
-}
-
-.extract-key-submit {
-  grid-column: 3;
-}
-
-.extract-cancel {
-  width: 100%;
+.extract-numpad .extract-cancel {
+  width: auto;
+  min-height: 58px;
+  padding: 12px 6px;
   color: var(--muted);
-  padding: 12px 8px;
-  font-family: "Syndra", "Segoe UI", sans-serif;
   font-size: 16px;
-  font-weight: 600;
-  font-synthesis: none;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
-  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.extract-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.85em;
+  margin-left: 3px;
+  vertical-align: -0.05em;
+  background: var(--ink);
+  animation: hintCaret 0.75s steps(1) infinite;
 }
 
 .extract-toast {
@@ -1286,7 +1281,26 @@ button:disabled,
 }
 
 .fab-footer {
-  margin-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+#close-fab {
+  width: auto;
+  min-width: 148px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(110, 32, 40, 0.92);
+  border-color: rgba(255, 150, 150, 0.72);
+  color: #ffd8d8;
+}
+
+#close-fab:hover,
+#close-fab:focus-visible {
+  background: rgba(138, 40, 48, 0.96);
+  border-color: rgba(255, 176, 176, 0.9);
 }
 
 .fab-layout {

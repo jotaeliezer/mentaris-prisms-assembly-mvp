@@ -76,8 +76,8 @@ export function syncReverse(gfx, ship, shipScale = 1, time = 0) {
   const length = (7 + burn * 16) * flick;
   for (const side of [-1, 1]) {
     const wag = Math.sin(time * 34 + side) * 1.4 * burn;
-    const x = side * 27;
-    const y = -4;
+    const x = side * 18;
+    const y = 4;
     const tip = y - length;
     gfx.fillStyle(0xff9a3c, 0.28 * burn);
     gfx.fillTriangle(x - 4.5, y, x + wag, tip - 2, x + 4.5, y);

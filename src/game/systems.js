@@ -843,6 +843,9 @@ export function resumeAssembly(state, progress, audio, assemblyId) {
     }
   }
   state.home = progress.home || { x: state.ship.x, y: state.ship.y };
+  state.birth = progress.birth && Number.isFinite(progress.birth.x)
+    ? { x: progress.birth.x, y: progress.birth.y, layer: Number.isFinite(progress.birth.layer) ? progress.birth.layer : 0 }
+    : { x: state.home.x, y: state.home.y, layer: 0 };
   state.wormhole = progress.wormhole || null;
   state.returnHole = progress.returnHole || null;
   state.layerBanks = decodeBanks(progress.layerBanks);
@@ -940,6 +943,7 @@ export function startMission(state, id, seed, audio, assemblyId) {
   state.rng = layerRng(state);
   placeShipAtSpawn(state);
   state.home = { x: state.ship.x, y: state.ship.y };
+  state.birth = { x: state.ship.x, y: state.ship.y, layer: 0 };
   populateField(state);
   placeWormhole(state);
   saveLayerBank(state);
@@ -1577,7 +1581,7 @@ function containShip(state) {
   }
 }
 
-function spillStack(state, stack, x, y) {
+function spillStack(state, stack, x, y, motion) {
   const drop = {
     id: state.nextId++,
     x,
@@ -1588,6 +1592,10 @@ function spillStack(state, stack, x, y) {
     maxLife: 90,
   };
   if (stack.id === BOW_ID) drop.level = bowLevel(stack);
+  if (motion) {
+    drop.drift = motion.drift;
+    drop.driftSpeed = motion.driftSpeed;
+  }
   state.drops.push(drop);
 }
 
@@ -1605,18 +1613,40 @@ export function breachHull(state, audio, reason) {
   const ship = state.ship;
   ensureInventory(state);
   if ((Number(state.cargo) || 0) > 0) {
-    spillStack(state, { id: 'pale', count: state.cargo }, ship.x, ship.y);
+    const angle = state.rng() * Math.PI * 2;
+    const dist = 340 + state.rng() * 220;
+    spillStack(
+      state,
+      { id: 'pale', count: state.cargo },
+      ship.x + Math.cos(angle) * dist,
+      ship.y + Math.sin(angle) * dist,
+      { drift: angle, driftSpeed: 16 + state.rng() * 14 }
+    );
     state.cargo = 0;
   }
   if (state.held) {
-    spillStack(state, state.held, ship.x + 18, ship.y);
+    const angle = state.rng() * Math.PI * 2;
+    const dist = 340 + state.rng() * 220;
+    spillStack(
+      state,
+      state.held,
+      ship.x + Math.cos(angle) * dist,
+      ship.y + Math.sin(angle) * dist,
+      { drift: angle, driftSpeed: 16 + state.rng() * 14 }
+    );
     state.held = null;
   }
   const stacks = takeAllStacks(state);
-  stacks.forEach((stack, index) => {
-    const angle = (index / Math.max(stacks.length, 1)) * Math.PI * 2;
-    const dist = 42 + (index % 4) * 16;
-    spillStack(state, stack, ship.x + Math.cos(angle) * dist, ship.y + Math.sin(angle) * dist);
+  stacks.forEach((stack) => {
+    const angle = state.rng() * Math.PI * 2;
+    const dist = 340 + state.rng() * 260;
+    spillStack(
+      state,
+      stack,
+      ship.x + Math.cos(angle) * dist,
+      ship.y + Math.sin(angle) * dist,
+      { drift: angle, driftSpeed: 16 + state.rng() * 14 }
+    );
   });
   state.wreckX = ship.x;
   state.wreckY = ship.y;
@@ -1653,51 +1683,36 @@ export function breachHull(state, audio, reason) {
   }
 }
 
-/** Same world, same layer. The wreck's drops are still there. */
+/** Same world. Back to where the flight began, or at the station if one was built. */
 export function respawnShip(state, audio) {
   if (state.mode !== 'dead') return;
   const ship = state.ship;
   ship.hp = ship.maxHp;
   ship.vx = 0;
   ship.vy = 0;
-  const originX = state.wreckX || ship.x;
-  const originY = state.wreckY || ship.y;
-  let placed = false;
-  let best = null;
-  let bestGap = -1;
-  for (const radius of [720, 980, 1280]) {
-    for (let i = 0; i < 16; i++) {
-      const angle = (i / 16) * Math.PI * 2;
-      const x = clamp(originX + Math.cos(angle) * radius, 80, WORLD.w - 80);
-      const y = clamp(originY + Math.sin(angle) * radius, 80, WORLD.h - 80);
-      let gap = Infinity;
-      for (const rock of state.asteroids) {
-        if (!rock.alive) continue;
-        const room = Math.hypot(rock.x - x, rock.y - y) - rockTouchDistance(rock);
-        if (room < gap) gap = room;
-      }
-      if (gap > bestGap) {
-        bestGap = gap;
-        best = { x, y };
-      }
-      if (gap > 120) {
-        ship.x = x;
-        ship.y = y;
-        placed = true;
-        break;
-      }
-    }
-    if (placed) break;
-  }
-  if (!placed && best) {
-    ship.x = best.x;
-    ship.y = best.y;
+  const station = state.station;
+  const pieces = station && Array.isArray(station.pieces) ? station.pieces : [];
+  const atStation = pieces.length > 0;
+  const birth = state.birth || state.home || { x: ship.x, y: ship.y, layer: state.layer };
+  const spot = atStation
+    ? { x: station.x, y: station.y, layer: station.layer != null ? station.layer : state.layer }
+    : { x: birth.x, y: birth.y, layer: birth.layer != null ? birth.layer : 0 };
+  ship.x = clamp(spot.x, 80, WORLD.w - 80);
+  ship.y = clamp(spot.y, 80, WORLD.h - 80);
+  if (spot.layer !== state.layer) {
+    saveLayerBank(state);
+    state.layer = spot.layer;
+    restoreLayerBank(state);
+    state.rng = layerRng(state);
+    if (!state.asteroids || !state.asteroids.length) populateField(state);
   }
   state.camera.x = ship.x;
   state.camera.y = ship.y;
   state.mode = 'fly';
   state.bumpCooldown = 1.2;
-  state.status = 'Respawned. Fly back to the wreck and pick up what you dropped.';
+  state.status = atStation
+    ? 'Respawned at your station. Fly out to recover what you dropped.'
+    : 'Respawned where this flight began. Fly out to recover what you dropped.';
   state.statusTime = 4.5;
   if (audio && typeof audio.launch === 'function') audio.launch();
 }
@@ -1742,6 +1757,10 @@ function separateFromRocks(state, audio) {
       if (state.bumpCooldown <= 0 && state.mode === 'fly') {
         state.bumpCooldown = 1.1;
         state.hurt = 0.4;
+        if (audio) {
+          if (typeof audio.impact === 'function') audio.impact();
+          else if (typeof audio.hit === 'function') audio.hit();
+        }
         if (state.shield > 0) {
           state.shield -= 1;
           noteStatus(state, 'Shield took the hit.');
@@ -1749,10 +1768,6 @@ function separateFromRocks(state, audio) {
           ship.hp = Math.max(0, ship.hp - rockHitDamage(state));
           punchCamera(state);
           state.fxFlash = 0.22;
-          if (audio) {
-            if (typeof audio.damaged === 'function') audio.damaged();
-            else audio.hit();
-          }
           if (ship.hp <= 0) breachHull(state, audio, 'The hull broke on an asteroid.');
         }
       }
@@ -2414,6 +2429,11 @@ function updateDrops(state, dt, audio) {
   const ship = state.ship;
   for (const drop of state.drops) {
     if (drop.popping) continue;
+    if (drop.drift != null) {
+      const speed = drop.driftSpeed || 16;
+      drop.x = clamp(drop.x + Math.cos(drop.drift) * speed * dt, 80, WORLD.w - 80);
+      drop.y = clamp(drop.y + Math.sin(drop.drift) * speed * dt, 80, WORLD.h - 80);
+    }
     drop.life -= dt;
     if (drop.life <= 0) continue;
     if (state.mode === 'dead') continue;

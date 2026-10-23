@@ -1003,10 +1003,10 @@ export default class PlayScene extends Phaser.Scene {
         const texture = this.textures.exists(face) ? face : null;
         sprite = texture
           ? this.add.image(missile.x, missile.y, texture)
-          : this.add.circle(missile.x, missile.y, 4, 0xb9f3ff, 1);
+          : this.add.circle(missile.x, missile.y, 8, 0xb9f3ff, 1);
         sprite.setDepth(11);
         if (sprite.setDisplaySize && texture) {
-          const draw = hullDraw(this, texture, 28);
+          const draw = hullDraw(this, texture, 56);
           sprite.setDisplaySize(draw.w, draw.h);
         }
         this.refreshUiIgnore(sprite);
@@ -1022,34 +1022,10 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
-  syncPlates() {
-    if (!this.plateSprites) this.plateSprites = new Map();
-    const plates = visiblePieces(this.state).filter((piece) => piece.id === 'wall' || piece.id === 'panel');
-    const seen = new Set();
-    for (const piece of plates) {
-      seen.add(piece.uid);
-      const keyName = piece.id === 'panel' ? 'panel-plate.svg' : 'wall-plate.svg';
-      let sprite = this.plateSprites.get(piece.uid);
-      if (!sprite || !sprite.scene) {
-        if (sprite) sprite.destroy();
-        const texture = this.textures.exists(keyName) ? keyName : null;
-        sprite = texture
-          ? this.add.image(piece.x, piece.y, texture)
-          : this.add.rectangle(piece.x, piece.y, piece.id === 'panel' ? 120 : 104, piece.id === 'panel' ? 44 : 22, 0xf4f7fb);
-        sprite.setDepth(12);
-        this.refreshUiIgnore(sprite);
-        this.plateSprites.set(piece.uid, sprite);
-      }
-      const size = piece.id === 'panel' ? [120, 44] : [104, 22];
-      sprite.setPosition(piece.x, piece.y);
-      sprite.setRotation(piece.rot || 0);
-      if (sprite.setDisplaySize) sprite.setDisplaySize(size[0], size[1]);
-    }
-    for (const [uid, sprite] of this.plateSprites) {
-      if (seen.has(uid)) continue;
-      sprite.destroy();
-      this.plateSprites.delete(uid);
-    }
+  clearPlateSprites() {
+    if (!this.plateSprites) return;
+    for (const sprite of this.plateSprites.values()) sprite.destroy();
+    this.plateSprites.clear();
   }
 
   syncBodies() {
@@ -1194,10 +1170,9 @@ export default class PlayScene extends Phaser.Scene {
     if (!gfx) return;
     gfx.clear();
     for (const piece of visiblePieces(this.state)) {
-      if (piece.id === 'wall' || piece.id === 'panel') continue;
       drawStationPiece(gfx, piece, PIECE_COLOR[piece.id] || 0x9ad7ff, 0.92);
     }
-    this.syncPlates();
+    this.clearPlateSprites();
     this.syncBodies();
     this.syncAliens();
     this.syncPilotArrows();
@@ -1554,7 +1529,7 @@ export default class PlayScene extends Phaser.Scene {
       const paintShot = (missile) => {
         if (missile.single) return;
         this.missileGfx.fillStyle(missile.heavy ? 0xffb7de : 0xb9f3ff, 0.95);
-        this.missileGfx.fillCircle(missile.x, missile.y, missile.heavy ? 7 : 4);
+        this.missileGfx.fillCircle(missile.x, missile.y, missile.heavy ? 14 : 8);
       };
       for (const m of this.state.missiles) paintShot(m);
       for (const m of this.state.ghostMissiles || []) paintShot(m);
