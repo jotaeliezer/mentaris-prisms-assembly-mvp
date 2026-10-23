@@ -239,19 +239,22 @@ function tickFx(state, dt) {
   if (state.quiet > 0) state.quiet = Math.max(0, state.quiet - dt);
 }
 
-/** Green answer box ended: drop the kept answer, and close a finished rock. */
+/** Green answer box ended: drop the kept answer, and close a finished rock that is still open. */
 function finishGreen(state) {
   state.correctAnswer = '';
   state.closingRockName = '';
   state.asteroids = state.asteroids.filter((rock) => rock.alive && !rock.exploded);
   if (!state.pendingExtractClose) return;
+  leaveExtract(state);
+}
+
+function leaveExtract(state) {
   state.pendingExtractClose = false;
-  if (state.mode !== 'extract') return;
-  state.mode = 'fly';
+  state.extractAvailable = null;
   state.extractRockId = 0;
   state.buffer = '';
   state.hint = '';
-  state.extractAvailable = null;
+  if (state.mode === 'extract') state.mode = 'fly';
 }
 
 export function digitFromEvent(event) {
@@ -651,7 +654,9 @@ export function hasJumper(state) {
 export function changeLayer(state, dir, audio) {
   const next = state.layer + dir;
   if (next < LAYER_MIN || next > LAYER_MAX || state.transition) return;
-  if (!hasJumper(state)) {
+  const mega = !!state.megaJump;
+  state.megaJump = false;
+  if (!mega && !hasJumper(state)) {
     state.status = 'Layer travel is locked. Wear a layer jumper in the hull panel.';
     state.statusTime = 3.4;
     if (audio && typeof audio.wrong === 'function') audio.wrong();
@@ -1199,13 +1204,14 @@ function rockYieldSize(rock) {
   return rock.size;
 }
 
-function kickRecoil(state) {
-  if (state.ship) state.ship.recoil = 1;
+function kickRecoil(state, amount) {
+  if (state.ship) state.ship.recoil = amount || 1;
 }
 
 function decayRecoil(state, dt) {
   const ship = state.ship;
   if (ship && ship.recoil > 0) ship.recoil = Math.max(0, ship.recoil - dt * 9);
+  if (state.cloak > 0) state.cloak = Math.max(0, state.cloak - dt);
 }
 
 function playImpact(audio) {
@@ -1375,6 +1381,7 @@ function applyExtractImpact(state, rock, audio) {
       });
     }
     forgetAsteroid(state, rock);
+    leaveExtract(state);
   } else {
     queueShrink(rock, EXTRACT_SHRINK);
     const operation =
@@ -1695,6 +1702,25 @@ export function respawnShip(state, audio) {
   if (audio && typeof audio.launch === 'function') audio.launch();
 }
 
+export function commitLayerPick(state, audio) {
+  if (!state.layerArm) return false;
+  const raw = String(state.layerBuffer || '').trim();
+  state.layerArm = false;
+  state.layerBuffer = '';
+  const next = Number(raw);
+  if (!raw || raw === '-' || !Number.isInteger(next) || next < LAYER_MIN || next > LAYER_MAX) {
+    noteStatus(state, 'That layer is outside -250 to 250.');
+    return false;
+  }
+  if (next === state.layer) {
+    noteStatus(state, 'You are already on layer ' + next + '.');
+    return false;
+  }
+  state.megaJump = true;
+  changeLayer(state, next - state.layer, audio);
+  return true;
+}
+
 function separateFromRocks(state, audio) {
   const ship = state.ship;
   for (const rock of state.asteroids) {
@@ -1716,7 +1742,10 @@ function separateFromRocks(state, audio) {
       if (state.bumpCooldown <= 0 && state.mode === 'fly') {
         state.bumpCooldown = 1.1;
         state.hurt = 0.4;
-        if (!(state.quiet > 0)) {
+        if (state.shield > 0) {
+          state.shield -= 1;
+          noteStatus(state, 'Shield took the hit.');
+        } else if (!(state.quiet > 0)) {
           ship.hp = Math.max(0, ship.hp - rockHitDamage(state));
           punchCamera(state);
           state.fxFlash = 0.22;
@@ -1889,12 +1918,12 @@ function handleClicks(state, input, view, audio) {
   }
   const queued = input.takeClicks();
   if (!queued.length) return;
-  if (useSelectedHotbar(state, audio)) return;
+  const first = clickWorld(state, view, queued[0]);
+  if (useSelectedHotbar(state, audio, first)) return;
   for (const click of queued) {
     const world = clickWorld(state, view, click);
     if (applyFlyClick(state, world.x, world.y, audio)) return;
   }
-  if (state.extractAvailable) openExtract(state, state.extractAvailable, audio);
 }
 
 function stepOneMissile(state, missile, dt, onHit) {
@@ -1906,9 +1935,16 @@ function stepOneMissile(state, missile, dt, onHit) {
     missile.life = 0;
     return;
   }
-  const speed = missile.single ? 1280 : 700;
+  const speed = missile.speed || (missile.single ? 1280 : missile.arc ? 620 : 700);
   missile.life -= dt;
   missile.age += dt;
+  if (missile.maxRange) {
+    missile.flown = (missile.flown || 0) + speed * dt;
+    if (missile.flown > missile.maxRange) {
+      missile.life = 0;
+      return;
+    }
+  }
   const rock = hunted
     ? null
     : missile.targetKey
@@ -1928,8 +1964,21 @@ function stepOneMissile(state, missile, dt, onHit) {
   const dy = ty - missile.y;
   const dist = Math.hypot(dx, dy) || 1;
   const desired = Math.atan2(dy, dx);
-  const bias = missile.straight ? 0 : missile.age > 0.45 || dist < 140 ? 0 : missile.bend * Math.min(0.9, dist / 480);
-  const heading = desired + bias;
+  const bias = missile.straight ? 0 : missile.age > 0.55 || dist < 120 ? 0 : missile.bend * Math.min(0.9, dist / 480);
+  let heading = desired + bias;
+  if (missile.arc) {
+    let avoid = 0;
+    for (const blocker of state.asteroids) {
+      if (!blocker.alive || blocker.id === missile.targetId || blocker.key === missile.targetKey) continue;
+      const ox = blocker.x - missile.x;
+      const oy = blocker.y - missile.y;
+      const gap = Math.hypot(ox, oy);
+      if (gap > 220 || gap < 8) continue;
+      const side = Math.sign(ox * Math.sin(desired) - oy * Math.cos(desired)) || 1;
+      avoid += side * ((220 - gap) / 220);
+    }
+    heading = desired + avoid * 1.6;
+  }
   missile.vx = Math.cos(heading) * speed;
   missile.vy = Math.sin(heading) * speed;
   missile.x += missile.vx * dt;
@@ -1945,6 +1994,16 @@ function stepOneMissile(state, missile, dt, onHit) {
     );
     if (struck) {
       missile.life = 0;
+      if (missile.freeze) {
+        struck.frozen = 4.5;
+        return;
+      }
+      if (missile.flame) {
+        const away = Math.atan2(struck.y - missile.y, struck.x - missile.x);
+        struck.x += Math.cos(away) * 70;
+        struck.y += Math.sin(away) * 70;
+        if (!missile.power) return;
+      }
       damageAlien(state, struck, missile.power || 1);
       return;
     }
@@ -1961,11 +2020,11 @@ function stepOneMissile(state, missile, dt, onHit) {
     });
   }
   const reach = rock ? rock.radius + 28 : 28;
-  if (missile.age > 2.2) {
+  if (!missile.arc && missile.age > 2.2) {
     missile.x = tx;
     missile.y = ty;
   }
-  if (dist < reach || missile.age > 2.2) {
+  if (dist < reach || (!missile.arc && missile.age > 2.2) || missile.age > 8) {
     missile.life = 0;
     if (onHit && rock) onHit(rock);
   }
@@ -2735,9 +2794,9 @@ export function questionReadout(state) {
 
 export const HOTBAR_SIZE = 10;
 
-/** Key cap for a slot. Slots 1–9 use those digits; slot 10 uses 0. */
+/** Key cap for a slot. Slots show 1–10. The 0 key still selects slot 10. */
 export function hotbarKey(index) {
-  return index === HOTBAR_SIZE - 1 ? '0' : String(index + 1);
+  return String(index + 1);
 }
 
 export function selectHotbar(state, index) {
@@ -2897,14 +2956,79 @@ function noteStatus(state, text) {
 }
 
 const SHOT_STYLE = {
-  'ice-shot': { face: 'bullet_ice.png', sound: 'ice_shot', reach: 720 },
-  'fire-shot': { face: 'bullet_fire1.png', sound: 'flame_shot', reach: 720 },
-  'laser-shot': { face: 'bullet_laser.png', sound: 'gun2', reach: 860 },
+  'ice-shot': { face: 'bullet_ice.png', sound: 'ice_shot', reach: 720, speed: 640, freeze: true, aliensOnly: true },
+  'fire-shot': { face: 'bullet_fire1.png', sound: 'flame_shot', reach: 280, flame: true, aliensOnly: true },
+  'laser-shot': { face: 'bullet_laser.png', sound: 'gun2', reach: 720, burst: 3, speed: 1180, aliensOnly: true },
   'electric-shot': { face: 'bullet_electric1.png', sound: 'electric_shot', reach: 720 },
   'bola-shot': { face: 'bullet_bola.png', sound: 'gun1', reach: 640 },
   'plasma-shot': { face: 'bullet_orb.png', sound: 'shot_orb', reach: 780 },
-  'rail-shot': { face: 'bullet_rail.png', sound: 'shot_railbeam', reach: 1200, heavy: true },
+  'rail-shot': { face: 'bullet_rail.png', sound: 'shot_railbeam', reach: 1700, speed: 1900, heavy: true, power: 2, recoil: 2.4, aliensOnly: true },
 };
+
+function launchBolt(state, angle, extra) {
+  const ship = state.ship;
+  const speed = extra && extra.speed ? extra.speed : 900;
+  const reach = extra && extra.maxRange ? extra.maxRange : 720;
+  state.missiles.push({
+    id: state.nextId++,
+    x: ship.x + Math.cos(angle) * 36,
+    y: ship.y + Math.sin(angle) * 36,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    bend: 0,
+    straight: true,
+    single: true,
+    face: (extra && extra.face) || '',
+    targetId: -1,
+    targetKey: '',
+    tx: ship.x + Math.cos(angle) * (reach + 80),
+    ty: ship.y + Math.sin(angle) * (reach + 80),
+    life: 2.4,
+    age: 0,
+    heavy: !!(extra && extra.heavy),
+    power: extra && extra.power ? extra.power : 1,
+    speed,
+    maxRange: reach,
+    freeze: !!(extra && extra.freeze),
+    flame: !!(extra && extra.flame),
+  });
+}
+
+function fireAtAlien(state, alien, style) {
+  const aim = Math.atan2(alien.y - state.ship.y, alien.x - state.ship.x);
+  const count = style.burst || 1;
+  for (let i = 0; i < count; i += 1) {
+    const spread = count === 1 ? 0 : (i - (count - 1) / 2) * 0.07;
+    launchBolt(state, aim + spread, style);
+  }
+  if (style.recoil) kickRecoil(state, style.recoil);
+}
+
+function breatheFlame(state) {
+  const ship = state.ship;
+  const aim = ship.aim || 0;
+  let hit = 0;
+  for (const alien of state.aliens || []) {
+    if (!alien || alien.gone || alien.leaving || alien.layer !== state.layer) continue;
+    const dx = alien.x - ship.x;
+    const dy = alien.y - ship.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 280 || dist < 8) continue;
+    let diff = Math.atan2(dy, dx) - aim;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (Math.abs(diff) > 0.5) continue;
+    const away = Math.atan2(dy, dx);
+    alien.x += Math.cos(away) * 90;
+    alien.y += Math.sin(away) * 90;
+    damageAlien(state, alien, 1);
+    hit += 1;
+  }
+  for (let i = -2; i <= 2; i += 1) {
+    launchBolt(state, aim + i * 0.12, { face: 'bullet_fire1.png', speed: 420, maxRange: 260, flame: true, power: 0 });
+  }
+  return hit > 0;
+}
 
 function acquireShot(state, reach) {
   const rock = nearestAsteroid(state, reach);
@@ -2916,7 +3040,7 @@ function acquireShot(state, reach) {
   return null;
 }
 
-function launchAt(state, found, audio, heavy, face, soundKey) {
+function launchAt(state, found, audio, heavy, face, soundKey, style) {
   if (found.alien) {
     launchMissile(
       state,
@@ -2930,33 +3054,66 @@ function launchAt(state, found, audio, heavy, face, soundKey) {
     missile.alienId = found.alien.id;
     missile.targetId = -1;
     missile.targetKey = '';
+    if (style && style.arc) {
+      missile.arc = true;
+      missile.straight = false;
+    }
+    if (style && style.speed) missile.speed = style.speed;
     return;
   }
   launchMissile(state, found.rock, audio, heavy, face, soundKey);
+  const missile = state.missiles[state.missiles.length - 1];
+  if (style && style.arc) {
+    missile.arc = true;
+    missile.straight = false;
+  }
+  if (style && style.speed) missile.speed = style.speed;
 }
 
-function applyUse(state, use, audio) {
+function applyUse(state, use, audio, world) {
   const ship = state.ship;
   if (use === 'shot') {
     const stack = selectedStack(state);
     const style = stack && SHOT_STYLE[stack.id];
     if (!style) return false;
+    if (style.flame) {
+      const caught = breatheFlame(state);
+      if (!caught) {
+        state.missiles = state.missiles.filter((missile) => !missile.flame);
+        noteStatus(state, 'No alien in the flame cone.');
+        return false;
+      }
+      if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
+      kickRecoil(state, 0.7);
+      return true;
+    }
+    if (style.aliensOnly) {
+      const alien = nearestAlien(state, style.reach);
+      if (!alien) {
+        noteStatus(state, 'That shot only reaches aliens.');
+        return false;
+      }
+      fireAtAlien(state, alien, style);
+      if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
+      if (!style.recoil) kickRecoil(state, 1);
+      return true;
+    }
     const found = acquireShot(state, style.reach);
     if (!found) {
       noteStatus(state, 'Nothing in range for that weapon.');
       return false;
     }
-    launchAt(state, found, audio, !!style.heavy, style.face, style.sound);
+    launchAt(state, found, audio, !!style.heavy, style.face, style.sound, style);
     return true;
   }
   if (use === 'missile' || use === 'core') {
     const heavy = use === 'core';
-    const found = acquireShot(state, heavy ? 1200 : 720);
+    const found = acquireShot(state, heavy ? 1400 : 2200);
     if (!found) {
       noteStatus(state, 'Nothing in range for that weapon.');
       return false;
     }
-    launchAt(state, found, null, heavy);
+    launchAt(state, found, audio, heavy, heavy ? '' : 'bullet_missile.png', heavy ? 'gun1' : 'shot_missile', { arc: !heavy, speed: heavy ? 900 : 620 });
     if (heavy) grantMilestone(state, 'core-cannon');
     return true;
   }
@@ -3067,21 +3224,94 @@ function applyUse(state, use, audio) {
     noteStatus(state, 'Quiet running. Bumps will not hurt for a few seconds.');
     return true;
   }
+  if (use === 'cloak') {
+    state.cloak = 7;
+    noteStatus(state, 'Cloaked. Aliens lose you for a few seconds.');
+    return true;
+  }
+  if (use === 'dash') {
+    ship.vx += Math.cos(ship.aim) * 540;
+    ship.vy += Math.sin(ship.aim) * 540;
+    if (audio && typeof audio.dash === 'function') audio.dash();
+    noteStatus(state, 'Dash.');
+    return true;
+  }
+  if (use === 'shock') {
+    let shoved = 0;
+    for (const alien of state.aliens || []) {
+      if (!alien || alien.gone || alien.leaving || alien.layer !== state.layer) continue;
+      const dx = alien.x - ship.x;
+      const dy = alien.y - ship.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 240 || dist < 1) continue;
+      alien.x += (dx / dist) * 170;
+      alien.y += (dy / dist) * 170;
+      damageAlien(state, alien, 1);
+      shoved += 1;
+    }
+    impactDebris(state, ship.x, ship.y);
+    if (audio && typeof audio.dash === 'function') audio.dash();
+    if (!shoved) noteStatus(state, 'Shockwave. No alien was close.');
+    else noteStatus(state, 'Shockwave shoved ' + shoved + (shoved === 1 ? ' alien.' : ' aliens.'));
+    return true;
+  }
+  if (use === 'shield') {
+    state.shield = (state.shield || 0) + 1;
+    noteStatus(state, 'Shield raised. The next hit is absorbed.');
+    return true;
+  }
+  if (use === 'teleport') {
+    if (audio && typeof audio.playShot === 'function') audio.playShot('teleport_disappear');
+    ship.x = clamp(ship.x + Math.cos(ship.aim) * 880, 80, WORLD.w - 80);
+    ship.y = clamp(ship.y + Math.sin(ship.aim) * 880, 80, WORLD.h - 80);
+    ship.vx = 0;
+    ship.vy = 0;
+    state.camera.x = ship.x;
+    state.camera.y = ship.y;
+    if (audio && typeof audio.playShot === 'function') audio.playShot('teleport_reappear');
+    noteStatus(state, 'Teleported along your aim.');
+    return true;
+  }
+  if (use === 'hyper') {
+    if (!world) {
+      noteStatus(state, 'Click a point on this layer.');
+      return false;
+    }
+    const dist = Math.hypot(world.x - ship.x, world.y - ship.y);
+    if (dist < 120) {
+      noteStatus(state, 'Click farther away to hyperdrive.');
+      return false;
+    }
+    ship.x = clamp(world.x, 80, WORLD.w - 80);
+    ship.y = clamp(world.y, 80, WORLD.h - 80);
+    ship.vx = 0;
+    ship.vy = 0;
+    state.camera.x = ship.x;
+    state.camera.y = ship.y;
+    if (audio && typeof audio.dash === 'function') audio.dash();
+    noteStatus(state, 'Hyperdrive.');
+    return true;
+  }
+  if (use === 'megajump') {
+    state.layerArm = true;
+    state.layerBuffer = '';
+    noteStatus(state, 'Type a layer from -250 to 250, then Enter. Minus flips the sign.');
+    return true;
+  }
   return false;
 }
 
 /** Left click uses the selected hotbar item when that item has a use. Minerals do not. */
-export function useSelectedHotbar(state, audio) {
+export function useSelectedHotbar(state, audio, world) {
   const stack = selectedStack(state);
   if (!stack) return false;
   const item = itemById(stack.id);
   if (!item || !item.use) return false;
-  if (!applyUse(state, item.use, audio)) return false;
+  if (!applyUse(state, item.use, audio, world)) return false;
   stack.count -= 1;
   if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
-  if (audio && item.use !== 'shot') {
-    if ((item.use === 'missile' || item.use === 'core') && typeof audio.shot === 'function') audio.shot();
-    else if (typeof audio.correct === 'function') audio.correct();
+  if (audio && item.use !== 'shot' && item.use !== 'missile' && item.use !== 'core' && item.use !== 'dash' && item.use !== 'shock' && item.use !== 'teleport' && item.use !== 'hyper') {
+    if (typeof audio.correct === 'function') audio.correct();
   }
   return true;
 }
@@ -3174,6 +3404,7 @@ function RECIPES_FOR_FAB(state) {
       id: cost.id,
       n: cost.n,
       name: ITEMS[cost.id] ? ITEMS[cost.id].name : cost.id,
+      have: countItem(state, cost.id),
       icon: slotIcon(cost.id),
       iconFilter: iconFilter(cost.id),
     })),

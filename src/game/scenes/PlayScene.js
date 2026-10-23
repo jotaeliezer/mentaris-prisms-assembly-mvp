@@ -32,6 +32,7 @@ import {
   buildSnapshotPatch,
   cancelExtract,
   changeLayer,
+  commitLayerPick,
   craftItem,
   cycleHotbar,
   digitFromEvent,
@@ -591,6 +592,15 @@ export default class PlayScene extends Phaser.Scene {
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (el && el.isContentEditable)) return;
 
       if (event.code === 'Escape') {
+        if (this.state.layerArm) {
+          this.state.layerArm = false;
+          this.state.layerBuffer = '';
+          this.state.status = 'MegaJump cancelled.';
+          this.state.statusTime = 2;
+          event.preventDefault();
+          this.publishSnapshot(true);
+          return;
+        }
         if (mode === 'extract') {
           cancelExtract(this.state);
           this.clearFlightInput();
@@ -601,6 +611,33 @@ export default class PlayScene extends Phaser.Scene {
         this.state.buffer = '';
         this.state.targetId = 0;
         this.publishSnapshot(true);
+        return;
+      }
+
+      if (this.state.layerArm && mode === 'fly') {
+        if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+          commitLayerPick(this.state, this.audio);
+          event.preventDefault();
+          this.publishSnapshot(true);
+          return;
+        }
+        if (event.code === 'Minus' || event.code === 'NumpadSubtract') {
+          const buf = this.state.layerBuffer || '';
+          this.state.layerBuffer = buf.startsWith('-') ? buf.slice(1) : '-' + buf;
+          this.state.status = 'Layer ' + (this.state.layerBuffer || '…');
+          this.state.statusTime = 6;
+          event.preventDefault();
+          this.publishSnapshot(true);
+          return;
+        }
+        const layerDigit = digitFromEvent(event);
+        if (layerDigit != null) {
+          this.state.layerBuffer = (this.state.layerBuffer || '') + layerDigit;
+          this.state.status = 'Layer ' + this.state.layerBuffer + ', then Enter.';
+          this.state.statusTime = 6;
+          event.preventDefault();
+          this.publishSnapshot(true);
+        }
         return;
       }
 
@@ -1453,7 +1490,8 @@ export default class PlayScene extends Phaser.Scene {
       this.shipSprite.setRotation(ship.aim + Math.PI / 2);
       const draw = hullDraw(this, key, SHIP_DRAW * shipScale);
       this.shipSprite.setDisplaySize(draw.w, draw.h);
-      this.shipSprite.setAlpha(intro.ship);
+      const veil = this.state.cloak > 0 ? 0.32 : 1;
+      this.shipSprite.setAlpha(intro.ship * veil);
       this.shipSprite.setVisible(
         intro.ship > 0.02 && this.state.mode !== 'title' && this.state.mode !== 'dead'
       );

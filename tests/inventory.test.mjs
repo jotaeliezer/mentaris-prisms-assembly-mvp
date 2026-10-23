@@ -237,12 +237,12 @@ typeChar(spent, '4', null);
 landExtractShot(spent, null);
 assert(host.depleted, 'the third answer spends the rock');
 assert(!spent.asteroids.some((item) => item.id === host.id), 'the spent rock is gone');
-assert(spent.mode === 'extract', 'the last answer stays on screen');
+assert(spent.mode === 'fly', 'the numpad closes when the rock is destroyed');
 assert(spent.correctAnswer === '4', 'the last answer is kept while the box is green');
 idle(spent, 1.2, null);
 assert(spent.fxGreen === 0, 'the green box ends');
 assert(spent.correctAnswer === '', 'the kept answer clears when the box is no longer green');
-assert(spent.mode === 'fly', 'extract closes after the green answer');
+assert(spent.mode === 'fly', 'flight stays open after the rock is gone');
 
 const wreck = createState();
 startMission(wreck, 'roam', 'wreck-seed', null);
@@ -684,8 +684,16 @@ for (const other of arc.asteroids) {
   other.x = -4000;
   other.y = -4000;
 }
-assert(!useSelectedHotbar(arc, null), 'an arc missile cannot reach a rock 900 away');
-assert(countItem(arc, 'arc-missile') === 1, 'a shot with no rock in range is not spent');
+assert(useSelectedHotbar(arc, null), 'an arc missile reaches a rock 900 away');
+assert(arc.missiles.length === 1 && arc.missiles[0].arc, 'the arc missile curves toward that rock');
+assert(countItem(arc, 'arc-missile') === 0, 'a shot in range is spent');
+arc.ship.x = 4000;
+arc.ship.y = 4000;
+arcRock.x = 7000;
+arcRock.y = 4000;
+addItem(arc, 'arc-missile', 1);
+selectHotbar(arc, arc.hotbar.findIndex((stack) => stack && stack.id === 'arc-missile'));
+assert(!useSelectedHotbar(arc, null), 'an arc missile cannot reach a rock 3000 away');
 
 const pour = createState();
 startMission(pour, 'roam', 'pour-ore', null);

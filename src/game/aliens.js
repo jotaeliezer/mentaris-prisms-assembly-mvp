@@ -64,6 +64,14 @@ export function rollAlienType(state) {
 
 function hurtShip(state, amount, alien) {
   if (!state.ship || state.mode !== 'fly') return;
+  if (state.cloak > 0) return;
+  if (state.shield > 0) {
+    state.shield -= 1;
+    state.bumpCooldown = 0.45;
+    state.status = 'Shield took the hit.';
+    state.statusTime = 1.6;
+    return;
+  }
   if (state.bumpCooldown > 0) return;
   state.bumpCooldown = 0.7;
   state.ship.hp = Math.max(0, state.ship.hp - amount);
@@ -194,6 +202,12 @@ function leaveAlien(alien, ship, dt) {
 
 function tickMind(state, alien, dt) {
   const ship = state.ship;
+  if (alien.frozen > 0) {
+    alien.frozen -= dt;
+    if (touchShip(alien, ship, 42)) breakAlien(state, alien);
+    return;
+  }
+  if (state.cloak > 0) return;
   alien.t = (alien.t || 0) + dt;
   if (alien.type === 'scout') {
     holdGap(alien, ship, 280, 160, dt);

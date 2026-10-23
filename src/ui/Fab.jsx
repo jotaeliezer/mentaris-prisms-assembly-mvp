@@ -34,7 +34,12 @@ export default function Fab({ bridge, snapshot }) {
   const [hoverId, setHoverId] = useState(null);
   const [point, setPoint] = useState(null);
   const hideTimer = useRef(null);
-  const visible = recipes.filter((recipe) => filter === 'all' || recipe.category === filter);
+  const [onlyReady, setOnlyReady] = useState(false);
+  const [costTip, setCostTip] = useState(null);
+  const visible = recipes.filter((recipe) => {
+    if (onlyReady && !recipe.ready) return false;
+    return filter === 'all' || recipe.category === filter;
+  });
   const selected = recipes.find((recipe) => recipe.id === selectedId) || null;
   const hovered = recipes.find((recipe) => recipe.id === hoverId) || null;
   const category = hovered ? CATEGORIES.find((cat) => cat.id === hovered.category) : null;
@@ -69,6 +74,13 @@ export default function Fab({ bridge, snapshot }) {
     return { left: Math.max(8, left), top: Math.max(8, top) };
   }
 
+  const cargoSlots = snapshot.cargoHold && Array.isArray(snapshot.cargoHold.slots) ? snapshot.cargoHold.slots : [];
+  const cargoShown = cargoSlots.filter((slot) => slot.available);
+  const barSlots =
+    snapshot.hud && snapshot.hud.hotbar && Array.isArray(snapshot.hud.hotbar.slots)
+      ? snapshot.hud.hotbar.slots.filter((slot) => slot.available)
+      : [];
+
   const card = hovered && point ? (
     <aside className="fab-info fab-info-float" style={cardStyle()} onPointerEnter={clearHide} onPointerLeave={scheduleHide}>
       <p className="fab-readout-name">{hovered.name}</p>
@@ -80,6 +92,18 @@ export default function Fab({ bridge, snapshot }) {
   return (
     <div id="fab" className="overlay">
       <div className="panel fab-panel fab-wide">
+        <button
+          type="button"
+          className={`btn fab-ready-toggle${onlyReady ? ' active' : ''}`}
+          aria-pressed={onlyReady}
+          onClick={() => {
+            beep(bridge);
+            setOnlyReady((current) => !current);
+            setSelectedId(null);
+          }}
+        >
+          {onlyReady ? 'Show all' : 'Craftable only'}
+        </button>
         <p className="eyebrow">Fabrication bay</p>
         <h2>Fabrication index</h2>
         <p className="lede" id="fab-copy">
@@ -130,6 +154,7 @@ export default function Fab({ bridge, snapshot }) {
                 <span className="fab-icon-name">{recipe.name}</span>
               </button>
             ))}
+            {!visible.length ? <p className="fab-readout-body">Nothing in this group can be fabricated right now.</p> : null}
           </div>
           <aside className="fab-side" aria-live="polite">
             {selected ? (
@@ -137,7 +162,24 @@ export default function Fab({ bridge, snapshot }) {
                 <p className="fab-readout-name">{selected.name}</p>
                 <div className="fab-cost-row">
                   {(selected.costs || []).map((cost) => (
-                    <div key={cost.id} className="fab-cost" title={cost.name}>
+                    <div
+                      key={cost.id}
+                      className="fab-cost"
+                      onPointerEnter={(event) =>
+                        setCostTip({
+                          name: cost.name,
+                          have: cost.have,
+                          x: event.clientX,
+                          y: event.clientY,
+                        })
+                      }
+                      onPointerMove={(event) =>
+                        setCostTip((current) =>
+                          current ? { ...current, x: event.clientX, y: event.clientY } : current
+                        )
+                      }
+                      onPointerLeave={() => setCostTip(null)}
+                    >
                       {itemPicture(cost)}
                       <span className="fab-cost-badge">{cost.n}</span>
                     </div>
@@ -161,6 +203,34 @@ export default function Fab({ bridge, snapshot }) {
             )}
           </aside>
         </div>
+        <div className="fab-cargo" aria-label="Hold">
+          <p className="eyebrow">Hotbar</p>
+          {barSlots.length ? (
+            <div className="fab-cargo-row">
+              {barSlots.map((slot) => (
+                <div key={slot.id} className="fab-cost fab-cargo-slot">
+                  {itemPicture(slot)}
+                  <span className="fab-cost-badge">{slot.badge || '1'}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="fab-readout-body">Hotbar is empty.</p>
+          )}
+          <p className="eyebrow">Cargo</p>
+          {cargoShown.length ? (
+            <div className="fab-cargo-row">
+              {cargoShown.map((slot) => (
+                <div key={slot.id} className="fab-cost fab-cargo-slot">
+                  {itemPicture(slot)}
+                  <span className="fab-cost-badge">{slot.badge || '1'}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="fab-readout-body">Cargo is empty.</p>
+          )}
+        </div>
         <div className="missions fab-footer">
           <button
             id="close-fab"
@@ -176,6 +246,15 @@ export default function Fab({ bridge, snapshot }) {
         </div>
       </div>
       {card && typeof document !== 'undefined' ? createPortal(card, document.body) : null}
+      {costTip && typeof document !== 'undefined'
+        ? createPortal(
+            <div className="fab-name-pop" style={{ left: costTip.x + 14, top: costTip.y + 16 }}>
+              <p className="fab-readout-name">{costTip.name}</p>
+              <p className="fab-readout-body">{costTip.have || 0} in the hold</p>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

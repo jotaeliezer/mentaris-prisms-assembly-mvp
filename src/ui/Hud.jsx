@@ -108,6 +108,32 @@ function cargoPose(index, layout) {
   return { ...quarterPoint(t, radius, layout.center), scale: layout.fit, visible: true, z: 2 };
 }
 
+function platePath(center, outer, inner, size, t0, t1) {
+  const steps = 22;
+  const pts = [];
+  const push = (t, radius) => {
+    const point = quarterPoint(t, radius, center);
+    pts.push({ x: size - point.right, y: size - point.bottom });
+  };
+  for (let i = 0; i <= steps; i += 1) push(t0 + ((t1 - t0) * i) / steps, outer);
+  for (let i = steps; i >= 0; i -= 1) push(t0 + ((t1 - t0) * i) / steps, inner);
+  if (!pts.length) return '';
+  return (
+    'M ' +
+    pts.map((point) => point.x.toFixed(1) + ' ' + point.y.toFixed(1)).join(' L ') +
+    ' Z'
+  );
+}
+
+function ArcPlate({ size, center, outer, inner, tone, t0 = 0, t1 = 1 }) {
+  if (!(outer > inner + 6) || !size) return null;
+  const d = platePath(center, outer, Math.max(8, inner), size, t0, t1);
+  return (
+    <svg className={`arc-plate arc-plate-${tone}`} width={size} height={size} aria-hidden="true">
+      <path d={d} />
+    </svg>
+  );
+}
 function ringStyle(pose) {
   return {
     right: pose.right,
@@ -458,6 +484,34 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
             </p>
           ) : null}
           {cargoOpen && (
+            <ArcPlate
+              size={layout.center + 48}
+              center={layout.center}
+              outer={layout.cargoOuter + 32}
+              inner={layout.cargoOuter - (layout.bands - 1) * layout.cargoRadial - 32}
+              tone="cargo"
+            />
+          )}
+          {cargoOpen ? (
+            <ArcPlate
+              size={layout.center + 48}
+              center={layout.center}
+              outer={layout.hotOuter + 34}
+              inner={layout.hotOuter - layout.hotRadial - 34}
+              tone="hot"
+            />
+          ) : (
+            <ArcPlate
+              size={layout.closedCenter + 56}
+              center={layout.closedCenter}
+              outer={layout.closedRadius + 36}
+              inner={layout.closedRadius - 36}
+              tone="hot"
+              t0={0.18}
+              t1={0.82}
+            />
+          )}
+          {cargoOpen && (
             <div id="cargo" className="cargo-arc" role="dialog" aria-label="Cargo">
               {cargoSlots.map((slot) => (
                 <button
@@ -493,7 +547,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                 }
                 {...slotProps('hotbar', slot)}
               >
-                <span className="hotbar-key">{slot.key}</span>
+                <span className={`hotbar-key${String(slot.key).length > 1 ? ' is-wide' : ''}`}>{slot.key}</span>
                 {slot.available ? (
                   <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
                 ) : null}
