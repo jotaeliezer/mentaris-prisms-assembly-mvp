@@ -227,6 +227,14 @@ function punchCamera(state) {
   state.shakeMag = 68;
 }
 
+function alienImpact(state, x, y, audio) {
+  impactDebris(state, x, y);
+  state.shakeTime = 0.16;
+  state.shakeMag = 22;
+  state.fxFlash = Math.max(state.fxFlash || 0, 0.22);
+  if (audio && typeof audio.impact === 'function') audio.impact();
+}
+
 function tickFx(state, dt) {
   if (state.shakeTime > 0) state.shakeTime = Math.max(0, state.shakeTime - dt);
   if (state.notices && state.notices.length) {
@@ -364,12 +372,16 @@ export function populateField(state) {
     for (let i = 0; i < 6; i++) {
       spawnAsteroid(state, operation, i % 3 === 2 ? 'hard' : 'easy', 'near');
     }
+    spawnAsteroid(state, 'mul', 'easy', 'near');
+    spawnAsteroid(state, 'mul', 'hard', 'near');
   } else {
     spawnAsteroid(state, 'add', 'easy', 'near');
     spawnAsteroid(state, 'sub', 'easy', 'near');
     spawnAsteroid(state, 'add', 'hard', 'near');
     spawnAsteroid(state, 'sub', 'hard', 'near');
     spawnAsteroid(state, 'add', 'easy', 'near');
+    spawnAsteroid(state, 'mul', 'easy', 'near');
+    spawnAsteroid(state, 'mul', 'hard', 'near');
   }
   ensureBelt(state, operation);
   ensureScenery(state);
@@ -1698,6 +1710,7 @@ export function breachHull(state, audio, reason) {
   state.statusTime = 4.5;
   if (audio && typeof audio.explode === 'function') audio.explode();
   else if (audio && typeof audio.hit === 'function') audio.hit();
+  if (audio && typeof audio.gameOver === 'function') audio.gameOver();
   if (audio && typeof audio.syncMotionLoops === 'function') {
     audio.syncMotionLoops(false, false);
   }
@@ -1961,7 +1974,23 @@ function handleClicks(state, input, view, audio) {
   }
 }
 
-function stepOneMissile(state, missile, dt, onHit) {
+function strikeAlien(state, missile, alien, audio) {
+  missile.life = 0;
+  if (!(missile.flame && !missile.power)) alienImpact(state, alien.x, alien.y, audio);
+  if (missile.freeze) {
+    alien.frozen = 4.5;
+    return;
+  }
+  if (missile.flame) {
+    const away = Math.atan2(alien.y - missile.y, alien.x - missile.x);
+    alien.x += Math.cos(away) * 70;
+    alien.y += Math.sin(away) * 70;
+    if (!missile.power) return;
+  }
+  damageAlien(state, alien, missile.power || 1);
+}
+
+function stepOneMissile(state, missile, dt, onHit, audio) {
   const hunted =
     missile.alienId && state.aliens
       ? state.aliens.find((alien) => alien.id === missile.alienId && !alien.gone && !alien.leaving)
@@ -1992,6 +2021,32 @@ function stepOneMissile(state, missile, dt, onHit) {
     if (missile.extract && rock == null) {
       const pending = state.asteroids.find((item) => item.pendingExtract && item.key === missile.targetKey);
       if (pending) pending.pendingExtract = null;
+    }
+    return;
+  }
+  if (missile.bolt) {
+    missile.x += (missile.vx || 0) * dt;
+    missile.y += (missile.vy || 0) * dt;
+    if (!missile.extract) {
+      const struck = (state.aliens || []).find(
+        (alien) =>
+          alien &&
+          !alien.gone &&
+          !alien.leaving &&
+          alien.layer === state.layer &&
+          Math.hypot(alien.x - missile.x, alien.y - missile.y) < 42
+      );
+      if (struck) {
+        strikeAlien(state, missile, struck, audio);
+        return;
+      }
+    }
+    if (rock) {
+      const gap = Math.hypot(rock.x - missile.x, rock.y - missile.y);
+      if (gap < (rock.radius || 28) + 36) {
+        missile.life = 0;
+        if (onHit) onHit(rock);
+      }
     }
     return;
   }
@@ -2028,18 +2083,7 @@ function stepOneMissile(state, missile, dt, onHit) {
         Math.hypot(alien.x - missile.x, alien.y - missile.y) < 42
     );
     if (struck) {
-      missile.life = 0;
-      if (missile.freeze) {
-        struck.frozen = 4.5;
-        return;
-      }
-      if (missile.flame) {
-        const away = Math.atan2(struck.y - missile.y, struck.x - missile.x);
-        struck.x += Math.cos(away) * 70;
-        struck.y += Math.sin(away) * 70;
-        if (!missile.power) return;
-      }
-      damageAlien(state, struck, missile.power || 1);
+      strikeAlien(state, missile, struck, audio);
       return;
     }
   }
@@ -2070,12 +2114,12 @@ function updateMissiles(state, dt, audio) {
     stepOneMissile(state, missile, dt, (rock) => {
       if (missile.extract) applyExtractImpact(state, rock, audio);
       else destroyAsteroid(state, rock, audio);
-    });
+    }, audio);
   }
   state.missiles = state.missiles.filter((missile) => missile.life > 0);
   if (!state.ghostMissiles) state.ghostMissiles = [];
   for (const missile of state.ghostMissiles) {
-    stepOneMissile(state, missile, dt, null);
+    stepOneMissile(state, missile, dt, null, null);
   }
   state.ghostMissiles = state.ghostMissiles.filter((missile) => missile.life > 0);
 }
@@ -3006,7 +3050,17 @@ export function craftItem(state, recipeId, audio) {
     pushNotice(state, name + ' added.', 'loot');
   }
   if (recipe.result === 'map') state.mapUnlocked = true;
+  const madeSlot = state.hotbar.findIndex((stack) => stack && stack.id === recipe.result);
+  if (madeSlot >= 0) state.hotbarSlot = madeSlot;
   if (audio && typeof audio.correct === 'function') audio.correct();
+  if (
+    audio &&
+    ITEMS[recipe.result] &&
+    ITEMS[recipe.result].kind === 'weapon' &&
+    typeof audio.weaponMade === 'function'
+  ) {
+    audio.weaponMade();
+  }
   return true;
 }
 
@@ -3018,6 +3072,30 @@ function selectedStack(state) {
 function noteStatus(state, text) {
   state.status = text;
   state.statusTime = 3.2;
+}
+
+function burstDash(state, audio) {
+  const ship = state.ship;
+  ship.vx += Math.cos(ship.aim) * 540;
+  ship.vy += Math.sin(ship.aim) * 540;
+  if (audio && typeof audio.dash === 'function') audio.dash();
+  noteStatus(state, 'Dash. Left Shift spends another charge.');
+}
+
+/** Left Shift spends one fabricated dash charge. The dash can sit on the hotbar or in the cargo. */
+export function useOwnedDash(state, audio) {
+  if (!state || !state.ship || (state.mode !== 'fly' && state.mode !== 'cargo')) return false;
+  ensureInventory(state);
+  const lists = [state.hotbar, state.cargoSlots];
+  for (const list of lists) {
+    const index = list.findIndex((stack) => stack && stack.id === 'dash' && stack.count > 0);
+    if (index < 0) continue;
+    burstDash(state, audio);
+    list[index].count -= 1;
+    if (list[index].count <= 0) list[index] = null;
+    return true;
+  }
+  return false;
 }
 
 const SHOT_STYLE = {
@@ -3044,8 +3122,10 @@ function launchBolt(state, angle, extra) {
     straight: true,
     single: true,
     face: (extra && extra.face) || '',
-    targetId: -1,
-    targetKey: '',
+    bolt: true,
+    alienId: extra && extra.alienId ? extra.alienId : 0,
+    targetId: extra && Number.isFinite(extra.targetId) ? extra.targetId : -1,
+    targetKey: extra && extra.targetKey ? extra.targetKey : '',
     tx: ship.x + Math.cos(angle) * (reach + 80),
     ty: ship.y + Math.sin(angle) * (reach + 80),
     life: 2.4,
@@ -3059,12 +3139,17 @@ function launchBolt(state, angle, extra) {
   });
 }
 
-function fireAtAlien(state, alien, style) {
-  const aim = Math.atan2(alien.y - state.ship.y, alien.x - state.ship.x);
+function aimBolt(state, style, target) {
+  const aim = Math.atan2(target.y - state.ship.y, target.x - state.ship.x);
   const count = style.burst || 1;
   for (let i = 0; i < count; i += 1) {
     const spread = count === 1 ? 0 : (i - (count - 1) / 2) * 0.07;
-    launchBolt(state, aim + spread, style);
+    launchBolt(state, aim + spread, {
+      ...style,
+      alienId: target.alienId || 0,
+      targetId: target.rockId != null ? target.rockId : -1,
+      targetKey: target.rockKey || '',
+    });
   }
   if (style.recoil) kickRecoil(state, style.recoil);
 }
@@ -3178,6 +3263,7 @@ function applyUse(state, use, audio, world) {
       }
       if (trySpendAmmo(state, stack.id) === 'empty') return true;
       breatheFlame(state);
+      alienImpact(state, ship.x + Math.cos(ship.aim) * 80, ship.y + Math.sin(ship.aim) * 80, audio);
       if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
       kickRecoil(state, 0.7);
       return true;
@@ -3189,7 +3275,7 @@ function applyUse(state, use, audio, world) {
         return false;
       }
       if (trySpendAmmo(state, stack.id) === 'empty') return true;
-      fireAtAlien(state, alien, style);
+      aimBolt(state, style, { x: alien.x, y: alien.y, alienId: alien.id });
       if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
       if (!style.recoil) kickRecoil(state, 1);
       return true;
@@ -3199,7 +3285,12 @@ function applyUse(state, use, audio, world) {
       noteStatus(state, 'Nothing in range for that weapon.');
       return false;
     }
-    launchAt(state, found, audio, !!style.heavy, style.face, style.sound, style);
+    const aimed = found.alien
+      ? { x: found.alien.x, y: found.alien.y, alienId: found.alien.id }
+      : { x: found.rock.x, y: found.rock.y, rockId: found.rock.id, rockKey: found.rock.key };
+    aimBolt(state, style, aimed);
+    if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
+    if (!style.recoil) kickRecoil(state, style.heavy ? 1.4 : 1);
     return true;
   }
   if (use === 'missile' || use === 'core') {
@@ -3326,10 +3417,7 @@ function applyUse(state, use, audio, world) {
     return true;
   }
   if (use === 'dash') {
-    ship.vx += Math.cos(ship.aim) * 540;
-    ship.vy += Math.sin(ship.aim) * 540;
-    if (audio && typeof audio.dash === 'function') audio.dash();
-    noteStatus(state, 'Dash.');
+    burstDash(state, audio);
     return true;
   }
   if (use === 'shock') {

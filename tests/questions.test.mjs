@@ -29,10 +29,10 @@ for (let i = 0; i < 30; i++) {
 for (let i = 0; i < 20; i++) {
   const easy = nextProblem(problemSpec("mul", "easy"), rng);
   assert(easy.answer === easy.a * easy.b, "mul easy");
-  assert(easy.a >= 2 && easy.a <= 9 && easy.b >= 2 && easy.b <= 9, "mul easy range");
+  assert(easy.a >= 1 && easy.a <= 9 && easy.b >= 1 && easy.b <= 9, "mul 1 by 1");
   const hard = nextProblem(problemSpec("mul", "hard"), rng);
-  assert(hard.answer === hard.a * hard.b, "mul classic2");
-  assert(hard.a >= 10 && hard.a <= 99 && hard.b >= 2 && hard.b <= 9, "classic2 shape");
+  assert(hard.answer === hard.a * hard.b, "mul 2 by 1");
+  assert(hard.a >= 10 && hard.a <= 99 && hard.b >= 1 && hard.b <= 9, "2 by 1 shape");
 }
 
 for (let i = 0; i < 15; i++) {

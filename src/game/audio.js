@@ -117,6 +117,12 @@ export function createAudio(scene) {
     explode() {
       playKey("explosion", { volume: 0.7 });
     },
+    weaponMade() {
+      playKey("shot_powerup", { volume: 0.75 });
+    },
+    gameOver() {
+      playKey("game_over3", { volume: 0.85 });
+    },
     pickup() {
       playKey("mineral_collected");
     },

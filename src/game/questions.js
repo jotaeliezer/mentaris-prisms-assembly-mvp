@@ -181,6 +181,21 @@ export function nextProblem(options, rng) {
     return subtractionProblem(questionMode, difficulty, rng);
   }
 
+  if (questionMode === "mul_2by1") {
+    const left = randi(rng, 10, 99);
+    const right = randi(rng, 1, 9);
+    return finish({
+      a: left,
+      b: right,
+      op: "×",
+      answer: left * right,
+      prompt: left + " × " + right,
+      questionMode,
+      difficulty,
+      operation: "mul",
+    });
+  }
+
   if (questionMode === "add_series3" || questionMode === "add_series4") {
     const termCount = questionMode === "add_series4" ? 4 : 3;
     const terms = [];
@@ -249,8 +264,8 @@ export function problemSpec(operation, difficulty) {
     };
   }
   if (operation === "mul") {
-    if (diff === "hard") return { operation: "mul", questionMode: "classic2", difficulty: "hard" };
-    return { operation: "mul", questionMode: "", difficulty: "easy", ranges: { a1: 2, a2: 9, b1: 2, b2: 9 } };
+    if (diff === "hard") return { operation: "mul", questionMode: "mul_2by1", difficulty: "hard" };
+    return { operation: "mul", questionMode: "", difficulty: "easy", ranges: { a1: 1, a2: 9, b1: 1, b2: 9 } };
   }
   if (operation === "square") {
     const max = diff === "hard" ? 12 : 8;

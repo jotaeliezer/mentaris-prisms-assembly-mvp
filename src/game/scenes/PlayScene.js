@@ -60,6 +60,7 @@ import {
   typeChar,
   tickIntro,
   updateFly,
+  useOwnedDash,
   updateTransition,
 } from '../systems.js';
 
@@ -387,6 +388,12 @@ export default class PlayScene extends Phaser.Scene {
     );
 
     this.unsubs.push(
+      bridge.on('uiWrong', () => {
+        if (this.audio && typeof this.audio.wrong === 'function') this.audio.wrong();
+      })
+    );
+
+    this.unsubs.push(
       bridge.on('craft', (recipeId) => {
         craftItem(this.state, recipeId, this.audio);
         this.publishSnapshot(true);
@@ -652,6 +659,14 @@ export default class PlayScene extends Phaser.Scene {
         if (digit != null) {
           event.preventDefault();
           typeChar(this.state, digit, this.audio);
+          this.publishSnapshot(true);
+        }
+        return;
+      }
+
+      if (event.code === 'ShiftLeft' && !event.repeat && !this.state.layerArm && (mode === 'fly' || mode === 'cargo')) {
+        if (useOwnedDash(this.state, this.audio)) {
+          event.preventDefault();
           this.publishSnapshot(true);
         }
         return;
@@ -1005,8 +1020,9 @@ export default class PlayScene extends Phaser.Scene {
           ? this.add.image(missile.x, missile.y, texture)
           : this.add.circle(missile.x, missile.y, 8, 0xb9f3ff, 1);
         sprite.setDepth(11);
+        if (sprite.setBlendMode) sprite.setBlendMode(Phaser.BlendModes.ADD);
         if (sprite.setDisplaySize && texture) {
-          const draw = hullDraw(this, texture, 56);
+          const draw = hullDraw(this, texture, 84);
           sprite.setDisplaySize(draw.w, draw.h);
         }
         this.refreshUiIgnore(sprite);

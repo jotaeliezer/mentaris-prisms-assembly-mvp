@@ -1139,6 +1139,53 @@ button:disabled,
   color: #f4fbff;
 }
 
+.fab-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fab-gate-question {
+  margin: 0;
+  font-family: Syndra, sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #f4fbff;
+}
+
+.fab-gate-digits {
+  display: flex;
+  gap: 12px;
+}
+
+.fab-digit {
+  width: 84px;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(126, 231, 255, 0.45);
+  background: rgba(8, 28, 48, 0.9);
+  color: #f4fbff;
+  cursor: ns-resize;
+}
+
+.fab-digit-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(214, 232, 244, 0.72);
+}
+
+.fab-digit-value {
+  font-family: Syndra, sans-serif;
+  font-size: 36px;
+  line-height: 1;
+}
+
 .fab-cargo {
   margin: 0 0 14px;
 }

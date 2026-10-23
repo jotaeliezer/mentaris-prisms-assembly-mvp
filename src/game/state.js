@@ -192,8 +192,8 @@ export function ensureBelt(state, operation) {
       const rng = makeRng(beltCellSeed(state, gx, gy));
       const x = clamp(gx + (rng() - 0.5) * step * 0.5, 200, WORLD.w - 200);
       const y = clamp(gy + (rng() - 0.5) * step * 0.5, 200, WORLD.h - 200);
-      const op = operation || (rng() < 0.5 ? 'add' : 'sub');
-      const difficulty = rng() < 0.28 ? 'hard' : 'easy';
+      const op = rng() < 0.3 ? 'mul' : operation || (rng() < 0.5 ? 'add' : 'sub');
+      const difficulty = op === 'mul' ? (rng() < 0.4 ? 'hard' : 'easy') : rng() < 0.28 ? 'hard' : 'easy';
       placeAsteroidAt(state, op, difficulty, x, y, { rng, key: rockKey });
     }
   }

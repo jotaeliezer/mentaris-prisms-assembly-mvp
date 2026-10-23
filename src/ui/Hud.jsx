@@ -498,20 +498,26 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
           ) : null}
           {cargoOpen && (
             <ArcPlate
-              size={layout.center + 96}
+              size={layout.center + 40}
               center={layout.center}
-              outer={layout.cargoOuter + 68}
-              inner={layout.cargoOuter - (layout.bands - 1) * layout.cargoRadial - 68}
+              outer={layout.cargoOuter + 30}
+              inner={layout.cargoOuter - (layout.bands - 1) * layout.cargoRadial - 30}
               tone="cargo"
+              t0={-0.05}
+              t1={1.05}
+              bleed={18}
             />
           )}
           {cargoOpen && (
             <ArcPlate
-              size={layout.center + 96}
+              size={layout.center + 40}
               center={layout.center}
-              outer={layout.hotOuter + 66}
-              inner={layout.hotOuter - layout.hotRadial - 66}
+              outer={layout.hotOuter + 30}
+              inner={layout.hotOuter - layout.hotRadial - 30}
               tone="hot"
+              t0={-0.05}
+              t1={1.05}
+              bleed={18}
             />
           )}
           {cargoOpen && (

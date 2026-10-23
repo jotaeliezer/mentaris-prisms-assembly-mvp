@@ -34,7 +34,14 @@ export default function Fab({ bridge, snapshot }) {
   const [hoverId, setHoverId] = useState(null);
   const [point, setPoint] = useState(null);
   const hideTimer = useRef(null);
-  const [onlyReady, setOnlyReady] = useState(false);
+  const [onlyReady, setOnlyReady] = useState(() => {
+    try {
+      return window.localStorage.getItem('mentaris-fab-ready') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [gate, setGate] = useState(null);
   const [costTip, setCostTip] = useState(null);
   const visible = recipes.filter((recipe) => {
     if (onlyReady && !recipe.ready) return false;
@@ -108,8 +115,17 @@ export default function Fab({ bridge, snapshot }) {
           aria-pressed={onlyReady}
           onClick={() => {
             beep(bridge);
-            setOnlyReady((current) => !current);
+            setOnlyReady((current) => {
+              const next = !current;
+              try {
+                window.localStorage.setItem('mentaris-fab-ready', next ? '1' : '0');
+              } catch {
+                /* the toggle still applies for this open */
+              }
+              return next;
+            });
             setSelectedId(null);
+            setGate(null);
           }}
         >
           {onlyReady ? 'Show all' : 'Fabricate ready'}
@@ -158,6 +174,7 @@ export default function Fab({ bridge, snapshot }) {
                 onClick={() => {
                   beep(bridge);
                   setSelectedId(recipe.id);
+                  setGate((current) => (current && current.recipeId === recipe.id ? current : null));
                 }}
               >
                 {itemPicture(recipe)}
@@ -201,18 +218,70 @@ export default function Fab({ bridge, snapshot }) {
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!selected.ready}
-                  onClick={() => {
-                    if (!selected.ready) return;
-                    beep(bridge);
-                    bridge.emit('craft', selected.id);
-                  }}
-                >
-                  {selected.ready ? 'Fabricate' : 'Missing materials'}
-                </button>
+                {gate && gate.recipeId === selected.id ? (
+                  <div className="fab-gate">
+                    <p className="fab-gate-question">
+                      {gate.a} × {gate.b}
+                    </p>
+                    <p className="fab-readout-body">Scroll a digit. Then press Ready.</p>
+                    <div className="fab-gate-digits">
+                      {[
+                        ['tens', 'Tens', gate.tens],
+                        ['ones', 'Units', gate.ones],
+                      ].map(([place, label, value]) => (
+                        <button
+                          key={place}
+                          type="button"
+                          className="fab-digit"
+                          onWheel={(event) => {
+                            event.preventDefault();
+                            if (!event.deltaY) return;
+                            const dir = event.deltaY > 0 ? -1 : 1;
+                            setGate((current) => {
+                              if (!current) return current;
+                              const next = (current[place] + dir + 10) % 10;
+                              return { ...current, [place]: next };
+                            });
+                            beep(bridge);
+                          }}
+                        >
+                          <span className="fab-digit-label">{label}</span>
+                          <span className="fab-digit-value">{value}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        const answer = gate.tens * 10 + gate.ones;
+                        if (answer !== gate.a * gate.b) {
+                          bridge.emit('uiWrong');
+                          return;
+                        }
+                        bridge.emit('craft', gate.recipeId);
+                        setGate(null);
+                      }}
+                    >
+                      Ready
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={!selected.ready}
+                    onClick={() => {
+                      if (!selected.ready) return;
+                      beep(bridge);
+                      const a = 1 + Math.floor(Math.random() * 9);
+                      const b = 1 + Math.floor(Math.random() * 9);
+                      setGate({ recipeId: selected.id, a, b, tens: 0, ones: 0 });
+                    }}
+                  >
+                    {selected.ready ? 'Fabricate' : 'Missing materials'}
+                  </button>
+                )}
               </>
             ) : (
               <p className="fab-readout-body">Click an icon. Its inputs sit here.</p>
