@@ -98,6 +98,10 @@ export const ITEM_ICON_FILES = [
   "comet-dust.png",
   "ion-mote.png",
   "prism-mote.png",
+  "ice-ammo.png",
+  "fire-ammo.png",
+  "laser-ammo.png",
+  "rail-ammo.png",
 ];
 
 export const BULLET_FILES = [
@@ -267,6 +271,7 @@ export function listPhaserImages() {
     ['prism-ring.png', 'images/space'],
     ['stronghold.png', 'images/space'],
     ['ion-stream.png', 'images/space'],
+    ['wormhole.png', 'images/space'],
   ];
   for (const [name, folder] of plates) {
     entries.push({ key: name, url: assetUrl(folder, name) });

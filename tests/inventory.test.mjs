@@ -10,6 +10,7 @@ import {
   RECIPES,
   addItem,
   countItem,
+  ensureInventory,
   inventoryClick,
   inventoryDrag,
   moveCargoToHotbar,
@@ -53,12 +54,21 @@ assert(fresh.cargoSlots.length === CARGO_SIZE, 'cargo has a grid of slots');
 assert(CARGO_COLS === 4 && CARGO_ROWS === 10, 'cargo is 4 across and 10 tall');
 assert(fresh.hotbar.every((stack) => stack == null), 'hotbar starts empty');
 
-const ids = ['pale', 'amber', 'glass', 'iron', 'resin', 'filament', 'flare', 'drive', 'hull', 'hint'];
-for (const id of ids) assert(addItem(fresh, id, 1) === 0, 'first ten kinds fit the hotbar');
+const ids = ['flare', 'repair', 'blink', 'tractor', 'quiet', 'cloak', 'dash', 'shock', 'shield', 'teleport'];
+for (const id of ids) assert(addItem(fresh, id, 1) === 0, 'weapons and abilities fit the hotbar');
 assert(fresh.hotbar.every((stack) => stack && stack.count === 1), 'hotbar is full');
-assert(addItem(fresh, 'ping', 1) === 0, 'the next item fits');
-assert(fresh.cargoSlots.some((stack) => stack && stack.id === 'ping'), 'overflow goes to cargo');
+assert(addItem(fresh, 'wall', 1) === 0, 'the next piece fits');
+assert(fresh.cargoSlots.some((stack) => stack && stack.id === 'wall'), 'overflow goes to cargo');
 assert(buildHotbar(fresh).slots.every((slot) => slot.available), 'hotbar shows every stack');
+const ore = createState();
+ore.hotbar[0] = { id: 'pale', count: 4 };
+ensureInventory(ore);
+assert(!ore.hotbar.some((stack) => stack && stack.id === 'pale'), 'minerals leave the hotbar');
+assert(ore.cargoSlots.some((stack) => stack && stack.id === 'pale' && stack.count === 4), 'minerals land in the cargo');
+assert(
+  ore.notices.some((note) => note.text === 'Pale ore moved to the cargo.'),
+  'a toast says the ore moved to the cargo'
+);
 
 selectHotbar(fresh, 0);
 cycleHotbar(fresh, 1);
@@ -68,11 +78,11 @@ assert(fresh.hotbarSlot === 0, 'wheel up moves back');
 cycleHotbar(fresh, -1);
 assert(fresh.hotbarSlot === 9, 'wheel wraps to the last slot');
 
-const cargoIndex = fresh.cargoSlots.findIndex((stack) => stack && stack.id === 'ping');
+const cargoIndex = fresh.cargoSlots.findIndex((stack) => stack && stack.id === 'wall');
 selectHotbar(fresh, 0);
 const displaced = fresh.hotbar[0].id;
 assert(moveCargoToHotbar(fresh, cargoIndex, 0), 'cargo stack moves onto a hotbar slot');
-assert(fresh.hotbar[0].id === 'ping', 'selected hotbar slot receives the cargo stack');
+assert(fresh.hotbar[0].id === 'wall', 'selected hotbar slot receives the cargo stack');
 assert(fresh.cargoSlots[cargoIndex].id === displaced, 'a different item swaps back into cargo');
 
 const worn = createState();
@@ -88,24 +98,27 @@ assert(buildHudFields(createState()).compass == null, 'the compass stays hidden 
 
 const carry = createState();
 addItem(carry, 'pale', 3);
-assert(inventoryClick(carry, 'hotbar', 0), 'click picks a hotbar stack up');
-assert(carry.hotbar[0] == null && carry.held && carry.held.count === 3, 'the stack leaves the hotbar');
-assert(inventoryClick(carry, 'cargo', 7), 'click places it in cargo');
-assert(carry.cargoSlots[7].id === 'pale' && carry.held == null, 'cargo received the hotbar stack');
-assert(inventoryClick(carry, 'cargo', 7), 'click picks it back up');
-assert(inventoryClick(carry, 'hotbar', 2), 'click places it on another hotbar slot');
-assert(carry.hotbar[2].id === 'pale' && carry.hotbar[2].count === 3, 'cargo stack returns to the hotbar');
+const paleSlot = carry.cargoSlots.findIndex((stack) => stack && stack.id === 'pale');
+assert(paleSlot >= 0 && !carry.hotbar.some((stack) => stack && stack.id === 'pale'), 'pale ore starts in the cargo');
+assert(inventoryClick(carry, 'cargo', paleSlot), 'click picks a cargo stack up');
+assert(carry.cargoSlots[paleSlot] == null && carry.held && carry.held.count === 3, 'the stack leaves the cargo');
+assert(!inventoryClick(carry, 'hotbar', 2), 'a mineral cannot be placed on the hotbar');
+assert(carry.held && carry.held.count === 3, 'the mineral stays in hand');
+assert(inventoryClick(carry, 'cargo', paleSlot), 'click places it back in cargo');
+assert(carry.cargoSlots[paleSlot].id === 'pale' && carry.held == null, 'cargo keeps the mineral');
 carry.mode = 'fly';
 setCargoOpen(carry, true);
-inventoryClick(carry, 'hotbar', 2);
+inventoryClick(carry, 'cargo', paleSlot);
 setCargoOpen(carry, false);
-assert(carry.held == null && carry.hotbar[2] && carry.hotbar[2].id === 'pale', 'closing cargo puts the stack back');
+assert(carry.held == null && carry.cargoSlots.some((stack) => stack && stack.id === 'pale'), 'closing cargo puts the mineral back in cargo');
+assert(!carry.hotbar.some((stack) => stack && stack.id === 'pale'), 'closing cargo does not put ore on the hotbar');
 
 const craft = createState();
 assert(addItem(craft, 'pale', 2) === 0, 'two pale ore');
 assert(craftItem(craft, 'glass', null), 'prism glass crafts from a count');
 assert(countItem(craft, 'pale') === 0, 'recipe spends the pale ore');
-assert(countItem(craft, 'glass') === 1, 'result lands in the hotbar');
+assert(countItem(craft, 'glass') === 1, 'result lands in the cargo');
+assert(craft.cargoSlots.some((stack) => stack && stack.id === 'glass'), 'glass is stored in the cargo');
 const glass = RECIPES.find((recipe) => recipe.id === 'glass');
 assert(glass && Array.isArray(glass.costs) && glass.costs[0].n === 2, 'recipe is a count');
 assert(!('pattern' in glass) && !('grid' in glass), 'recipe has no crafting grid');
@@ -312,7 +325,11 @@ gather.drops.push({
   maxLife: 20,
 });
 idle(gather, 0.05, null);
-assert(countItem(gather, 'pale') === 2, 'flying onto a mineral puts it in the hotbar');
+assert(countItem(gather, 'pale') === 2, 'flying onto a mineral puts it in the cargo');
+assert(
+  gather.notices.some((note) => note.text === 'Pale ore moved to the cargo.'),
+  'picking up asteroid ore toasts that it moved to the cargo'
+);
 
 const barePickup = createState();
 barePickup.mode = 'fly';
@@ -333,11 +350,15 @@ assert(
 );
 
 const drag = createState();
-addItem(drag, 'amber', 3);
-assert(inventoryDrag(drag, 'hotbar', 0, 'cargo', 0), 'a drag moves a stack into cargo');
-assert(drag.cargoSlots[0] && drag.cargoSlots[0].id === 'amber', 'cargo received the dragged stack');
+addItem(drag, 'repair', 3);
+const repairSlot = drag.hotbar.findIndex((stack) => stack && stack.id === 'repair');
+assert(inventoryDrag(drag, 'hotbar', repairSlot, 'cargo', 0), 'a drag moves a stack into cargo');
+assert(drag.cargoSlots[0] && drag.cargoSlots[0].id === 'repair', 'cargo received the dragged stack');
 assert(inventoryDrag(drag, 'cargo', 0, 'hotbar', 3), 'a drag moves a stack back to the hotbar');
-assert(drag.hotbar[3] && drag.hotbar[3].id === 'amber', 'the hotbar received the dragged stack');
+assert(drag.hotbar[3] && drag.hotbar[3].id === 'repair', 'the hotbar received the dragged stack');
+addItem(drag, 'amber', 2);
+const amberSlot = drag.cargoSlots.findIndex((stack) => stack && stack.id === 'amber');
+assert(!inventoryDrag(drag, 'cargo', amberSlot, 'hotbar', 4), 'ore cannot be dragged onto the hotbar');
 
 const reverse = createState();
 reverse.mode = 'fly';
@@ -461,46 +482,45 @@ const slotPictures = [
   ['glass', '/images/items/glass.png', 'Gl'],
   ['repair', '/images/items/repair.png', 'Rp'],
 ];
-const iconState = createState();
-slotPictures.forEach(([id, icon, mark], index) => {
+slotPictures.forEach(([id, icon, mark]) => {
   assert(slotIcon(id) === icon, id + ' picture');
   if (icon) assert(existsSync('public' + icon), id + ' picture file is already in the game');
-  iconState.hotbar[index] = { id, count: 2 };
   assert(mark, id + ' still has a two-letter mark');
 });
-iconState.cargoSlots[0] = { id: 'amber', count: 3 };
-iconState.cargoSlots[1] = { id: 'flare', count: 1 };
-iconState.cargoSlots[2] = { id: 'iron', count: 1 };
-iconState.cargoSlots[3] = { id: 'blink', count: 1 };
+const iconState = createState();
+iconState.cargoSlots[0] = { id: 'pale', count: 2 };
+iconState.cargoSlots[1] = { id: 'amber', count: 3 };
+iconState.cargoSlots[2] = { id: 'flare', count: 1 };
+iconState.cargoSlots[3] = { id: 'iron', count: 1 };
+iconState.cargoSlots[4] = { id: 'blink', count: 1 };
+iconState.hotbar[0] = { id: 'repair', count: 1 };
 const iconSnap = buildSnapshotPatch(iconState, false);
-slotPictures.forEach(([id, icon, mark], index) => {
-  const slot = iconSnap.hud.hotbar.slots[index];
-  assert(slot.icon === icon, id + ' shows in the hotbar slot');
-  assert(slot.mark === mark, id + ' keeps its mark text');
-});
+assert(iconSnap.hud.hotbar.slots[0].icon === '/images/items/repair.png', 'a repair stays on the hotbar');
+assert(!iconSnap.hud.hotbar.slots.some((slot) => slot.mark === 'Pa'), 'pale ore is not kept on the hotbar');
 assert(
-  iconSnap.cargoHold.slots[0].icon === crystalIcon,
-  'cargo ore uses the crystal picture'
+  iconSnap.cargoHold.slots[0].icon === crystalIcon && iconSnap.cargoHold.slots[0].iconFilter === 'none',
+  'cargo pale ore uses the crystal picture'
 );
 assert(
-  iconSnap.hud.hotbar.slots[0].iconFilter === 'none' && iconSnap.hud.hotbar.slots[2].iconFilter.includes('hue-rotate'),
+  iconSnap.cargoHold.slots[1].icon === crystalIcon && iconSnap.cargoHold.slots[1].iconFilter.includes('hue-rotate'),
   'collected ore keeps a tint so pale and amber do not look the same'
 );
 assert(
-  iconSnap.cargoHold.slots[1].icon === '/images/bullets/bullet_fire1.png',
+  iconSnap.cargoHold.slots[2].icon === '/images/bullets/bullet_fire1.png',
   'cargo weapon uses the bullet picture'
 );
 assert(
-  iconSnap.cargoHold.slots[2].icon === '/images/items/iron.png' && iconSnap.cargoHold.slots[2].mark === 'Fe',
+  iconSnap.cargoHold.slots[3].icon === '/images/items/iron.png' && iconSnap.cargoHold.slots[3].mark === 'Fe',
   'alloy cargo uses its picture'
 );
 assert(
-  iconSnap.cargoHold.slots[3].icon === '/images/items/blink.png' && iconSnap.cargoHold.slots[3].mark === 'Bl',
+  iconSnap.cargoHold.slots[4].icon === '/images/items/blink.png' && iconSnap.cargoHold.slots[4].mark === 'Bl',
   'ability cargo uses its picture'
 );
 const heldOre = createState();
 assert(addItem(heldOre, 'pale', 2) === 0, 'pale ore for the held stack');
-assert(inventoryClick(heldOre, 'hotbar', 0), 'pick up the pale ore');
+const heldOreSlot = heldOre.cargoSlots.findIndex((stack) => stack && stack.id === 'pale');
+assert(inventoryClick(heldOre, 'cargo', heldOreSlot), 'pick up the pale ore');
 assert(
   buildSnapshotPatch(heldOre, false).held.icon === crystalIcon,
   'a held ore stack keeps its picture'
@@ -557,13 +577,12 @@ updateFly(plate, 0.05, {
 });
 assert(platedHp - plate.ship.hp === 12, 'the ship loses 12 hull when level 1 plating is worn');
 
-addItem(plate, 'pale', 1);
-plate.cargoSlots[0] = { id: 'pale', count: 2 };
+addItem(plate, 'pale', 3);
 assert(raiseBow(plate, null), 'the first raise spends pale ore');
 assert(plate.hullSlots.find((stack) => stack && stack.id === 'bow').level === 2, 'the piece is level 2');
 assert(rockHitDamage(plate) === 10, 'level 2 takes more off the rock hit');
-assert(!plate.hotbar.some((stack) => stack && stack.id === 'pale'), 'the raise spends the hotbar first');
-assert(plate.cargoSlots[0] == null, 'the raise then spends the cargo');
+assert(!plate.hotbar.some((stack) => stack && stack.id === 'pale'), 'ore does not sit on the hotbar');
+assert(!plate.cargoSlots.some((stack) => stack && stack.id === 'pale'), 'the raise spends the cargo');
 addItem(plate, 'pale', 3);
 assert(raiseBow(plate, null), 'the second raise reaches the cap');
 assert(plate.hullSlots.find((stack) => stack && stack.id === 'bow').level === 3, 'level 3 is the cap');
@@ -575,24 +594,24 @@ assert(capped.levelLabel === 'Lv 3' && !capped.canLevel, 'the level button goes 
 const bowIndex = plate.hullSlots.findIndex((stack) => stack && stack.id === 'bow');
 addItem(plate, 'pale', 3);
 assert(craftItem(plate, 'bow', null), 'a second plate can be made while one is worn');
-const spare = plate.hotbar.findIndex((stack) => stack && stack.id === 'bow');
-assert(spare >= 0 && plate.hotbar[spare].level === 1, 'the second plate sits in the hotbar at level 1');
-assert(inventoryDrag(plate, 'hotbar', spare, 'hull', bowIndex), 'a hotbar plate drags onto the bow slot');
+const spare = plate.cargoSlots.findIndex((stack) => stack && stack.id === 'bow');
+assert(spare >= 0 && plate.cargoSlots[spare].level === 1, 'the second plate sits in the cargo at level 1');
+assert(inventoryDrag(plate, 'cargo', spare, 'hull', bowIndex), 'a cargo plate drags onto the bow slot');
 assert(plate.hullSlots[bowIndex].level === 1, 'the dragged plate is the one now worn');
 assert(plate.held && plate.held.level === 3, 'the plate that was worn stays in hand with its level');
-assert(inventoryClick(plate, 'hotbar', spare), 'the held plate goes back to the hotbar');
-assert(plate.hotbar[spare].level === 3 && !plate.held, 'the hotbar keeps that level');
-assert(inventoryDrag(plate, 'hotbar', spare, 'hull', bowIndex), 'the leveled plate drags back onto the slot');
+assert(inventoryClick(plate, 'cargo', spare), 'the held plate goes back to the cargo');
+assert(plate.cargoSlots[spare].level === 3 && !plate.held, 'the cargo keeps that level');
+assert(inventoryDrag(plate, 'cargo', spare, 'hull', bowIndex), 'the leveled plate drags back onto the slot');
 assert(plate.hullSlots[bowIndex].level === 3, 'wearing it again restores the level');
 assert(plate.held && plate.held.level === 1, 'the other plate is in hand');
-assert(inventoryClick(plate, 'cargo', 0), 'the held plate goes into cargo');
-assert(plate.cargoSlots[0] && plate.cargoSlots[0].level === 1 && !plate.held, 'cargo keeps the plate level');
-plate.cargoSlots[0] = null;
-const emptyHot = spare;
-assert(inventoryDrag(plate, 'hull', bowIndex, 'hotbar', emptyHot), 'the plate drags off the hull');
-assert(plate.hotbar[emptyHot].level === 3, 'the level stays on the stack in the hotbar');
+const park = plate.cargoSlots.findIndex((stack) => !stack);
+assert(inventoryClick(plate, 'cargo', park), 'the held plate goes into cargo');
+assert(plate.cargoSlots[park] && plate.cargoSlots[park].level === 1 && !plate.held, 'cargo keeps the plate level');
+plate.cargoSlots[park] = null;
+assert(inventoryDrag(plate, 'hull', bowIndex, 'cargo', park), 'the plate drags off the hull into cargo');
+assert(plate.cargoSlots[park].level === 3, 'the level stays on the stack in the cargo');
 assert(rockHitDamage(plate) === 14, 'an unworn plate does not soften a rock');
-assert(!inventoryClick(plate, 'cargo', 1), 'an empty cargo slot does not pick anything up');
+ensureInventory(plate);
 assert(plate.hullSlots[bowIndex].level === 3, 'the empty bow slot wears the plate again');
 assert(rockHitDamage(plate) === 8, 'the restored plate softens the next rock');
 
@@ -628,8 +647,8 @@ const storedCore = createState();
 assert(addItem(storedCore, 'core', 2) === 0, 'an alien core can be stored');
 assert(countItem(storedCore, 'core') === 2, 'the core stacks in the hold');
 assert(
-  buildSnapshotPatch(storedCore, false).hud.hotbar.slots[0].icon === '/images/items/alien-core.png',
-  'a stored core shows its picture'
+  buildSnapshotPatch(storedCore, false).cargoHold.slots.some((slot) => slot.icon === '/images/items/alien-core.png'),
+  'a stored core shows its picture in the cargo'
 );
 
 const cannon = createState();
@@ -700,17 +719,17 @@ assert(!useSelectedHotbar(arc, null), 'an arc missile cannot reach a rock 3000 a
 
 const pour = createState();
 startMission(pour, 'roam', 'pour-ore', null);
-assert(addItem(pour, 'pale', 6) === 0, 'pale ore for the cargo wheel');
-const paleSlot = pour.hotbar.findIndex((stack) => stack && stack.id === 'pale');
-assert(paleSlot >= 0, 'pale ore starts on the hotbar');
-assert(shiftOne(pour, paleSlot, -1), 'the first ore enters cargo');
-const paleLanded = pour.cargoSlots.findIndex((slot) => slot && slot.id === 'pale');
-assert(paleLanded >= 0 && pour.cargoSlots[paleLanded].count === 1, 'one pale ore lands in a cargo slot');
-for (let n = 0; n < 4; n += 1) assert(shiftOne(pour, paleSlot, -1), 'the next ore follows the first');
-assert(pour.cargoSlots[paleLanded].count === 5, 'later ore stays in the first cargo slot');
+assert(addItem(pour, 'repair', 6) === 0, 'repairs for the cargo wheel');
+const pourSlot = pour.hotbar.findIndex((stack) => stack && stack.id === 'repair');
+assert(pourSlot >= 0, 'repairs start on the hotbar');
+assert(shiftOne(pour, pourSlot, -1), 'the first charge enters cargo');
+const pourLanded = pour.cargoSlots.findIndex((slot) => slot && slot.id === 'repair');
+assert(pourLanded >= 0 && pour.cargoSlots[pourLanded].count === 1, 'one charge lands in a cargo slot');
+for (let n = 0; n < 4; n += 1) assert(shiftOne(pour, pourSlot, -1), 'the next charge follows the first');
+assert(pour.cargoSlots[pourLanded].count === 5, 'later charges stay in the first cargo slot');
 assert(
-  pour.cargoSlots.filter((slot) => slot && slot.id === 'pale').length === 1,
-  'the same ore does not scatter across cargo'
+  pour.cargoSlots.filter((slot) => slot && slot.id === 'repair').length === 1,
+  'the same item does not scatter across cargo'
 );
 
 console.log('inventory tests ok');

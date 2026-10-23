@@ -19,8 +19,8 @@ assert(
   'nothing is equipped yet'
 );
 assert(
-  fresh.slots.map((slot) => slot.key).join(',') === '1,2,3,4,5,6,7,8,9,0',
-  'keys run 1 through 9, then 0'
+  fresh.slots.map((slot) => slot.key).join(',') === '1,2,3,4,5,6,7,8,9,10',
+  'keys run 1 through 10'
 );
 assert(fresh.selected === 0 && fresh.slots[0].selected, 'slot 1 starts selected');
 assert(fresh.label === 'Empty', 'no item name is shown');

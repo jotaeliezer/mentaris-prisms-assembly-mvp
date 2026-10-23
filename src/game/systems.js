@@ -35,6 +35,8 @@ import {
   BOW_ID,
   BOW_LEVEL_COST,
   HULL_FITS,
+  AMMO_OF,
+  BASE_AMMO,
   ITEMS,
   addItem,
   RECIPES,
@@ -446,8 +448,7 @@ export function ensureScenery(state) {
         y: clamp(state.ship.y + Math.sin(angle) * dist, 600, WORLD.h - 600),
         taken: false,
         lootLeft: kind === 'debris' ? 3 : kind === 'comet' ? 2 : 1,
-        vx: kind === 'comet' ? Math.cos(angle) * 40 : 0,
-        vy: kind === 'comet' ? Math.sin(angle) * 40 : 0,
+        ...spaceFloat(kind + ':' + cluster + ':' + state.layer, r),
         ...extra,
       });
     };
@@ -472,15 +473,34 @@ function spillFind(state, itemId, x, y) {
   });
 }
 
+/** Same drift-and-turn as a rock, scaled so a larger body floats more slowly. */
+function spaceFloat(id, radius) {
+  const scale = 80 / Math.max(40, radius || 80);
+  const rng = makeRng('float|' + id);
+  return {
+    rot: rng() * Math.PI * 2,
+    drift: rng() * Math.PI * 2,
+    spin: (rng() < 0.5 ? -1 : 1) * 0.14 * scale,
+    floatSpeed: 12 * scale,
+  };
+}
+
 function tickSpaceObjects(state, dt) {
   const ship = state.ship;
   if (!ship || !state.spaceObjects) return;
   for (const object of state.spaceObjects) {
     if (object.layer !== state.layer) continue;
-    if (object.kind === 'comet') {
-      object.x += (object.vx || 0) * dt;
-      object.y += (object.vy || 0) * dt;
+    if (!Number.isFinite(object.spin) || !Number.isFinite(object.floatSpeed)) {
+      Object.assign(object, spaceFloat(object.id || object.kind, object.r));
     }
+    object.rot = (object.rot || 0) + object.spin * dt;
+    object.x += Math.cos(object.drift) * object.floatSpeed * dt;
+    object.y += Math.sin(object.drift) * object.floatSpeed * dt;
+    const pad = (object.r || 80) + 40;
+    if (object.x < pad || object.x > WORLD.w - pad) object.drift = Math.PI - object.drift;
+    if (object.y < pad || object.y > WORLD.h - pad) object.drift = -object.drift;
+    object.x = clamp(object.x, pad, WORLD.w - pad);
+    object.y = clamp(object.y, pad, WORLD.h - pad);
     const dist = Math.hypot(ship.x - object.x, ship.y - object.y);
     if (object.kind === 'debris' && dist < object.r) {
       if (state.quiet > 0) grantMilestone(state, 'quiet-debris');
@@ -2385,10 +2405,11 @@ function grantDrop(state, drop, audio) {
   const count = drop.count != null ? drop.count : drop.amount || 1;
   const left = addItem(state, itemId, count, drop.level);
   const received = count - Math.max(0, left);
-  if (received > 0) {
+    if (received > 0) {
     announceCrafts(state);
     if (!state.oreGranted) state.oreGranted = new Map();
     state.oreGranted.set(drop.id, { itemId, count: received });
+    notePickup(state, itemId);
     playPickup(audio);
   }
   return received;
@@ -2449,8 +2470,7 @@ function updateDrops(state, dt, audio) {
         announceCrafts(state);
         if (!state.sharedGathers) state.sharedGathers = [];
         state.sharedGathers.push({ x: drop.x, y: drop.y, itemId });
-        const picked = itemById(itemId);
-        pushNotice(state, (picked ? picked.name : 'Item') + ' added.', 'loot');
+        notePickup(state, itemId);
         playPickup(audio);
       }
       if (left <= 0) {
@@ -2547,10 +2567,17 @@ function teachFlight(state, dt) {
   }
 }
 
-function pushNotice(state, text, kind) {
+function pushNotice(state, text, kind, time) {
   if (!state.notices) state.notices = [];
-  state.notices.push({ id: state.nextId++, text, time: 4.4, kind: kind || '' });
+  state.notices.push({ id: state.nextId++, text, time: time || 4.4, kind: kind || '' });
   if (state.notices.length > 3) state.notices.splice(0, state.notices.length - 3);
+}
+
+function notePickup(state, itemId) {
+  const picked = itemById(itemId);
+  const name = picked ? picked.name : 'Item';
+  if (picked && picked.kind === 'mineral') pushNotice(state, name + ' moved to the cargo.', 'loot', 2.2);
+  else pushNotice(state, name + ' added.', 'loot');
 }
 
 /** The first time a count becomes affordable, say so and point at F. */
@@ -2942,6 +2969,21 @@ export function craftItem(state, recipeId, audio) {
   payCraftCosts(state, recipe);
   const made = recipe.count || 1;
   const left = addItem(state, recipe.result, made);
+  const ammoId = AMMO_OF[recipe.result];
+  if (ammoId) {
+    const ammoLeft = addItem(state, ammoId, BASE_AMMO);
+    if (ammoLeft > 0) {
+      state.drops.push({
+        id: state.nextId++,
+        x: state.ship.x + 48,
+        y: state.ship.y,
+        itemId: ammoId,
+        count: ammoLeft,
+        life: 40,
+        maxLife: 40,
+      });
+    }
+  }
   if (left > 0) {
     state.drops.push({
       id: state.nextId++,
@@ -2957,6 +2999,9 @@ export function craftItem(state, recipeId, audio) {
   if (left > 0) {
     state.status = name + ' dropped beside the ship. The hold is full.';
     state.statusTime = 3;
+  } else if (ammoId) {
+    const rounds = ITEMS[ammoId] ? ITEMS[ammoId].name : 'rounds';
+    pushNotice(state, name + ' added. ' + BASE_AMMO + ' ' + rounds + ' are in the cargo.', 'loot');
   } else {
     pushNotice(state, name + ' added.', 'loot');
   }
@@ -3022,6 +3067,35 @@ function fireAtAlien(state, alien, style) {
     launchBolt(state, aim + spread, style);
   }
   if (style.recoil) kickRecoil(state, style.recoil);
+}
+
+function flameCanHit(state) {
+  const ship = state.ship;
+  const aim = ship.aim || 0;
+  for (const alien of state.aliens || []) {
+    if (!alien || alien.gone || alien.leaving || alien.layer !== state.layer) continue;
+    const dx = alien.x - ship.x;
+    const dy = alien.y - ship.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 280 || dist < 8) continue;
+    let diff = Math.atan2(dy, dx) - aim;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (Math.abs(diff) <= 0.5) return true;
+  }
+  return false;
+}
+
+function trySpendAmmo(state, weaponId) {
+  const ammoId = AMMO_OF[weaponId];
+  if (!ammoId) return 'free';
+  if (countItem(state, ammoId) < 1) {
+    const ammo = ITEMS[ammoId];
+    noteStatus(state, (ammo ? ammo.name : 'Ammo') + ' is empty. Fabricate more.');
+    return 'empty';
+  }
+  removeItems(state, ammoId, 1);
+  return 'spent';
 }
 
 function breatheFlame(state) {
@@ -3097,12 +3171,13 @@ function applyUse(state, use, audio, world) {
     const style = stack && SHOT_STYLE[stack.id];
     if (!style) return false;
     if (style.flame) {
-      const caught = breatheFlame(state);
-      if (!caught) {
+      if (!flameCanHit(state)) {
         state.missiles = state.missiles.filter((missile) => !missile.flame);
         noteStatus(state, 'No alien in the flame cone.');
         return false;
       }
+      if (trySpendAmmo(state, stack.id) === 'empty') return true;
+      breatheFlame(state);
       if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
       kickRecoil(state, 0.7);
       return true;
@@ -3113,6 +3188,7 @@ function applyUse(state, use, audio, world) {
         noteStatus(state, 'That shot only reaches aliens.');
         return false;
       }
+      if (trySpendAmmo(state, stack.id) === 'empty') return true;
       fireAtAlien(state, alien, style);
       if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
       if (!style.recoil) kickRecoil(state, 1);
@@ -3328,8 +3404,10 @@ export function useSelectedHotbar(state, audio, world) {
   const item = itemById(stack.id);
   if (!item || !item.use) return false;
   if (!applyUse(state, item.use, audio, world)) return false;
-  stack.count -= 1;
-  if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
+  if (!(item.use === 'shot' && AMMO_OF[stack.id])) {
+    stack.count -= 1;
+    if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
+  }
   if (audio && item.use !== 'shot' && item.use !== 'missile' && item.use !== 'core' && item.use !== 'dash' && item.use !== 'shock' && item.use !== 'teleport' && item.use !== 'hyper') {
     if (typeof audio.correct === 'function') audio.correct();
   }

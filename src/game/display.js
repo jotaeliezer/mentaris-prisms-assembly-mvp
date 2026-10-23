@@ -200,10 +200,10 @@ export function syncAimArc(gfx) {
   gfx.clear();
 }
 
-export function syncGates(gfx, state) {
+export function syncGates(gfx, state, hideWormhole) {
   gfx.clear();
   if (state.returnHole) drawGate(gfx, state, state.returnHole, false, true);
-  if (state.wormhole) drawGate(gfx, state, state.wormhole, !!state.wormhole.locked, false);
+  if (state.wormhole && !hideWormhole) drawGate(gfx, state, state.wormhole, !!state.wormhole.locked, false);
 }
 
 function drawGate(gfx, state, hole, locked, isReturn) {

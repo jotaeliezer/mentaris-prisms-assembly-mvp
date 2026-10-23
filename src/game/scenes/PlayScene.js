@@ -1022,6 +1022,25 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
+  syncWormhole() {
+    const hole = this.state.wormhole;
+    const key = 'wormhole.png';
+    if (!hole || !this.textures.exists(key)) {
+      if (this.wormholeSprite) this.wormholeSprite.setVisible(false);
+      return false;
+    }
+    if (!this.wormholeSprite || !this.wormholeSprite.scene) {
+      this.wormholeSprite = this.add.image(hole.x, hole.y, key).setDepth(4);
+      this.refreshUiIgnore(this.wormholeSprite);
+    }
+    this.wormholeSprite.setVisible(true);
+    this.wormholeSprite.setPosition(hole.x, hole.y);
+    this.wormholeSprite.setRotation((this.state.clock || 0) * 0.25);
+    this.wormholeSprite.setDisplaySize(260, 260);
+    this.wormholeSprite.setAlpha(hole.locked ? 0.7 : 1);
+    return true;
+  }
+
   clearPlateSprites() {
     if (!this.plateSprites) return;
     for (const sprite of this.plateSprites.values()) sprite.destroy();
@@ -1035,7 +1054,7 @@ export default class PlayScene extends Phaser.Scene {
       .filter((body) => body.layer === this.state.layer);
     const seen = new Set();
     for (const body of bodies) {
-      const id = (body.kind || 'body') + ':' + body.layer + ':' + Math.round(body.x) + ':' + Math.round(body.y);
+      const id = body.id || (body.kind || 'body') + ':' + body.layer + ':' + Math.round(body.x) + ':' + Math.round(body.y);
       seen.add(id);
       let sprite = this.bodySprites.get(id);
       if (!sprite || !sprite.scene) {
@@ -1057,6 +1076,7 @@ export default class PlayScene extends Phaser.Scene {
         this.bodySprites.set(id, sprite);
       }
       sprite.setPosition(body.x, body.y);
+      if (sprite.setRotation && Number.isFinite(body.rot)) sprite.setRotation(body.rot);
     }
     for (const [id, sprite] of this.bodySprites) {
       if (seen.has(id)) continue;
@@ -1520,7 +1540,8 @@ export default class PlayScene extends Phaser.Scene {
       }
     }
 
-    if (this.gateGfx) syncGates(this.gateGfx, this.state);
+    const wormholePicture = this.syncWormhole();
+    if (this.gateGfx) syncGates(this.gateGfx, this.state, wormholePicture);
     if (this.aimGfx) syncAimArc(this.aimGfx, this.state);
     this.syncStation();
 

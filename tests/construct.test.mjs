@@ -210,12 +210,11 @@ assert(countIn(spend.cargoSlots, 'slate') === 2, 'cargo slate stays when the hot
 assert(countItem(spend, 'wall') === 1, 'the crafted wall is in the hold');
 
 const glass = flyState();
-glass.cargoSlots[0] = { id: 'pale', count: 1 };
-glass.hotbar[0] = { id: 'pale', count: 2 };
+glass.cargoSlots[0] = { id: 'pale', count: 3 };
 assert(craftItem(glass, 'glass', null), 'prism glass still crafts by hand');
-assert(glass.cargoSlots[0] == null, 'an old recipe spends cargo before the hotbar');
-assert(glass.hotbar[0] && glass.hotbar[0].id === 'pale' && glass.hotbar[0].count === 1, 'the hotbar pale is the remainder');
-assert(countItem(glass, 'glass') === 1, 'the glass is in the hold');
+assert(countIn(glass.cargoSlots, 'pale') === 1, 'one pale ore remains in the cargo');
+assert(!glass.hotbar.some((stack) => stack && stack.id === 'pale'), 'the remainder stays off the hotbar');
+assert(countItem(glass, 'glass') === 1, 'the glass is in the cargo');
 
 const stacked = flyState();
 assert(addItem(stacked, 'bench', 1) === 0, 'bench so walls can stack');
@@ -237,7 +236,7 @@ assert(!isConstructionId('pale') && !isConstructionId('glass'), 'ores and alloys
 const click = flyState();
 click.layer = 6;
 click.hotbar[0] = { id: 'wall', count: 4 };
-click.hotbar[1] = { id: 'pale', count: 9 };
+click.hotbar[1] = { id: 'repair', count: 9 };
 click.cargoSlots[0] = { id: 'wall', count: 3 };
 selectHotbar(click, 0);
 assert(useSelectedHotbar(click, null) === false, 'a wall has no weapon use, so the click is not taken by that path');

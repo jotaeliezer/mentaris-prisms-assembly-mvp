@@ -57,6 +57,10 @@ const MADE_ICON = {
   comet: 'comet-dust.png',
   ion: 'ion-mote.png',
   prism: 'prism-mote.png',
+  'ice-ammo': 'ice-ammo.png',
+  'fire-ammo': 'fire-ammo.png',
+  'laser-ammo': 'laser-ammo.png',
+  'rail-ammo': 'rail-ammo.png',
 };
 
 export function iconFilter(id) {
@@ -127,6 +131,26 @@ export function dropSpriteKey(id) {
 }
 
 export const STACK_MAX = 64;
+/** One magazine. Alien-weapon ammo stacks to a full load. */
+export const AMMO_STACK = 150;
+export const BASE_AMMO = 150;
+export const AMMO_OF = {
+  'ice-shot': 'ice-ammo',
+  'fire-shot': 'fire-ammo',
+  'laser-shot': 'laser-ammo',
+  'rail-shot': 'rail-ammo',
+};
+const AMMO_IDS = new Set(Object.values(AMMO_OF));
+
+export function stackLimit(id) {
+  return AMMO_IDS.has(id) ? AMMO_STACK : STACK_MAX;
+}
+
+/** Weapons, abilities, and construction stay on the hotbar. Everything else goes to cargo. */
+export function staysOnHotbar(id) {
+  const item = ITEMS[id];
+  return !!item && (item.kind === 'weapon' || item.kind === 'ability' || item.kind === 'construction');
+}
 /** Four across and ten down, so the hold is as tall as the hotbar. */
 export const CARGO_COLS = 4;
 export const CARGO_ROWS = 10;
@@ -186,10 +210,14 @@ export const ITEMS = {
   comet: { id: 'comet', name: 'Comet dust', mark: 'Cd', color: '#ffe7b0', tint: 0xffe7b0, kind: 'space', about: 'Dust from a comet tail. It is not star dust. Fire and heat shots spend it.' },
   ion: { id: 'ion', name: 'Ion mote', mark: 'Io', color: '#b7e4ff', tint: 0xb7e4ff, kind: 'space', about: 'A pinch of current from an ion stream. Electric shots spend it.' },
   prism: { id: 'prism', name: 'Prism mote', mark: 'Pm', color: '#e7d6ff', tint: 0xe7d6ff, kind: 'space', about: 'A spark left by flying through a prism ring. The rail shot spends one.' },
-  'ice-shot': { id: 'ice-shot', name: 'Ice shot', mark: 'Ic', color: '#b7f4ff', tint: 0xb7f4ff, kind: 'weapon', use: 'shot', about: 'A slower bolt for aliens only. It freezes one alien. Ram the frozen alien with the hull to break it. Same reach as a single shot.' },
-  'fire-shot': { id: 'fire-shot', name: 'Fire shot', mark: 'Fi', color: '#ffb15a', tint: 0xffb15a, kind: 'weapon', use: 'shot', about: 'A short flamethrower for aliens only. It washes the cone in front of the nose and pushes aliens back.' },
-  'laser-shot': { id: 'laser-shot', name: 'Laser shot', mark: 'Lz', color: '#8dffb0', tint: 0x8dffb0, kind: 'weapon', use: 'shot', about: 'Three green bolts in one burst, aliens only, at the same reach as a single shot.' },
-  'rail-shot': { id: 'rail-shot', name: 'Rail shot', mark: 'Rl', color: '#ffe27a', tint: 0xffe27a, kind: 'weapon', use: 'shot', about: 'A fast, long-range rail dart for aliens only. The ship kicks harder when it fires.' },
+  'ice-shot': { id: 'ice-shot', name: 'Ice shot', mark: 'Ic', color: '#b7f4ff', tint: 0xb7f4ff, kind: 'weapon', use: 'shot', about: 'A slower bolt for aliens only. The weapon stays on the hotbar. One click spends one Ice round and freezes one alien. Ram the frozen alien with the hull to break it. It comes with 150 rounds.' },
+  'fire-shot': { id: 'fire-shot', name: 'Fire shot', mark: 'Fi', color: '#ffb15a', tint: 0xffb15a, kind: 'weapon', use: 'shot', about: 'A short flamethrower for aliens only. The weapon stays on the hotbar. One click spends one Fire round, washes the cone in front of the nose, and pushes aliens back. It comes with 150 rounds.' },
+  'laser-shot': { id: 'laser-shot', name: 'Laser shot', mark: 'Lz', color: '#8dffb0', tint: 0x8dffb0, kind: 'weapon', use: 'shot', about: 'Aliens only, at the same reach as a single shot. The weapon stays on the hotbar. One click spends one Laser round and fires the three-bolt burst. It comes with 150 rounds.' },
+  'rail-shot': { id: 'rail-shot', name: 'Rail shot', mark: 'Rl', color: '#ffe27a', tint: 0xffe27a, kind: 'weapon', use: 'shot', about: 'A fast, long-range rail dart for aliens only. The weapon stays on the hotbar. One click spends one Rail round, and the ship kicks harder. It comes with 150 rounds.' },
+  'ice-ammo': { id: 'ice-ammo', name: 'Ice rounds', mark: 'Ir', color: '#b7f4ff', tint: 0xb7f4ff, kind: 'ammo', about: 'Rounds for the Ice shot. They sit in the cargo. One click of the weapon spends one round.' },
+  'fire-ammo': { id: 'fire-ammo', name: 'Fire rounds', mark: 'Fr', color: '#ffb15a', tint: 0xffb15a, kind: 'ammo', about: 'Rounds for the Fire shot. They sit in the cargo. One click of the weapon spends one round.' },
+  'laser-ammo': { id: 'laser-ammo', name: 'Laser rounds', mark: 'Lr', color: '#8dffb0', tint: 0x8dffb0, kind: 'ammo', about: 'Rounds for the Laser shot. They sit in the cargo. One click of the weapon spends one round.' },
+  'rail-ammo': { id: 'rail-ammo', name: 'Rail rounds', mark: 'Rr', color: '#ffe27a', tint: 0xffe27a, kind: 'ammo', about: 'Rounds for the Rail shot. They sit in the cargo. One click of the weapon spends one round.' },
   'electric-shot': { id: 'electric-shot', name: 'Electric shot', mark: 'El', color: '#7ad7ff', tint: 0x7ad7ff, kind: 'weapon', use: 'shot', about: 'A crackling bolt. Select it and left click. It breaks one rock in range. The count spends slate wire, a spark gland, and an ion mote.' },
   'bola-shot': { id: 'bola-shot', name: 'Bola shot', mark: 'Bo', color: '#d5d8df', tint: 0xd5d8df, kind: 'weapon', use: 'shot', about: 'A piercing pair. Select it and left click. It breaks one rock in range. The count spends belt iron, grip fiber, and hull salvage.' },
   'plasma-shot': { id: 'plasma-shot', name: 'Plasma shot', mark: 'Pl', color: '#c9b6ff', tint: 0xc9b6ff, kind: 'weapon', use: 'shot', about: 'A violet orb. Select it and left click. It breaks one rock in range. The count spends void filament, a cold lamp, and virid ore.' },
@@ -223,6 +251,10 @@ export const RECIPES = [
   { id: 'bola-shot', category: 'weapons', result: 'bola-shot', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'fiber', n: 1 }, { id: 'salvage', n: 2 }] },
   { id: 'plasma-shot', category: 'weapons', result: 'plasma-shot', station: 'bench', count: 1, costs: [{ id: 'filament', n: 1 }, { id: 'lamp', n: 1 }, { id: 'virid', n: 1 }] },
   { id: 'rail-shot', category: 'weapons', result: 'rail-shot', station: 'bench', count: 1, costs: [{ id: 'gem', n: 1 }, { id: 'iron', n: 2 }, { id: 'wire', n: 1 }, { id: 'spike', n: 1 }, { id: 'prism', n: 2 }] },
+  { id: 'ice-ammo', category: 'weapons', result: 'ice-ammo', station: 'bench', count: 50, costs: [{ id: 'slate', n: 1 }] },
+  { id: 'fire-ammo', category: 'weapons', result: 'fire-ammo', station: 'bench', count: 50, costs: [{ id: 'amber', n: 1 }] },
+  { id: 'laser-ammo', category: 'weapons', result: 'laser-ammo', station: 'bench', count: 50, costs: [{ id: 'glass', n: 1 }] },
+  { id: 'rail-ammo', category: 'weapons', result: 'rail-ammo', station: 'bench', count: 50, costs: [{ id: 'iron', n: 1 }] },
   { id: 'drive', category: 'ship', result: 'drive', station: 'bench', count: 1, costs: [{ id: 'iron', n: 3 }, { id: 'pale', n: 1 }] },
   { id: 'hull', category: 'ship', result: 'hull', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'pale', n: 2 }] },
   { id: 'hint', category: 'ship', result: 'hint', station: 'bench', count: 1, costs: [{ id: 'glass', n: 1 }] },
@@ -362,6 +394,38 @@ export function ensureInventory(state) {
       break;
     }
   }
+  settleHotbar(state);
+}
+
+/** Pull minerals and other stored goods off the hotbar. Returns mineral names that moved. */
+export function settleHotbar(state) {
+  if (!state || !Array.isArray(state.hotbar) || !Array.isArray(state.cargoSlots)) return [];
+  const moved = [];
+  for (let i = 0; i < state.hotbar.length; i += 1) {
+    const stack = state.hotbar[i];
+    if (!stack || staysOnHotbar(stack.id)) continue;
+    const before = stack.count;
+    const left = addInto(state.cargoSlots, stack.id, stack.count, stack.level);
+    const sent = before - Math.max(0, left);
+    if (sent <= 0) continue;
+    if (left <= 0) state.hotbar[i] = null;
+    else stack.count = left;
+    const item = ITEMS[stack.id];
+    if (item && item.kind === 'mineral') moved.push(item.name);
+  }
+  if (moved.length) {
+    if (!Array.isArray(state.notices)) state.notices = [];
+    for (const name of new Set(moved)) {
+      state.notices.push({
+        id: state.nextId ? state.nextId++ : Date.now(),
+        text: name + ' moved to the cargo.',
+        time: 2.2,
+        kind: 'loot',
+      });
+    }
+    if (state.notices.length > 3) state.notices.splice(0, state.notices.length - 3);
+  }
+  return moved;
 }
 
 export function countItem(state, id) {
@@ -377,6 +441,7 @@ export function countItem(state, id) {
 
 function addInto(list, id, count, level) {
   let left = count;
+  const limit = stackLimit(id);
   if (id === BOW_ID) {
     const lv = bowLevel({ id: BOW_ID, level });
     for (let i = 0; i < list.length && left > 0; i++) {
@@ -387,15 +452,15 @@ function addInto(list, id, count, level) {
     return left;
   }
   for (const stack of list) {
-    if (!stack || stack.id !== id || stack.count >= STACK_MAX) continue;
-    const take = Math.min(STACK_MAX - stack.count, left);
+    if (!stack || stack.id !== id || stack.count >= limit) continue;
+    const take = Math.min(limit - stack.count, left);
     stack.count += take;
     left -= take;
     if (left <= 0) return 0;
   }
   for (let i = 0; i < list.length; i++) {
     if (list[i]) continue;
-    const take = Math.min(STACK_MAX, left);
+    const take = Math.min(limit, left);
     list[i] = { id, count: take };
     left -= take;
     if (left <= 0) return 0;
@@ -411,8 +476,12 @@ export function addItem(state, id, count, level) {
   let left = count;
   if (HULL_FITS.some((slot) => slot.accept === id) && equipHull(state, id, level)) left -= 1;
   if (left <= 0) return 0;
-  left = addInto(state.hotbar, id, left, level);
-  if (left > 0) left = addInto(state.cargoSlots, id, left, level);
+  if (staysOnHotbar(id)) {
+    left = addInto(state.hotbar, id, left, level);
+    if (left > 0) left = addInto(state.cargoSlots, id, left, level);
+  } else {
+    left = addInto(state.cargoSlots, id, left, level);
+  }
   return left;
 }
 
@@ -496,7 +565,7 @@ export function moveCargoToHotbar(state, cargoIndex, hotbarIndex) {
   if (!Number.isInteger(cargoIndex) || cargoIndex < 0 || cargoIndex >= state.cargoSlots.length) return false;
   if (!Number.isInteger(hotbarIndex) || hotbarIndex < 0 || hotbarIndex >= state.hotbar.length) return false;
   const from = state.cargoSlots[cargoIndex];
-  if (!from) return false;
+  if (!from || !staysOnHotbar(from.id)) return false;
   const to = state.hotbar[hotbarIndex];
   if (!to) {
     state.hotbar[hotbarIndex] = from;
@@ -504,7 +573,7 @@ export function moveCargoToHotbar(state, cargoIndex, hotbarIndex) {
     return true;
   }
   if (to.id === from.id) {
-    const take = Math.min(STACK_MAX - to.count, from.count);
+    const take = Math.min(stackLimit(to.id) - to.count, from.count);
     if (take <= 0) return false;
     to.count += take;
     from.count -= take;
@@ -535,11 +604,11 @@ function cargoDepositIndex(state, id) {
   const remembered = state.cargoDrop[id];
   if (Number.isInteger(remembered) && remembered >= 0 && remembered < state.cargoSlots.length) {
     const slot = state.cargoSlots[remembered];
-    if (!slot || (slot.id === id && slot.count < STACK_MAX)) return remembered;
+    if (!slot || (slot.id === id && slot.count < stackLimit(id))) return remembered;
   }
   const room = [];
   state.cargoSlots.forEach((slot, index) => {
-    if (!slot || (slot.id === id && slot.count < STACK_MAX)) room.push(index);
+    if (!slot || (slot.id === id && slot.count < stackLimit(id))) room.push(index);
   });
   if (!room.length) return -1;
   const pick = room[Math.floor(Math.random() * room.length)];
@@ -552,6 +621,7 @@ export function shiftOne(state, hotbarIndex, dir) {
   if (!Number.isInteger(hotbarIndex) || hotbarIndex < 0 || hotbarIndex >= state.hotbar.length) return false;
   const stack = state.hotbar[hotbarIndex];
   if (!stack || !stack.id) return false;
+  if (dir > 0 && !staysOnHotbar(stack.id)) return false;
   if (dir < 0) {
     if (stack.count <= 0) return false;
     const pick = cargoDepositIndex(state, stack.id);
@@ -563,7 +633,7 @@ export function shiftOne(state, hotbarIndex, dir) {
     if (stack.count <= 0) state.hotbar[hotbarIndex] = null;
     return true;
   }
-  if (stack.count >= STACK_MAX) return false;
+  if (stack.count >= stackLimit(stack.id)) return false;
   const remembered = state.cargoDrop && state.cargoDrop[stack.id];
   let pick = -1;
   if (Number.isInteger(remembered)) {
@@ -599,6 +669,7 @@ export function inventoryClick(state, area, index) {
   if (!list || !Number.isInteger(index) || index < 0 || index >= list.length) return false;
   const slot = list[index];
   const held = state.held || null;
+  if (area === 'hotbar' && held && !staysOnHotbar(held.id)) return false;
   if (area === 'hull' && held) {
     const fit = HULL_FITS[index];
     if (!fit || held.id !== fit.accept) return false;
@@ -617,7 +688,7 @@ export function inventoryClick(state, area, index) {
     return true;
   }
   if (slot.id === held.id && held.id !== BOW_ID) {
-    const take = Math.min(STACK_MAX - slot.count, held.count);
+    const take = Math.min(stackLimit(slot.id) - slot.count, held.count);
     if (take <= 0) return false;
     slot.count += take;
     held.count -= take;
@@ -638,8 +709,7 @@ export function inventoryDrag(state, fromArea, fromIndex, toArea, toIndex) {
   if (state.held) returnHeld(state);
   if (fromArea === toArea && fromIndex === toIndex) return false;
   if (!inventoryClick(state, fromArea, fromIndex)) return false;
-  inventoryClick(state, toArea, toIndex);
-  return true;
+  return inventoryClick(state, toArea, toIndex);
 }
 
 /** Put a carried stack back when cargo closes, preferring its original slot. */
@@ -648,7 +718,7 @@ export function returnHeld(state) {
   const held = state.held;
   state.held = null;
   const list = slotList(state, held.area);
-  if (list && list[held.index] == null) {
+  if (list && list[held.index] == null && !(held.area === 'hotbar' && !staysOnHotbar(held.id))) {
     list[held.index] = pieceStack(held.id, held.count, held.level);
     return;
   }
