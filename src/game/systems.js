@@ -340,10 +340,6 @@ export function openExtract(state, rockId, audio) {
   if (!rock) return;
   ensureRockExtractFields(rock);
   if (rock.depleted) return;
-  if (rockRank(rock) === 3) {
-    noteStatus(state, 'This rock is three stars. A plasma shot brings it down to two.');
-    return;
-  }
   state.mode = 'extract';
   state.extractRockId = id;
   state.targetId = id;
@@ -1963,10 +1959,6 @@ export function applyFlyClick(state, worldX, worldY, audio) {
     !hit.depleted &&
     Math.hypot(hit.x - state.ship.x, hit.y - state.ship.y) <= APPROACH;
   if (near) {
-    if (rockRank(hit) === 3) {
-      noteStatus(state, 'This rock is three stars. A plasma shot brings it down to two.');
-      return true;
-    }
     state.extractAvailable = hit.id;
     openExtract(state, hit.id, audio);
     return true;
@@ -2014,7 +2006,7 @@ function softenWithPlasma(state, rock) {
     return;
   }
   setRockRank(state, rock, 2);
-  noteStatus(state, 'Plasma brought the rock down to two stars. Click it to answer.');
+  noteStatus(state, 'Plasma brought the rock down to two stars.');
 }
 
 function raiseWithBola(state, rock, missile) {
@@ -2756,9 +2748,15 @@ function teachFlight(state, dt) {
   }
 }
 
-function pushNotice(state, text, kind, time) {
+function pushNotice(state, text, kind, time, icons) {
   if (!state.notices) state.notices = [];
-  state.notices.push({ id: state.nextId++, text, time: time || 4.4, kind: kind || '' });
+  state.notices.push({
+    id: state.nextId++,
+    text,
+    time: time || 4.4,
+    kind: kind || '',
+    icons: Array.isArray(icons) ? icons.slice(0, 8) : [],
+  });
   if (state.notices.length > 3) state.notices.splice(0, state.notices.length - 3);
 }
 
@@ -2770,17 +2768,25 @@ function notePickup(state, itemId, tainted) {
   else pushNotice(state, name + ' added.' + mark, 'loot');
 }
 
-/** The first time a count becomes affordable, say so and point at F. */
+/** The first time a count becomes affordable, show its icon and point at F. */
 function announceCrafts(state) {
   if (!state.knownCrafts) state.knownCrafts = {};
+  const fresh = [];
   for (const recipe of RECIPES) {
     if (state.knownCrafts[recipe.id]) continue;
+    if (recipe.reveal && countItem(state, recipe.reveal) < 1) continue;
     if (!recipeOpen(state, recipe) || !canAfford(state, recipe.costs)) continue;
     state.knownCrafts[recipe.id] = true;
     const item = ITEMS[recipe.result];
-    const name = item ? item.name : recipe.result;
-    pushNotice(state, name + ' can be fabricated. Press F.');
+    fresh.push({
+      id: recipe.id,
+      name: item ? item.name : recipe.result,
+      icon: slotIcon(recipe.result),
+      iconFilter: iconFilter(recipe.result),
+    });
   }
+  if (!fresh.length) return;
+  pushNotice(state, 'Fabricate ready. Press F.', 'ready', 3.4, fresh);
 }
 
 /** Physics: W ramps thrust. Reverse is a bit quicker than the old 0.35 / 0.4 cap. */
@@ -3016,7 +3022,7 @@ export function questionReadout(state) {
           '.';
   }
   if (near) {
-    return 'One and two stars can be answered. Three stars need a plasma shot first.';
+    return 'One star is easier. Three stars are harder. A plasma shot can bring a three-star rock down to two.';
   }
   if (state.wormhole) {
     return state.wormhole.locked
@@ -3845,7 +3851,12 @@ export function buildSnapshotPatch(state, muted) {
     cargoHold: buildCargo(state),
     hullRack: buildHull(state),
     held: heldView(state),
-    notices: (state.notices || []).map((note) => ({ id: note.id, text: note.text, kind: note.kind || '' })),
+    notices: (state.notices || []).map((note) => ({
+      id: note.id,
+      text: note.text,
+      kind: note.kind || '',
+      icons: Array.isArray(note.icons) ? note.icons : [],
+    })),
     intro: introAlphas(state),
     ...buildFabFields(state),
     hud: buildHudFields(state),

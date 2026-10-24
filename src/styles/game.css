@@ -656,6 +656,40 @@ button:disabled,
   box-shadow: 0 10px 28px rgba(255, 196, 80, 0.18);
 }
 
+.craft-toast.ready-toast {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.craft-toast-icons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 280px;
+}
+
+.craft-toast-icons img,
+.craft-toast-mark {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(8, 16, 28, 0.72);
+  border: 1px solid rgba(126, 231, 255, 0.35);
+}
+
+.craft-toast-mark {
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  line-height: 1.1;
+  text-align: center;
+  padding: 2px;
+}
+
 .craft-toasts {
   position: fixed;
   top: 14px;

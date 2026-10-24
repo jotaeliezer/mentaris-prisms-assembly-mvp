@@ -345,8 +345,12 @@ barePickup.drops.push({
 idle(barePickup, 0.05, { correct() {}, pop() {}, explode() {} });
 assert(countItem(barePickup, 'slate') === 1, 'a settled mineral is collected even if pickup is missing');
 assert(
-  gather.notices.some((note) => note.text.includes('Prism glass') && note.text.includes('Press F')),
-  'a new recipe toasts and points at F'
+  gather.notices.some(
+    (note) =>
+      note.text.includes('Press F') &&
+      (note.icons || []).some((icon) => icon.name === 'Prism glass')
+  ),
+  'a new recipe toasts its icon and points at F'
 );
 
 const drag = createState();

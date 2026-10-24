@@ -210,8 +210,31 @@ export default function App({ bridge }) {
           {(snapshot.notices || [])
             .filter((note) => note.kind !== 'loot')
             .map((note) => (
-            <div key={note.id} className={`craft-toast${note.kind === 'milestone' ? ' milestone-toast' : ''}`}>
-              {note.text}
+            <div key={note.id} className={`craft-toast${note.kind === 'milestone' ? ' milestone-toast' : ''}${note.kind === 'ready' ? ' ready-toast' : ''}`}>
+              <span>{note.text}</span>
+              {Array.isArray(note.icons) && note.icons.length > 0 && (
+                <span className="craft-toast-icons">
+                  {note.icons.map((icon) =>
+                    icon.icon ? (
+                      <img
+                        key={icon.id}
+                        src={icon.icon}
+                        alt={icon.name || ''}
+                        title={icon.name || ''}
+                        style={
+                          icon.iconFilter && icon.iconFilter !== 'none'
+                            ? { filter: icon.iconFilter }
+                            : undefined
+                        }
+                      />
+                    ) : (
+                      <span key={icon.id} className="craft-toast-mark" title={icon.name || ''}>
+                        {icon.name || ''}
+                      </span>
+                    )
+                  )}
+                </span>
+              )}
             </div>
           ))}
         </div>
