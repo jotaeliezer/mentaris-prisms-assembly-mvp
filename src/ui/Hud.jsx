@@ -587,7 +587,9 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                 style={ringStyle(hotbarPose(slot.index, hotbar.selected || 0, slots.length, cargoOpen, layout))}
                 aria-pressed={slot.selected ? 'true' : 'false'}
                 aria-label={
-                  slot.available ? slot.label + ', slot ' + slot.key : 'Empty slot ' + slot.key
+                  slot.available
+                    ? slot.label + (slot.magazine && slot.badge ? ', ' + slot.badge + ' rounds' : '') + ', slot ' + slot.key
+                    : 'Empty slot ' + slot.key
                 }
                 {...slotProps('hotbar', slot)}
               >

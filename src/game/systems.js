@@ -2246,7 +2246,7 @@ function stepOneMissile(state, missile, dt, onHit, audio) {
         return;
       }
     }
-    if (rock && missile.bolaSkip !== rock.id) {
+    if (!missile.ignoreRocks && rock && missile.bolaSkip !== rock.id) {
       const gap = Math.hypot(rock.x - missile.x, rock.y - missile.y);
       if (gap < (rock.radius || 28) + 36) {
         if (missile.plasma) {
@@ -3188,6 +3188,7 @@ function stackView(state, stack, index, selected, key) {
     color: item ? item.color : '',
     mark: item ? item.mark : '',
     badge: stackBadge(state, stack),
+    magazine: !!(stack && AMMO_OF[stack.id]),
     selected: !!selected,
   };
 }
@@ -3376,13 +3377,13 @@ export function useOwnedDash(state, audio) {
 }
 
 const SHOT_STYLE = {
-  'ice-shot': { face: 'bullet_ice.png', sound: 'ice_shot', reach: 720, speed: 640, freeze: true, aliensOnly: true },
-  'fire-shot': { face: 'bullet_fire1.png', sound: 'flame_shot', reach: 280, flame: true, aliensOnly: true },
-  'laser-shot': { face: 'bullet_laser.png', sound: 'gun2', reach: 720, burst: 3, speed: 1180, aliensOnly: true },
-  'electric-shot': { face: 'bullet_electric1.png', sound: 'electric_shot', reach: 720 },
-  'bola-shot': { face: 'bullet_bola.png', sound: 'gun1', reach: 1600, speed: 720, bola: true },
-  'plasma-shot': { face: 'bullet_orb.png', sound: 'shot_orb', reach: 780, plasma: true },
-  'rail-shot': { face: 'bullet_rail.png', sound: 'shot_railbeam', reach: 1700, speed: 1900, heavy: true, power: 2, recoil: 2.4, aliensOnly: true },
+  'ice-shot': { face: 'shot_ice.png', sound: 'ice_shot', reach: 720, speed: 640, freeze: true, aliensOnly: true },
+  'fire-shot': { face: 'shot_fire.png', sound: 'flame_shot', reach: 280, flame: true, aliensOnly: true },
+  'laser-shot': { face: 'shot_laser.png', sound: 'gun2', reach: 720, burst: 3, speed: 1180, aliensOnly: true },
+  'electric-shot': { face: 'shot_electric.png', sound: 'electric_shot', reach: 720 },
+  'bola-shot': { face: 'shot_bola.png', sound: 'gun1', reach: 1600, speed: 720, bola: true },
+  'plasma-shot': { face: 'shot_plasma.png', sound: 'shot_orb', reach: 780, plasma: true },
+  'rail-shot': { face: 'shot_rail.png', sound: 'shot_railbeam', reach: 1700, speed: 1900, heavy: true, power: 2, recoil: 2.4, aliensOnly: true },
 };
 
 function launchBolt(state, angle, extra) {
@@ -3417,6 +3418,23 @@ function launchBolt(state, angle, extra) {
     bola: !!(extra && extra.bola),
     bolaKill: !!(extra && extra.bolaKill),
     bolaRockId: extra && extra.bolaRockId ? extra.bolaRockId : 0,
+    ignoreRocks: !!(extra && (extra.aliensOnly || extra.flame)),
+  });
+}
+
+function clickAim(state, world) {
+  const ship = state.ship;
+  if (world && Number.isFinite(world.x) && Number.isFinite(world.y)) {
+    return Math.atan2(world.y - ship.y, world.x - ship.x);
+  }
+  return ship.aim || 0;
+}
+
+function fireToward(state, style, aim) {
+  const reach = style.reach || 720;
+  aimBolt(state, style, {
+    x: state.ship.x + Math.cos(aim) * reach,
+    y: state.ship.y + Math.sin(aim) * reach,
   });
 }
 
@@ -3433,23 +3451,6 @@ function aimBolt(state, style, target) {
     });
   }
   if (style.recoil) kickRecoil(state, style.recoil);
-}
-
-function flameCanHit(state) {
-  const ship = state.ship;
-  const aim = ship.aim || 0;
-  for (const alien of state.aliens || []) {
-    if (!alien || alien.gone || alien.leaving || alien.layer !== state.layer) continue;
-    const dx = alien.x - ship.x;
-    const dy = alien.y - ship.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist > 280 || dist < 8) continue;
-    let diff = Math.atan2(dy, dx) - aim;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    if (Math.abs(diff) <= 0.5) return true;
-  }
-  return false;
 }
 
 function findHeld(state, id) {
@@ -3485,9 +3486,9 @@ function trySpendAmmo(state, weaponId) {
   return 'spent';
 }
 
-function breatheFlame(state) {
+function breatheFlame(state, aim) {
   const ship = state.ship;
-  const aim = ship.aim || 0;
+  const heading = Number.isFinite(aim) ? aim : ship.aim || 0;
   let hit = 0;
   for (const alien of state.aliens || []) {
     if (!alien || alien.gone || alien.leaving || alien.layer !== state.layer) continue;
@@ -3495,7 +3496,7 @@ function breatheFlame(state) {
     const dy = alien.y - ship.y;
     const dist = Math.hypot(dx, dy);
     if (dist > 280 || dist < 8) continue;
-    let diff = Math.atan2(dy, dx) - aim;
+    let diff = Math.atan2(dy, dx) - heading;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     if (Math.abs(diff) > 0.5) continue;
@@ -3506,7 +3507,14 @@ function breatheFlame(state) {
     hit += 1;
   }
   for (let i = -2; i <= 2; i += 1) {
-    launchBolt(state, aim + i * 0.12, { face: 'bullet_fire1.png', speed: 420, maxRange: 260, flame: true, power: 0 });
+    launchBolt(state, heading + i * 0.12, {
+      face: 'shot_fire.png',
+      speed: 420,
+      maxRange: 260,
+      flame: true,
+      aliensOnly: true,
+      power: 0,
+    });
   }
   return hit > 0;
 }
@@ -3558,26 +3566,17 @@ function applyUse(state, use, audio, world) {
     const style = stack && SHOT_STYLE[stack.id];
     if (!style) return false;
     if (style.flame) {
-      if (!flameCanHit(state)) {
-        state.missiles = state.missiles.filter((missile) => !missile.flame);
-        noteStatus(state, 'No alien in the flame cone.');
-        return false;
-      }
+      const aim = clickAim(state, world);
       if (trySpendAmmo(state, stack.id) === 'empty') return true;
-      breatheFlame(state);
-      alienImpact(state, ship.x + Math.cos(ship.aim) * 80, ship.y + Math.sin(ship.aim) * 80, audio);
+      breatheFlame(state, aim);
       if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
       kickRecoil(state, 0.7);
       return true;
     }
     if (style.aliensOnly) {
-      const alien = nearestAlien(state, style.reach);
-      if (!alien) {
-        noteStatus(state, 'That shot only reaches aliens.');
-        return false;
-      }
+      const aim = clickAim(state, world);
       if (trySpendAmmo(state, stack.id) === 'empty') return true;
-      aimBolt(state, style, { x: alien.x, y: alien.y, alienId: alien.id });
+      fireToward(state, style, aim);
       if (audio && typeof audio.playShot === 'function') audio.playShot(style.sound);
       if (!style.recoil) kickRecoil(state, 1);
       return true;

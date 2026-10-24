@@ -1,6 +1,6 @@
 import { createState } from '../src/game/state.js';
 import { addItem } from '../src/game/items.js';
-import { selectHotbar, startMission, useSelectedHotbar } from '../src/game/systems.js';
+import { craftItem, selectHotbar, startMission, useSelectedHotbar } from '../src/game/systems.js';
 import { MAIN_STAR_PERIOD, mainStarUp } from '../src/game/star.js';
 import {
   ALIEN_TYPES,
@@ -78,5 +78,37 @@ const slot = cannon.hotbar.findIndex((stack) => stack && stack.id === 'core-cann
 selectHotbar(cannon, slot);
 assert(useSelectedHotbar(cannon, null), 'the cannon fires at the alien');
 assert(cannon.missiles[0] && cannon.missiles[0].power === 2 && cannon.missiles[0].alienId === target.id, 'the heavy shot aims at that alien');
+
+const laser = createState();
+startMission(laser, 'add', 'laser-rounds', null);
+laser.intro = null;
+laser.mode = 'fly';
+addItem(laser, 'bench', 1);
+addItem(laser, 'glass', 2);
+addItem(laser, 'wire', 1);
+addItem(laser, 'lamp', 1);
+addItem(laser, 'pale', 2);
+assert(craftItem(laser, 'laser-shot', null), 'the laser fabricates');
+const laserStack = laser.hotbar.find((stack) => stack && stack.id === 'laser-shot');
+assert(laserStack && laserStack.count === 1 && laserStack.rounds === 150, 'the laser stays one gun with 150 rounds');
+selectHotbar(laser, laser.hotbar.findIndex((stack) => stack && stack.id === 'laser-shot'));
+const rock = laser.asteroids.find((item) => item.alive);
+laser.ship.x = rock.x - 200;
+laser.ship.y = rock.y;
+laser.ship.aim = 0;
+const heard = [];
+const audio = { playShot(key) { heard.push(key); return true; } };
+assert(useSelectedHotbar(laser, audio, { x: rock.x, y: rock.y }), 'a click fires the laser toward that point');
+assert(laser.mode === 'fly', 'the laser click does not open the rock question');
+assert(laser.missiles.length === 3, 'each click fires the laser burst');
+assert(heard[0] === 'gun2', 'the laser plays the laser sound');
+assert(
+  laser.missiles.every((shot) => shot.ignoreRocks && shot.face === 'shot_laser.png' && shot.vx > 0),
+  'the burst uses the laser icon and flies toward the click'
+);
+assert(laserStack.rounds === 149, 'one click spends one round');
+assert(useSelectedHotbar(laser, audio, { x: rock.x, y: rock.y + 80 }), 'a second click fires again');
+assert(laser.missiles.length === 6 && laserStack.rounds === 148, 'every click spends one more round');
+assert(laser.hotbar.some((stack) => stack && stack.id === 'laser-shot'), 'the laser stays on the hotbar');
 
 console.log('aliens ok');
