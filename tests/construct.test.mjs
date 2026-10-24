@@ -163,7 +163,7 @@ const TEN = {
 
 const BENCH = ['wall', 'panel', 'corner', 'bunker', 'telescope', 'satellite', 'dock', 'gunship', 'drill', 'extension', 'vault', 'beacon'];
 const HALF = PIECE_SPAN / 2;
-const PANEL_SHORT = 22;
+const PANEL_SHORT = 50;
 
 const bare = flyState();
 const wallRecipe = recipeById('wall');

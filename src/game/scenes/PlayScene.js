@@ -85,16 +85,33 @@ function destroyOutline(entry) {
 }
 
 const PIECE_DRAW = {
-  wall: [104, 22],
-  panel: [120, 44],
-  corner: [36, 36],
-  bunker: [72, 72],
-  telescope: [18, 78],
-  dock: [84, 46],
-  gunship: [76, 36],
-  drill: [28, 86],
-  extension: [34, 96],
-  vault: [64, 64],
+  wall: [132, 44],
+  panel: [100, 100],
+  corner: [96, 96],
+  bunker: [88, 88],
+  telescope: [136, 42],
+  satellite: [72, 72],
+  dock: [124, 68],
+  gunship: [120, 56],
+  drill: [48, 124],
+  extension: [56, 128],
+  vault: [88, 88],
+  beacon: [68, 68],
+};
+
+const STATION_SPRITE = {
+  wall: 'station-wall.png',
+  panel: 'station-panel.png',
+  corner: 'station-corner.png',
+  bunker: 'station-bunker.png',
+  telescope: 'station-telescope.png',
+  satellite: 'station-satellite.png',
+  dock: 'station-dock.png',
+  gunship: 'station-gunship.png',
+  drill: 'station-drill.png',
+  extension: 'station-extension.png',
+  vault: 'station-vault.png',
+  beacon: 'station-beacon.png',
 };
 
 const PIECE_COLOR = {
@@ -221,6 +238,7 @@ export default class PlayScene extends Phaser.Scene {
     this.pilotArrowGfx = this.add.graphics().setDepth(30).setScrollFactor(0);
     this.bodySprites = new Map();
     this.plateSprites = new Map();
+    this.pieceSprites = new Map();
     this.missileGfx = this.add.graphics().setDepth(8);
     this.particleGfx = this.add.graphics().setDepth(9);
 
@@ -1218,29 +1236,80 @@ export default class PlayScene extends Phaser.Scene {
 
   syncStation() {
     const gfx = this.stationGfx;
-    if (!gfx) return;
-    gfx.clear();
+    if (gfx) gfx.clear();
+    if (!this.pieceSprites) this.pieceSprites = new Map();
+    const seen = new Set();
     for (const piece of visiblePieces(this.state)) {
-      drawStationPiece(gfx, piece, PIECE_COLOR[piece.id] || 0x9ad7ff, 0.92);
+      const key = 'p' + piece.uid;
+      seen.add(key);
+      if (!this.showPieceSprite(key, piece, 1, false) && gfx) {
+        drawStationPiece(gfx, piece, PIECE_COLOR[piece.id] || 0x9ad7ff, 0.92);
+      }
     }
-    this.clearPlateSprites();
+    const mouse = this.inputCtl && this.inputCtl.mouse;
+    const hotbar = this.state.hotbar;
+    const stack = hotbar && hotbar[hotbarIndex(this.state)];
+    const item = stack ? itemById(stack.id) : null;
+    const placing = !!(
+      item &&
+      item.kind === 'construction' &&
+      mouse &&
+      Number.isFinite(mouse.worldX) &&
+      Number.isFinite(mouse.worldY)
+    );
+    if (placing) {
+      const ghost = ghostPose(this.state, stack.id, mouse.worldX, mouse.worldY);
+      const shown = this.showPieceSprite(
+        'ghost',
+        { id: stack.id, x: ghost.x, y: ghost.y, rot: ghost.rot },
+        ghost.ok ? 0.55 : 0.4,
+        !ghost.ok
+      );
+      if (!shown && gfx) {
+        drawStationPiece(
+          gfx,
+          { id: stack.id, x: ghost.x, y: ghost.y, rot: ghost.rot },
+          ghost.ok ? PIECE_COLOR[stack.id] || 0x9ad7ff : 0xff5a6a,
+          0.4
+        );
+      }
+    } else {
+      const ghost = this.pieceSprites.get('ghost');
+      if (ghost) ghost.setVisible(false);
+    }
+    for (const [key, sprite] of this.pieceSprites) {
+      if (key === 'ghost' || seen.has(key)) continue;
+      sprite.destroy();
+      this.pieceSprites.delete(key);
+    }
     this.syncBodies();
     this.syncAliens();
     this.syncPilotArrows();
-    const mouse = this.inputCtl && this.inputCtl.mouse;
-    if (!mouse || !Number.isFinite(mouse.worldX) || !Number.isFinite(mouse.worldY)) return;
-    const hotbar = this.state.hotbar;
-    const stack = hotbar && hotbar[hotbarIndex(this.state)];
-    if (!stack) return;
-    const item = itemById(stack.id);
-    if (!item || item.kind !== 'construction') return;
-    const ghost = ghostPose(this.state, stack.id, mouse.worldX, mouse.worldY);
-    drawStationPiece(
-      gfx,
-      { id: stack.id, x: ghost.x, y: ghost.y, rot: ghost.rot },
-      ghost.ok ? PIECE_COLOR[stack.id] || 0x9ad7ff : 0xff5a6a,
-      0.4
-    );
+  }
+
+  showPieceSprite(key, piece, alpha, bad) {
+    const tex = STATION_SPRITE[piece.id];
+    if (!tex || !this.textures.exists(tex)) return false;
+    let sprite = this.pieceSprites.get(key);
+    if (!sprite || !sprite.scene) {
+      sprite = this.add.image(piece.x, piece.y, tex);
+      sprite.setDepth(12);
+      sprite.setOrigin(0.5, 0.5);
+      this.refreshUiIgnore(sprite);
+      this.pieceSprites.set(key, sprite);
+    } else if (sprite.texture.key !== tex) {
+      sprite.setTexture(tex);
+    }
+    const size = PIECE_DRAW[piece.id] || [72, 72];
+    const vertical = piece.id === 'drill' || piece.id === 'extension';
+    sprite.setPosition(piece.x, piece.y);
+    sprite.setRotation((piece.rot || 0) + (vertical ? -Math.PI / 2 : 0));
+    sprite.setDisplaySize(size[0], size[1]);
+    sprite.setAlpha(alpha);
+    sprite.setVisible(true);
+    if (bad) sprite.setTint(0xff6a78);
+    else sprite.clearTint();
+    return true;
   }
 
   publishSnapshot(force) {

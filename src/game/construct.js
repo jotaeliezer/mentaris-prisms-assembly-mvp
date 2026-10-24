@@ -5,7 +5,7 @@ import { grantMilestone } from './milestones.js';
 export const PIECE_SPAN = 110;
 
 const SNAP_DIST = 28;
-const PANEL_SHORT = 22;
+const PANEL_SHORT = 50;
 
 const STRENGTH = {
   wall: 6,
@@ -44,15 +44,15 @@ function worldPoint(x, y, rot, lx, ly) {
   return { x: x + lx * c - ly * s, y: y + lx * s + ly * c };
 }
 
-/** Tips in world space. Panel short edges sit at ±22, not at half a span. */
+/** Tips in world space. A panel is a square, so every edge sits at the same distance. */
 function endsAt(id, x, y, rot) {
   const h = PIECE_SPAN / 2;
   const c = Math.cos(rot);
   const s = Math.sin(rot);
   if (id === 'panel') {
     return [
-      worldPoint(x, y, rot, h, 0),
-      worldPoint(x, y, rot, -h, 0),
+      worldPoint(x, y, rot, PANEL_SHORT, 0),
+      worldPoint(x, y, rot, -PANEL_SHORT, 0),
       worldPoint(x, y, rot, 0, PANEL_SHORT),
       worldPoint(x, y, rot, 0, -PANEL_SHORT),
     ];

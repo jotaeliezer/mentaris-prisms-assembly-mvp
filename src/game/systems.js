@@ -1918,8 +1918,8 @@ function separateFromStructure(state) {
   const radius = SHIP_RADIUS;
   for (const piece of visiblePieces(state)) {
     if (piece.id !== 'wall' && piece.id !== 'panel') continue;
-    const halfW = piece.id === 'panel' ? 60 : 52;
-    const halfH = piece.id === 'panel' ? 22 : 11;
+    const halfW = piece.id === 'panel' ? 50 : 52;
+    const halfH = piece.id === 'panel' ? 50 : 11;
     const rot = piece.rot || 0;
     const c = Math.cos(rot);
     const s = Math.sin(rot);

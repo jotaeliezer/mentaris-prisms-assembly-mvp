@@ -106,6 +106,21 @@ export const ITEM_ICON_FILES = [
   "c4.png",
 ];
 
+const STATION_SPRITE_FILES = [
+  "station-wall.png",
+  "station-panel.png",
+  "station-corner.png",
+  "station-bunker.png",
+  "station-telescope.png",
+  "station-satellite.png",
+  "station-dock.png",
+  "station-gunship.png",
+  "station-drill.png",
+  "station-extension.png",
+  "station-vault.png",
+  "station-beacon.png",
+];
+
 export const BULLET_FILES = [
   "bullet_bola.png",
   "bullet_electric.png",
@@ -249,6 +264,9 @@ export function listPhaserImages() {
   }
   for (const name of ITEM_ICON_FILES) {
     entries.push({ key: name, url: assetUrl("images/items", name) });
+  }
+  for (const name of STATION_SPRITE_FILES) {
+    entries.push({ key: name, url: assetUrl("images/station", name) });
   }
   for (const name of BULLET_FILES) {
     entries.push({ key: name, url: assetUrl("images/bullets", name) });
