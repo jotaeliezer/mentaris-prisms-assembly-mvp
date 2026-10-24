@@ -274,6 +274,7 @@ export function listPhaserImages() {
     ['stronghold.png', 'images/space'],
     ['ion-stream.png', 'images/space'],
     ['wormhole.png', 'images/space'],
+    ['return-wormhole.png', 'images/space'],
   ];
   for (const [name, folder] of plates) {
     entries.push({ key: name, url: assetUrl(folder, name) });

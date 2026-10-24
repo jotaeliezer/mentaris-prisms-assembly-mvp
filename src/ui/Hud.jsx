@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { readPilotName } from '../game/pilot.js';
 import { GearIcon } from './SettingsPanel.jsx';
 import SessionControls from './SessionControls.jsx';
@@ -36,7 +36,7 @@ function arcLayout(viewW, viewH) {
   const cargoRadial = 56;
   const hotPitch = 60;
   const hotRadial = 64;
-  const hotClear = 58;
+  const hotClear = 86;
   let best = null;
   for (let bands = 2; bands <= 5; bands += 1) {
     const per = Math.ceil(40 / bands);
@@ -106,6 +106,24 @@ function cargoPose(index, layout) {
   const t = per <= 1 ? 0.5 : along / (per - 1);
   const radius = layout.cargoOuter - band * layout.cargoRadial;
   return { ...quarterPoint(t, radius, layout.center), scale: layout.fit, visible: true, z: 2 };
+}
+
+/** Grow the hotbar plate past the slot squares, including the ones on the straight ends. */
+function hotPlateFor(layout) {
+  const half = 24 * 1.08 * (layout.fit || 1);
+  const radial = half * Math.SQRT2 + 12;
+  const outer = layout.hotOuter + radial;
+  const inner = Math.max(12, layout.hotOuter - layout.hotRadial - radial);
+  const innerR = Math.max(48, layout.hotOuter - layout.hotRadial);
+  const tPad = (half + 14) / innerR / (Math.PI / 2);
+  const over = outer * Math.sin(tPad * (Math.PI / 2)) + 16;
+  return {
+    outer,
+    inner,
+    tPad,
+    bleed: 28,
+    size: Math.ceil(layout.center + over),
+  };
 }
 
 function platePath(center, outer, inner, box, bleed, t0, t1) {
@@ -248,6 +266,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const [drag, setDrag] = useState(null);
   const [tip, setTip] = useState(null);
   const tipTimer = useRef(null);
+  const tipRef = useRef(null);
 
   function showSlotTip(slot, event) {
     if (!slot.available && !slot.slotLabel) return;
@@ -261,6 +280,21 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
     tipTimer.current = window.setTimeout(() => setTip(null), 3000);
   }
 
+  useLayoutEffect(() => {
+    const el = tipRef.current;
+    if (!el || !tip) return;
+    el.style.translate = '0px 0px';
+    const margin = 8;
+    const box = el.getBoundingClientRect();
+    let dx = 0;
+    let dy = 0;
+    if (box.left < margin) dx = margin - box.left;
+    else if (box.right > window.innerWidth - margin) dx = window.innerWidth - margin - box.right;
+    if (box.top < margin) dy = margin - box.top;
+    else if (box.bottom > window.innerHeight - margin) dy = window.innerHeight - margin - box.bottom;
+    if (dx || dy) el.style.translate = dx + 'px ' + dy + 'px';
+  }, [tip]);
+
   useEffect(() => () => {
     if (tipTimer.current) window.clearTimeout(tipTimer.current);
   }, []);
@@ -270,6 +304,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const [pointer, setPointer] = useState(null);
   const view = useViewport();
   const layout = arcLayout(view.w, view.h);
+  const hotPlate = hotPlateFor(layout);
 
   function inventoryGesture(area) {
     return cargoOpen || !!snapshot.held || area === 'hull';
@@ -510,14 +545,14 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
           )}
           {cargoOpen && (
             <ArcPlate
-              size={layout.center + 40}
+              size={hotPlate.size}
               center={layout.center}
-              outer={layout.hotOuter + 30}
-              inner={layout.hotOuter - layout.hotRadial - 30}
+              outer={hotPlate.outer}
+              inner={hotPlate.inner}
               tone="hot"
-              t0={-0.05}
-              t1={1.05}
-              bleed={18}
+              t0={-hotPlate.tPad}
+              t1={1 + hotPlate.tPad}
+              bleed={hotPlate.bleed}
             />
           )}
           {cargoOpen && (
@@ -582,7 +617,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
         </div>
       ) : null}
       {tip ? (
-        <div className="slot-tip" style={{ left: tip.x, top: tip.y }}>
+        <div ref={tipRef} className="slot-tip" style={{ left: tip.x, top: tip.y }}>
           {tip.name}
         </div>
       ) : null}

@@ -270,6 +270,24 @@ assert(dig.mode === 'extract' && dig.extractRockId === 50, 'a live rock inside a
 assert(dig.hotbar[0].count === 2, 'extract does not spend the wall');
 assert(!dig.station, 'extract does not add a station piece');
 
+const edge = flyState();
+edge.ship.x = 1000;
+edge.ship.y = 1000;
+edge.asteroids = [
+  {
+    id: 51,
+    x: 1100,
+    y: 1000,
+    alive: true,
+    depleted: false,
+    radius: 30,
+    size: 100,
+    sprite: 0,
+  },
+];
+assert(applyFlyClick(edge, 1170, 1000, null) === true, 'a click near the painted border opens extract');
+assert(edge.mode === 'extract' && edge.extractRockId === 51, 'the border click shows the question');
+
 const gun = flyState();
 gun.ship.x = 0;
 gun.ship.y = 0;

@@ -200,10 +200,11 @@ export function syncAimArc(gfx) {
   gfx.clear();
 }
 
-export function syncGates(gfx, state, hideWormhole) {
+export function syncGates(gfx, state, pictures) {
   gfx.clear();
-  if (state.returnHole) drawGate(gfx, state, state.returnHole, false, true);
-  if (state.wormhole && !hideWormhole) drawGate(gfx, state, state.wormhole, !!state.wormhole.locked, false);
+  const shown = pictures || {};
+  if (state.returnHole && !shown.back) drawGate(gfx, state, state.returnHole, false, true);
+  if (state.wormhole && !shown.cluster) drawGate(gfx, state, state.wormhole, !!state.wormhole.locked, false);
 }
 
 function drawGate(gfx, state, hole, locked, isReturn) {
@@ -235,8 +236,8 @@ function drawGate(gfx, state, hole, locked, isReturn) {
 export function syncBeacons(gfx, state, w, h) {
   gfx.clear();
   if (state.mode === 'title') return;
-  drawBeacon(gfx, state, w, h, state.wormhole, state.wormhole && state.wormhole.locked ? 0xc8ced6 : 0xbc8cff);
-  if (state.returnHole) drawBeacon(gfx, state, w, h, state.returnHole, 0x7ee7ff);
+  const cue = state.relayCue;
+  if (cue && state.clock < cue.until) drawBeacon(gfx, state, w, h, cue, 0xffe27a);
 }
 
 function drawBeacon(gfx, state, w, h, hole, color) {

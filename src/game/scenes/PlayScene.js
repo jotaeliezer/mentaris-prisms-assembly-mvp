@@ -45,7 +45,7 @@ import {
   moveCargoToHotbar,
   moveHotbarToCargo,
   openExtract,
-  rockTouchDistance,
+  rockClickDistance,
   respawnShip,
   raiseBow,
   selectHotbar,
@@ -394,8 +394,10 @@ export default class PlayScene extends Phaser.Scene {
     );
 
     this.unsubs.push(
-      bridge.on('craft', (recipeId) => {
-        craftItem(this.state, recipeId, this.audio);
+      bridge.on('craft', (payload) => {
+        const recipeId = payload && payload.id ? payload.id : payload;
+        const count = payload && payload.count;
+        craftItem(this.state, recipeId, this.audio, count);
         this.publishSnapshot(true);
       })
     );
@@ -559,10 +561,7 @@ export default class PlayScene extends Phaser.Scene {
     let bestDist = Infinity;
     for (const rock of this.state.asteroids) {
       if (!rock.alive || rock.depleted) continue;
-      const sprite = this.rockSprites && this.rockSprites.get(rock.id);
-      const radius = sprite
-        ? Math.max(sprite.displayWidth, sprite.displayHeight) * 0.46
-        : Math.max(8, rockTouchDistance(rock) - 24);
+      const radius = rockClickDistance(rock);
       const dist = Math.hypot(rock.x - x, rock.y - y);
       if (dist <= radius && dist < bestDist) {
         best = rock;
@@ -1038,23 +1037,28 @@ export default class PlayScene extends Phaser.Scene {
     }
   }
 
-  syncWormhole() {
-    const hole = this.state.wormhole;
-    const key = 'wormhole.png';
+  syncGateSprite(hole, key, field, spin) {
     if (!hole || !this.textures.exists(key)) {
-      if (this.wormholeSprite) this.wormholeSprite.setVisible(false);
+      if (this[field]) this[field].setVisible(false);
       return false;
     }
-    if (!this.wormholeSprite || !this.wormholeSprite.scene) {
-      this.wormholeSprite = this.add.image(hole.x, hole.y, key).setDepth(4);
-      this.refreshUiIgnore(this.wormholeSprite);
+    if (!this[field] || !this[field].scene) {
+      this[field] = this.add.image(hole.x, hole.y, key).setDepth(4);
+      this.refreshUiIgnore(this[field]);
     }
-    this.wormholeSprite.setVisible(true);
-    this.wormholeSprite.setPosition(hole.x, hole.y);
-    this.wormholeSprite.setRotation((this.state.clock || 0) * 0.25);
-    this.wormholeSprite.setDisplaySize(260, 260);
-    this.wormholeSprite.setAlpha(hole.locked ? 0.7 : 1);
+    const sprite = this[field];
+    sprite.setVisible(true);
+    sprite.setPosition(hole.x, hole.y);
+    sprite.setRotation((this.state.clock || 0) * spin);
+    sprite.setDisplaySize(260, 260);
+    sprite.setAlpha(hole.locked ? 0.7 : 1);
     return true;
+  }
+
+  syncWormhole() {
+    const cluster = this.syncGateSprite(this.state.wormhole, 'wormhole.png', 'wormholeSprite', 0.25);
+    const back = this.syncGateSprite(this.state.returnHole, 'return-wormhole.png', 'returnSprite', -0.2);
+    return { cluster, back };
   }
 
   clearPlateSprites() {
@@ -1083,7 +1087,13 @@ export default class PlayScene extends Phaser.Scene {
               body.x,
               body.y,
               body.r || 80,
-              body.kind === 'lair' ? 0x241433 : body.key && String(body.key).startsWith('star') ? 0xfff1c2 : 0xc5d0dc,
+              body.kind === 'lair'
+                ? 0x241433
+                : body.kind === 'relay'
+                  ? 0x7ee7ff
+                  : body.key && String(body.key).startsWith('star')
+                    ? 0xfff1c2
+                    : 0xc5d0dc,
               1
             );
         sprite.setDepth(body.key && String(body.key).startsWith('star') ? 3 : 2);
@@ -1093,6 +1103,11 @@ export default class PlayScene extends Phaser.Scene {
       }
       sprite.setPosition(body.x, body.y);
       if (sprite.setRotation && Number.isFinite(body.rot)) sprite.setRotation(body.rot);
+      if (body.kind === 'relay' && sprite.setAlpha) {
+        const resting = body.restUntil && this.state.clock < body.restUntil;
+        const blink = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin((this.state.clock || 0) * 3.2));
+        sprite.setAlpha(resting ? 0.28 : blink);
+      }
     }
     for (const [id, sprite] of this.bodySprites) {
       if (seen.has(id)) continue;
@@ -1420,7 +1435,15 @@ export default class PlayScene extends Phaser.Scene {
     const envAlpha = envelope && envelope.alpha != null ? envelope.alpha : 1;
     const introRock = introAlphas(this.state).rock;
     const baseAlpha = (rock.active ? 1 : rock.near ? 0.95 : 0.85) * introRock;
-    sprite.setPosition(rock.x, rock.y);
+    let x = rock.x;
+    let y = rock.y;
+    if (rock.shake > 0) {
+      const amp = 5 * Math.min(1, rock.shake / 0.26);
+      const step = Math.floor(this.state.clock * 46);
+      x += (step % 2 === 0 ? 1 : -1) * amp;
+      y += ((step + 1) % 2 === 0 ? 1 : -1) * amp * 0.6;
+    }
+    sprite.setPosition(x, y);
     sprite.setRotation(rock.rot);
     sprite.setScale(rockDisplayScale(rock, envScale));
     sprite.setAlpha(baseAlpha * envAlpha);
@@ -1556,8 +1579,8 @@ export default class PlayScene extends Phaser.Scene {
       }
     }
 
-    const wormholePicture = this.syncWormhole();
-    if (this.gateGfx) syncGates(this.gateGfx, this.state, wormholePicture);
+    const gatePictures = this.syncWormhole();
+    if (this.gateGfx) syncGates(this.gateGfx, this.state, gatePictures);
     if (this.aimGfx) syncAimArc(this.aimGfx, this.state);
     this.syncStation();
 

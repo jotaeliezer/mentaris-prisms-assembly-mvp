@@ -27,6 +27,17 @@ function itemPicture(item) {
   );
 }
 
+function batchLimit(recipe) {
+  if (!recipe || !Array.isArray(recipe.costs) || !recipe.costs.length) return 1;
+  let max = Infinity;
+  for (const cost of recipe.costs) {
+    const need = cost.n || 1;
+    max = Math.min(max, Math.floor((Number(cost.have) || 0) / need));
+  }
+  if (!Number.isFinite(max) || max < 1) return 1;
+  return max;
+}
+
 export default function Fab({ bridge, snapshot }) {
   const recipes = Array.isArray(snapshot.recipes) ? snapshot.recipes : [];
   const [filter, setFilter] = useState('all');
@@ -48,6 +59,8 @@ export default function Fab({ bridge, snapshot }) {
     return filter === 'all' || recipe.category === filter;
   });
   const selected = recipes.find((recipe) => recipe.id === selectedId) || null;
+  const batchMax = batchLimit(selected);
+  const batchCount = gate ? Math.min(batchMax, Math.max(1, gate.count || 1)) : 1;
   const hovered = recipes.find((recipe) => recipe.id === hoverId) || null;
   const category = hovered ? CATEGORIES.find((cat) => cat.id === hovered.category) : null;
 
@@ -160,13 +173,14 @@ export default function Fab({ bridge, snapshot }) {
           })}
         </div>
         <div className="fab-layout">
-          <div className="fab-icon-grid">
-            {visible.map((recipe) => (
+          <div className="fab-icon-grid" key={`${filter}-${onlyReady ? 'ready' : 'all'}`}>
+            {visible.map((recipe, index) => (
               <button
                 key={recipe.id}
                 id={'craft-' + recipe.id}
                 type="button"
                 className={`fab-icon-btn${selectedId === recipe.id ? ' is-hot' : ''}${recipe.ready ? '' : ' is-short'}`}
+                style={{ '--fab-i': Math.min(index, 18) }}
                 aria-pressed={selectedId === recipe.id}
                 aria-label={recipe.name}
                 onPointerEnter={(event) => showCard(recipe.id, event.clientX, event.clientY)}
@@ -240,7 +254,18 @@ export default function Fab({ bridge, snapshot }) {
                           onWheel={(event) => {
                             event.preventDefault();
                             if (!event.deltaY) return;
-                            const dir = event.deltaY > 0 ? -1 : 1;
+                            const down = event.deltaY > 0;
+                            const dir = down ? -1 : 1;
+                            const slot = event.currentTarget;
+                            for (const running of slot.getAnimations()) running.cancel();
+                            slot.animate(
+                              [
+                                { transform: 'translateY(0)' },
+                                { transform: 'translateY(' + (down ? 8 : -8) + 'px)', offset: 0.35 },
+                                { transform: 'translateY(0)' },
+                              ],
+                              { duration: 150, easing: 'ease-out' }
+                            );
                             setGate((current) => {
                               if (!current) return current;
                               const next = (current[place] + dir + 10) % 10;
@@ -254,6 +279,26 @@ export default function Fab({ bridge, snapshot }) {
                         </button>
                       ))}
                     </div>
+                    <div className="fab-batch">
+                      <span className={`fab-batch-label${batchCount <= 1 ? ' is-on' : ''}`}>1 item</span>
+                      <input
+                        type="range"
+                        min={1}
+                        max={batchMax}
+                        step={1}
+                        value={batchCount}
+                        aria-label="How many to fabricate"
+                        aria-valuetext={batchCount >= batchMax && batchMax > 1 ? 'Expend ' + batchMax : String(batchCount)}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          setGate((current) => (current ? { ...current, count: next } : current));
+                        }}
+                      />
+                      <span className={`fab-batch-label${batchCount >= batchMax ? ' is-on' : ''}`}>Expend</span>
+                    </div>
+                    <p className="fab-readout-body fab-batch-count">
+                      {batchCount >= batchMax && batchMax > 1 ? 'Expend ' + batchMax : batchCount + (batchCount === 1 ? ' item' : ' items')}
+                    </p>
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -263,7 +308,7 @@ export default function Fab({ bridge, snapshot }) {
                           bridge.emit('uiWrong');
                           return;
                         }
-                        bridge.emit('craft', gate.recipeId);
+                        bridge.emit('craft', { id: gate.recipeId, count: batchCount });
                         setGate(null);
                       }}
                     >
@@ -281,7 +326,7 @@ export default function Fab({ bridge, snapshot }) {
                       const hard = !!snapshot.taintedHold;
                       const a = hard ? 6 + Math.floor(Math.random() * 4) : 1 + Math.floor(Math.random() * 9);
                       const b = hard ? 6 + Math.floor(Math.random() * 4) : 1 + Math.floor(Math.random() * 9);
-                      setGate({ recipeId: selected.id, a, b, tens: 0, ones: 0, hard });
+                      setGate({ recipeId: selected.id, a, b, tens: 0, ones: 0, hard, count: 1 });
                     }}
                   >
                     {selected.ready ? 'Fabricate' : 'Missing materials'}

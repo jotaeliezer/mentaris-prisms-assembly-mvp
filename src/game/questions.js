@@ -196,6 +196,21 @@ export function nextProblem(options, rng) {
     });
   }
 
+  if (questionMode === "mul_2by1_low") {
+    const left = randi(rng, 1, 4) * 10 + randi(rng, 0, 4);
+    const right = randi(rng, 1, 4);
+    return finish({
+      a: left,
+      b: right,
+      op: "×",
+      answer: left * right,
+      prompt: left + " × " + right,
+      questionMode,
+      difficulty,
+      operation: "mul",
+    });
+  }
+
   if (questionMode === "mul_2by1") {
     const left = randi(rng, 10, 99);
     const right = randi(rng, 1, 9);
@@ -272,11 +287,17 @@ export function problemForRank(operation, rank) {
     if (op === "mul") return { operation: "mul", questionMode: "mul_wide", difficulty: "hard" };
     return { operation: "add", questionMode: "", difficulty: "hard", ranges: { a1: 24, a2: 60, b1: 18, b2: 50 } };
   }
-  if (stars >= 3) return problemSpec(op, "hard");
+  if (stars >= 3) {
+    if (op === "mul") return { operation: "mul", questionMode: "mul_2by1", difficulty: "hard" };
+    return problemSpec(op, "hard");
+  }
   if (stars === 2) {
     if (op === "sub") return { operation: "sub", questionMode: "sub_easy", difficulty: "easy" };
-    if (op === "mul") return { operation: "mul", questionMode: "", difficulty: "easy", ranges: { a1: 3, a2: 9, b1: 3, b2: 9 } };
+    if (op === "mul") return { operation: "mul", questionMode: "mul_2by1_low", difficulty: "easy" };
     return { operation: "add", questionMode: "", difficulty: "easy", ranges: { a1: 6, a2: 18, b1: 4, b2: 14 } };
+  }
+  if (op === "mul") {
+    return { operation: "mul", questionMode: "", difficulty: "easy", ranges: { a1: 1, a2: 9, b1: 1, b2: 9 } };
   }
   return problemSpec(op, "easy");
 }

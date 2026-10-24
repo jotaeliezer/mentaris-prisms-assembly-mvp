@@ -56,6 +56,8 @@ import {
   slotIcon,
   iconFilter,
   moveCargoToHotbar,
+  parkCollectedMineral,
+  releaseHeldMinerals,
   moveHotbarToCargo,
   recipeById,
   recipeOpen,
@@ -233,6 +235,11 @@ function tickShrink(state, dt) {
   }
 }
 
+function bumpRock(rock) {
+  if (!rock) return;
+  rock.shake = 0.26;
+}
+
 function punchCamera(state) {
   state.shakeTime = 0.2;
   state.shakeMag = 68;
@@ -294,8 +301,8 @@ export function asteroidAt(state, x, y) {
   for (const rock of state.asteroids) {
     if (!rock.alive) continue;
     const dist = Math.hypot(rock.x - x, rock.y - y);
-    const reach = Math.max(rock.radius + 18, rock.size * 0.46);
-    if (dist < reach && dist < bestDist) {
+    const reach = rockClickDistance(rock);
+    if (dist <= reach && dist < bestDist) {
       best = rock;
       bestDist = dist;
     }
@@ -480,8 +487,35 @@ export function ensureScenery(state) {
     if (rng() < 0.45) place('prism', 'prism-ring.png', 90);
     if (rng() < 0.35) place('stronghold', 'stronghold.png', 160);
     if (rng() < 0.4) place('comet', 'comet.png', 70);
+    if (rng() < 0.55) place('relay', '', 36, { floatSpeed: 0, spin: 0 });
   }
   ensureLair(state);
+}
+
+function bearingName(angle) {
+  const names = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
+  const index = Math.round(angle / (Math.PI / 4));
+  return names[((index % 8) + 8) % 8];
+}
+
+function nearestLandmark(state, ship) {
+  const marks = [];
+  if (state.wormhole) marks.push({ x: state.wormhole.x, y: state.wormhole.y, name: 'wormhole' });
+  if (state.returnHole) marks.push({ x: state.returnHole.x, y: state.returnHole.y, name: 'return gate' });
+  for (const planet of state.planets || []) {
+    if (planet.layer === state.layer) marks.push({ x: planet.x, y: planet.y, name: 'planet' });
+  }
+  for (const object of state.spaceObjects || []) {
+    if (object.layer === state.layer && object.kind === 'stronghold') {
+      marks.push({ x: object.x, y: object.y, name: 'stronghold' });
+    }
+  }
+  let best = null;
+  for (const mark of marks) {
+    const dist = Math.hypot(mark.x - ship.x, mark.y - ship.y);
+    if (!best || dist < best.dist) best = { ...mark, dist };
+  }
+  return best;
 }
 
 function spillFind(state, itemId, x, y) {
@@ -557,7 +591,56 @@ function tickSpaceObjects(state, dt) {
       spillFind(state, parts[Math.floor(state.rng() * parts.length)], object.x, object.y);
       grantMilestone(state, 'stronghold');
     }
+    if (object.kind === 'relay' && dist < 220) {
+      const resting = object.restUntil && state.clock < object.restUntil;
+      if (!resting) {
+        object.restUntil = state.clock + 50;
+        const landmark = nearestLandmark(state, ship);
+        if (!landmark) noteStatus(state, 'The relay blinks, but this layer has no gate, ruin, or planet.');
+        else {
+          const angle = Math.atan2(landmark.y - ship.y, landmark.x - ship.x);
+          noteStatus(
+            state,
+            'Relay points ' +
+              bearingName(angle) +
+              ' toward the ' +
+              landmark.name +
+              ', ' +
+              Math.round(landmark.dist) +
+              ' away.'
+          );
+          state.relayCue = { x: landmark.x, y: landmark.y, until: state.clock + 18 };
+        }
+      }
+    }
   }
+}
+
+function edgePoint(state, origin) {
+  const inset = 1100;
+  const band = 2600;
+  let best = null;
+  for (let i = 0; i < 18; i += 1) {
+    const side = Math.floor(state.rng() * 4);
+    let x;
+    let y;
+    if (side === 0) {
+      x = inset + state.rng() * band;
+      y = inset + state.rng() * (WORLD.h - inset * 2);
+    } else if (side === 1) {
+      x = WORLD.w - inset - state.rng() * band;
+      y = inset + state.rng() * (WORLD.h - inset * 2);
+    } else if (side === 2) {
+      y = inset + state.rng() * band;
+      x = inset + state.rng() * (WORLD.w - inset * 2);
+    } else {
+      y = WORLD.h - inset - state.rng() * band;
+      x = inset + state.rng() * (WORLD.w - inset * 2);
+    }
+    const dist = origin ? Math.hypot(x - origin.x, y - origin.y) : 0;
+    if (!best || dist > best.dist) best = { x, y, dist };
+  }
+  return best || { x: inset, y: WORLD.h / 2, dist: 0 };
 }
 
 export function placeWormhole(state) {
@@ -566,11 +649,10 @@ export function placeWormhole(state) {
     state.wormhole = null;
     return;
   }
-  const angle = state.rng() * Math.PI * 2;
-  const dist = 1600 + state.rng() * 900;
+  const spot = edgePoint(state, state.home || state.ship);
   state.wormhole = {
-    x: clamp(state.home.x + Math.cos(angle) * dist, 500, WORLD.w - 500),
-    y: clamp(state.home.y + Math.sin(angle) * dist, 500, WORLD.h - 500),
+    x: spot.x,
+    y: spot.y,
     locked: true,
   };
 }
@@ -582,7 +664,7 @@ function oreOnHand(state) {
 
 function travelCost(state) {
   if (!state.wormhole || !state.home) return 2;
-  const dist = Math.hypot(state.wormhole.x - state.home.x, state.wormhole.y - state.home.y);
+  const dist = Math.min(4800, Math.hypot(state.wormhole.x - state.home.x, state.wormhole.y - state.home.y));
   return 2 + Math.round(dist / 800);
 }
 
@@ -774,11 +856,12 @@ function arriveInCluster(state, cluster, returning) {
     state.rng = layerRng(state);
     placeShipAtSpawn(state);
     state.home = { x: state.ship.x, y: state.ship.y };
+    const spot = edgePoint(state, { x: state.ship.x, y: state.ship.y });
     state.returnHole =
       cluster > 1
         ? {
-            x: clamp(state.ship.x - 420, 220, WORLD.w - 220),
-            y: clamp(state.ship.y + 80, 220, WORLD.h - 220),
+            x: spot.x,
+            y: spot.y,
             locked: false,
           }
         : null;
@@ -864,6 +947,7 @@ export function resumeAssembly(state, progress, audio, assemblyId) {
   if (typeof ship.sprite === 'string' && ship.sprite) state.ship.sprite = ship.sprite;
   state.ship.hp = Math.min(state.ship.maxHp, state.ship.hp);
   if (Number.isFinite(Number(progress.clock))) state.clock = Number(progress.clock);
+  state.mineralHold = Array.isArray(progress.mineralHold) ? progress.mineralHold : [];
   state.localFlightId = typeof progress.localFlightId === 'string' ? progress.localFlightId : '';
   state.milestones = progress.milestones && typeof progress.milestones === 'object' ? { ...progress.milestones } : {};
   state.aliens = Array.isArray(progress.aliens) ? progress.aliens.map((alien) => ({ ...alien })) : [];
@@ -964,6 +1048,7 @@ export function startMission(state, id, seed, audio, assemblyId) {
   state.ship.hp = state.ship.maxHp;
   state.ship.aim = -Math.PI / 2;
   state.clock = 0;
+  state.mineralHold = [];
   state.seed = cleanSeed(seed);
   state.assemblyId = assemblyId || null;
   state.localFlightId = '';
@@ -1396,6 +1481,7 @@ function applyExtractImpact(state, rock, audio) {
   if (!rock || !rock.pendingExtract) return;
   impactDebris(state, rock.x, rock.y);
   playImpact(audio);
+  bumpRock(rock);
   const pending = rock.pendingExtract;
   rock.pendingExtract = null;
   const before = pending.before;
@@ -1585,6 +1671,11 @@ export function rockTouchDistance(rock) {
   const scale = (rock.size / 180) * 0.9;
   const rim = ROCK_RIM[(rock.sprite || 0) % ROCK_RIM.length] * scale;
   return rim + 24;
+}
+
+/** Click anywhere on the painted rock, including the border. */
+export function rockClickDistance(rock) {
+  return Math.max(8, rockTouchDistance(rock) - 16);
 }
 
 function easeCamera(state, dt) {
@@ -2001,6 +2092,7 @@ function setRockRank(state, rock, rank) {
 }
 
 function softenWithPlasma(state, rock) {
+  bumpRock(rock);
   if (rockRank(rock) < 3) {
     noteStatus(state, 'Plasma only softens a three-star rock or higher.');
     return;
@@ -2010,6 +2102,7 @@ function softenWithPlasma(state, rock) {
 }
 
 function raiseWithBola(state, rock, missile) {
+  bumpRock(rock);
   if (!rock.bolaArmed) {
     rock.bolaArmed = true;
     rock.bolaHeading = Math.atan2(missile.vy, missile.vx);
@@ -2166,6 +2259,7 @@ function stepOneMissile(state, missile, dt, onHit, audio) {
           return;
         }
         missile.life = 0;
+        bumpRock(rock);
         if (missile.bolaKill) destroyBonusRock(state, rock, audio);
         else if (onHit) onHit(rock);
       }
@@ -2579,10 +2673,16 @@ function updateParticles(state, dt) {
   state.particles = state.particles.filter((bit) => bit.life > 0);
 }
 
+function takeDrop(state, itemId, count, level) {
+  const picked = itemById(itemId);
+  if (picked && picked.kind === 'mineral') return parkCollectedMineral(state, itemId, count, level);
+  return addItem(state, itemId, count, level);
+}
+
 function grantDrop(state, drop, audio) {
   const itemId = drop.itemId || 'pale';
   const count = drop.count != null ? drop.count : drop.amount || 1;
-  const left = addItem(state, itemId, count, drop.level);
+  const left = takeDrop(state, itemId, count, drop.level);
   const received = count - Math.max(0, left);
     if (received > 0) {
     announceCrafts(state);
@@ -2645,7 +2745,7 @@ function updateDrops(state, dt, audio) {
       }
       const itemId = drop.itemId || 'pale';
       const count = drop.count != null ? drop.count : drop.amount || 1;
-      const left = addItem(state, itemId, count, drop.level);
+      const left = takeDrop(state, itemId, count, drop.level);
       if (left < count) {
         announceCrafts(state);
         if (drop.tainted) markTaint(state, itemId, count - left);
@@ -2762,10 +2862,15 @@ function pushNotice(state, text, kind, time, icons) {
 
 function notePickup(state, itemId, tainted) {
   const picked = itemById(itemId);
+  if (picked && picked.kind === 'mineral') return;
   const name = picked ? picked.name : 'Item';
   const mark = tainted ? ' It is marked from C4.' : '';
-  if (picked && picked.kind === 'mineral') pushNotice(state, name + ' moved to the cargo.' + mark, 'loot', 2.2);
-  else pushNotice(state, name + ' added.' + mark, 'loot');
+  pushNotice(state, name + ' added.' + mark, 'loot');
+}
+
+function tickMineralHold(state) {
+  const names = releaseHeldMinerals(state, 600);
+  for (const name of new Set(names)) pushNotice(state, name + ' moved to the cargo.', 'loot', 2.2);
 }
 
 /** The first time a count becomes affordable, show its icon and point at F. */
@@ -2880,11 +2985,13 @@ export function updateFly(state, dt, ctx) {
     updateParticles(state, dt);
     updateDrops(state, dt, audio);
     state.clock += dt;
+    tickMineralHold(state);
     return;
   }
 
   for (const rock of state.asteroids) {
     rock.rot += rock.spin * dt;
+    if (rock.shake > 0) rock.shake = Math.max(0, rock.shake - dt);
     rock.x += Math.cos(rock.drift) * 12 * dt;
     rock.y += Math.sin(rock.drift) * 12 * dt;
     if (rock.x < 100 || rock.x > WORLD.w - 100) rock.drift = Math.PI - rock.drift;
@@ -2933,6 +3040,7 @@ export function updateFly(state, dt, ctx) {
   teachFlight(state, dt);
   reviewMilestones(state);
   state.clock += dt;
+  tickMineralHold(state);
   easeCamera(state, dt);
 }
 
@@ -2954,11 +3062,15 @@ export function updateTransition(state, dt) {
 export function idle(state, dt, audio) {
   decayRecoil(state, dt);
   state.clock += dt;
+  tickMineralHold(state);
   if (state.mode === 'dead' && state.deathReveal > 0) {
     state.deathReveal = Math.max(0, state.deathReveal - dt);
   }
   if (state.mode === 'title') state.ship.aim += dt * 0.15;
-  for (const rock of state.asteroids) rock.rot += rock.spin * dt;
+  for (const rock of state.asteroids) {
+    rock.rot += rock.spin * dt;
+    if (rock.shake > 0) rock.shake = Math.max(0, rock.shake - dt);
+  }
   tickStructures(state, dt);
   if (state.mode === 'extract') updateMissiles(state, dt, audio);
   updateParticles(state, dt);
@@ -3055,7 +3167,14 @@ export function hotbarIndex(state) {
   return n;
 }
 
-function stackView(stack, index, selected, key) {
+function stackBadge(state, stack) {
+  if (!stack) return '';
+  const ammoId = AMMO_OF[stack.id];
+  if (ammoId) return String((stack.rounds || 0) + countItem(state, ammoId));
+  return stack.count > 1 ? String(stack.count) : '';
+}
+
+function stackView(state, stack, index, selected, key) {
   const item = stack ? itemById(stack.id) : null;
   return {
     id: (key ? 'hot-' : 'cargo-') + (index + 1),
@@ -3068,7 +3187,7 @@ function stackView(stack, index, selected, key) {
     iconFilter: item ? iconFilter(stack.id) : 'none',
     color: item ? item.color : '',
     mark: item ? item.mark : '',
-    badge: stack && stack.count > 1 ? String(stack.count) : '',
+    badge: stackBadge(state, stack),
     selected: !!selected,
   };
 }
@@ -3081,7 +3200,7 @@ export function buildHotbar(state) {
   ensureInventory(state);
   const selected = hotbarIndex(state);
   const slots = state.hotbar.map((stack, index) =>
-    stackView(stack, index, index === selected, hotbarKey(index))
+    stackView(state, stack, index, index === selected, hotbarKey(index))
   );
   return {
     selected,
@@ -3096,7 +3215,7 @@ export function buildCargo(state) {
     open: state.mode === 'cargo',
     cols: CARGO_COLS,
     rows: CARGO_ROWS,
-    slots: state.cargoSlots.map((stack, index) => stackView(stack, index, false, '')),
+    slots: state.cargoSlots.map((stack, index) => stackView(state, stack, index, false, '')),
   };
 }
 
@@ -3129,7 +3248,7 @@ export function buildHull(state) {
     visible: hullPanelVisible(state.mode),
     slots: HULL_FITS.map((fit, index) => {
       const stack = state.hullSlots[index];
-      const view = stackView(stack, index, false, '');
+      const view = stackView(state, stack, index, false, '');
       const level = fit.accept === BOW_ID && stack ? bowLevel(stack) : 0;
       const canLevel = fit.accept === BOW_ID && !!stack && level < 3;
       return {
@@ -3159,27 +3278,28 @@ export function raiseBow(state, audio) {
   return true;
 }
 
-export function craftItem(state, recipeId, audio) {
+export function craftItem(state, recipeId, audio, times) {
   const id = typeof recipeId === 'string' ? recipeId : recipeId && recipeId.id;
   const recipe = recipeById(id);
   if (!recipe || !recipeOpen(state, recipe) || !canAfford(state, recipe.costs)) return false;
-  payCraftCosts(state, recipe);
-  const made = recipe.count || 1;
-  const left = addItem(state, recipe.result, made);
+  let limit = Infinity;
+  for (const cost of recipe.costs) {
+    const need = cost.n || 1;
+    limit = Math.min(limit, Math.floor(countItem(state, cost.id) / need));
+  }
+  const asked = Math.floor(Number(times));
+  const n = Math.min(limit, Number.isFinite(asked) && asked > 0 ? asked : 1);
+  if (n < 1) return false;
+  for (let i = 0; i < n; i += 1) payCraftCosts(state, recipe);
+  const made = (recipe.count || 1) * n;
+  const reload = weaponForAmmo(recipe.result);
+  const reloadGun = reload ? findHeld(state, reload) : null;
+  const left = reloadGun ? 0 : addItem(state, recipe.result, made);
+  if (reloadGun) reloadGun.rounds = (reloadGun.rounds || 0) + made;
   const ammoId = AMMO_OF[recipe.result];
   if (ammoId) {
-    const ammoLeft = addItem(state, ammoId, BASE_AMMO);
-    if (ammoLeft > 0) {
-      state.drops.push({
-        id: state.nextId++,
-        x: state.ship.x + 48,
-        y: state.ship.y,
-        itemId: ammoId,
-        count: ammoLeft,
-        life: 40,
-        maxLife: 40,
-      });
-    }
+    const gun = findHeld(state, recipe.result);
+    if (gun) gun.rounds = (gun.rounds || 0) + BASE_AMMO * n;
   }
   if (left > 0) {
     state.drops.push({
@@ -3193,14 +3313,18 @@ export function craftItem(state, recipeId, audio) {
     });
   }
   const name = ITEMS[recipe.result] ? ITEMS[recipe.result].name : recipe.result;
+  const tally = made > 1 ? name + ' × ' + made : name;
   if (left > 0) {
     state.status = name + ' dropped beside the ship. The hold is full.';
     state.statusTime = 3;
   } else if (ammoId) {
     const rounds = ITEMS[ammoId] ? ITEMS[ammoId].name : 'rounds';
-    pushNotice(state, name + ' added. ' + BASE_AMMO + ' ' + rounds + ' are in the cargo.', 'loot');
+    const loaded = BASE_AMMO * n;
+    pushNotice(state, tally + ' added. ' + loaded + ' ' + rounds + ' are loaded.', 'loot');
+  } else if (reloadGun) {
+    pushNotice(state, tally + ' loaded.', 'loot');
   } else {
-    pushNotice(state, name + ' added.', 'loot');
+    pushNotice(state, tally + ' added.', 'loot');
   }
   if (recipe.result === 'map') state.mapUnlocked = true;
   const madeSlot = state.hotbar.findIndex((stack) => stack && stack.id === recipe.result);
@@ -3328,9 +3452,30 @@ function flameCanHit(state) {
   return false;
 }
 
+function findHeld(state, id) {
+  for (const list of [state.hotbar, state.cargoSlots]) {
+    if (!list) continue;
+    const stack = list.find((entry) => entry && entry.id === id);
+    if (stack) return stack;
+  }
+  return null;
+}
+
+function weaponForAmmo(ammoId) {
+  for (const weaponId of Object.keys(AMMO_OF)) {
+    if (AMMO_OF[weaponId] === ammoId) return weaponId;
+  }
+  return '';
+}
+
 function trySpendAmmo(state, weaponId) {
   const ammoId = AMMO_OF[weaponId];
   if (!ammoId) return 'free';
+  const gun = findHeld(state, weaponId);
+  if (gun && gun.rounds > 0) {
+    gun.rounds -= 1;
+    return 'spent';
+  }
   if (countItem(state, ammoId) < 1) {
     const ammo = ITEMS[ammoId];
     noteStatus(state, (ammo ? ammo.name : 'Ammo') + ' is empty. Fabricate more.');
@@ -3578,13 +3723,35 @@ function applyUse(state, use, audio, world) {
     );
     return true;
   }
+  if (use === 'halo') {
+    let best = null;
+    let bestDist = Infinity;
+    for (const star of state.sunBodies || []) {
+      if (!star || star.layer !== state.layer) continue;
+      const dist = Math.hypot(star.x - ship.x, star.y - ship.y);
+      if (dist < bestDist) {
+        best = star;
+        bestDist = dist;
+      }
+    }
+    if (!best) noteStatus(state, 'No layer star on this layer.');
+    else {
+      const angle = Math.atan2(best.y - ship.y, best.x - ship.x);
+      const kind = best.kind === 'cinder' || best.kind === 'glint' ? best.kind : 'pale';
+      noteStatus(state, 'The nearest ' + kind + ' star is ' + bearingName(angle) + ', ' + Math.round(bestDist) + ' away.');
+    }
+    return true;
+  }
   if (use === 'gate') {
     const hole = state.wormhole || state.returnHole;
     if (!hole) {
       noteStatus(state, 'No gate on this layer.');
       return false;
     }
-    noteStatus(state, 'Gate is ' + Math.round(Math.hypot(hole.x - ship.x, hole.y - ship.y)) + ' away.');
+    const away = Math.round(Math.hypot(hole.x - ship.x, hole.y - ship.y));
+    const angle = Math.atan2(hole.y - ship.y, hole.x - ship.x);
+    state.relayCue = { x: hole.x, y: hole.y, until: state.clock + 20 };
+    noteStatus(state, 'Gate is ' + bearingName(angle) + ', ' + away + ' away.');
     return true;
   }
   if (use === 'repair') {
@@ -3704,7 +3871,8 @@ export function useSelectedHotbar(state, audio, world) {
   const item = itemById(stack.id);
   if (!item || !item.use) return false;
   if (!applyUse(state, item.use, audio, world)) return false;
-  if (!(item.use === 'shot' && AMMO_OF[stack.id])) {
+  const magazine = item.use === 'shot' && (AMMO_OF[stack.id] || SHOT_STYLE[stack.id]);
+  if (!magazine && item.use !== 'halo' && item.use !== 'gate') {
     stack.count -= 1;
     if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
   }

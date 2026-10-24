@@ -150,7 +150,7 @@ export function createAudio(scene) {
     },
     playShot(key) {
       if (key && playKey(key, { volume: 0.7 })) return true;
-      return api.shot();
+      return false;
     },
     hit() {
       playFirst(["impact_thud", "impact", "crash"]);

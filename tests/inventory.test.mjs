@@ -63,12 +63,8 @@ assert(buildHotbar(fresh).slots.every((slot) => slot.available), 'hotbar shows e
 const ore = createState();
 ore.hotbar[0] = { id: 'pale', count: 4 };
 ensureInventory(ore);
-assert(!ore.hotbar.some((stack) => stack && stack.id === 'pale'), 'minerals leave the hotbar');
-assert(ore.cargoSlots.some((stack) => stack && stack.id === 'pale' && stack.count === 4), 'minerals land in the cargo');
-assert(
-  ore.notices.some((note) => note.text === 'Pale ore moved to the cargo.'),
-  'a toast says the ore moved to the cargo'
-);
+assert(ore.hotbar.some((stack) => stack && stack.id === 'pale' && stack.count === 4), 'minerals stay on the hotbar');
+assert(!ore.notices.some((note) => note.text === 'Pale ore moved to the cargo.'), 'ore does not leave the hotbar immediately');
 
 selectHotbar(fresh, 0);
 cycleHotbar(fresh, 1);
@@ -119,6 +115,12 @@ assert(craftItem(craft, 'glass', null), 'prism glass crafts from a count');
 assert(countItem(craft, 'pale') === 0, 'recipe spends the pale ore');
 assert(countItem(craft, 'glass') === 1, 'result lands in the cargo');
 assert(craft.cargoSlots.some((stack) => stack && stack.id === 'glass'), 'glass is stored in the cargo');
+
+const expend = createState();
+addItem(expend, 'pale', 10);
+assert(craftItem(expend, 'glass', null, 99), 'expend crafts as many as the ore allows');
+assert(countItem(expend, 'glass') === 5, 'ten pale ore makes five prism glass');
+assert(countItem(expend, 'pale') === 0, 'expend spends the pale ore');
 const glass = RECIPES.find((recipe) => recipe.id === 'glass');
 assert(glass && Array.isArray(glass.costs) && glass.costs[0].n === 2, 'recipe is a count');
 assert(!('pattern' in glass) && !('grid' in glass), 'recipe has no crafting grid');
@@ -325,10 +327,18 @@ gather.drops.push({
   maxLife: 20,
 });
 idle(gather, 0.05, null);
-assert(countItem(gather, 'pale') === 2, 'flying onto a mineral puts it in the cargo');
+assert(gather.hotbar.some((stack) => stack && stack.id === 'pale' && stack.count === 2), 'flying onto a mineral puts it on the hotbar');
+assert(
+  !gather.notices.some((note) => note.text === 'Pale ore moved to the cargo.'),
+  'pickup does not move the ore yet'
+);
+gather.clock += 600;
+idle(gather, 0.05, null);
+assert(gather.cargoSlots.some((stack) => stack && stack.id === 'pale' && stack.count === 2), 'the ore moves to the cargo after ten minutes');
+assert(!gather.hotbar.some((stack) => stack && stack.id === 'pale'), 'the hotbar lets the ore go');
 assert(
   gather.notices.some((note) => note.text === 'Pale ore moved to the cargo.'),
-  'picking up asteroid ore toasts that it moved to the cargo'
+  'the move toasts that the ore went to the cargo'
 );
 
 const barePickup = createState();

@@ -112,7 +112,7 @@ const ALIEN_ICON = {
  * Ores copy the mineral crystal. Crafted parts, station pieces, and space finds use painted pictures. Weapons reuse a bullet or shot. Alien parts use their own picture.
  */
 export function slotIcon(id) {
-  if (id === 'star-clock' || id === 'dust-pale') return '/images/stars/star-pale.png';
+  if (id === 'star-clock' || id === 'dust-pale' || id === 'halo-lens') return '/images/stars/star-pale.png';
   if (id === 'dust-cinder') return '/images/stars/star-cinder.png';
   if (id === 'dust-glint') return '/images/stars/star-glint.png';
   if (Object.prototype.hasOwnProperty.call(ORE_SPRITE, id)) return '/assets/asteroids/mineral.png';
@@ -181,11 +181,12 @@ export const ITEMS = {
   map: { id: 'map', name: 'Layer map', mark: 'Mp', color: '#9ad7ff', tint: 0x9ad7ff, kind: 'hud', use: 'map', about: 'The small map in the bottom right of the flight view. Fabricating it turns that map on for this layer. Useful when you need to see rocks and the gate without flying blind.' },
   compass: { id: 'compass', name: 'Layer compass', mark: 'Lc', color: '#d2fff8', tint: 0xd2fff8, kind: 'hud', about: 'A hull instrument. Once it is worn, the flight view draws this layer as a line, with a dot for where the ship sits between the two ends, and the layer number beside that line. It is not used up from the hotbar. Useful after several jumps, when you need to know if you are far to the left or the right.' },
   'star-clock': { id: 'star-clock', name: 'Star clock', mark: 'Sc', color: '#ffe7a8', tint: 0xffe7a8, kind: 'hud', about: 'A carried copy of the belt sun. The sun’s name and arc are already on the flight view. Up is the half of the turn when a lair can let an alien out.' },
-  'dust-pale': { id: 'dust-pale', name: 'Pale dust', mark: 'Pd', color: '#e7f4ff', tint: 0xe7f4ff, kind: 'space', about: 'One mote shaken loose from a pale star’s halo. It is not Pale ore, and it cannot pay an ore cost.' },
+  'dust-pale': { id: 'dust-pale', name: 'Pale dust', mark: 'Pd', color: '#e7f4ff', tint: 0xe7f4ff, kind: 'space', about: 'One mote shaken loose from a pale star’s halo. It is not Pale ore, and it cannot pay an ore cost. The Halo lens spends one.' },
+  'halo-lens': { id: 'halo-lens', name: 'Halo lens', mark: 'Hl', color: '#e7f4ff', tint: 0xe7f4ff, kind: 'ability', use: 'halo', about: 'Reports the nearest layer star. Select it and left click. It is not used up. Fabricating it spends one Pale dust mote and one Prism glass.' },
   'dust-cinder': { id: 'dust-cinder', name: 'Cinder dust', mark: 'Ci', color: '#ffb15a', tint: 0xffb15a, kind: 'space', about: 'One mote from a cinder star’s halo. It is not Amber ore.' },
   'dust-glint': { id: 'dust-glint', name: 'Glint dust', mark: 'Gd', color: '#ffe27a', tint: 0xffe27a, kind: 'space', about: 'One mote from a glint star’s halo. It is not Glint ore.' },
   ping: { id: 'ping', name: 'Ore ping', mark: 'Op', color: '#ffd7a1', tint: 0xffd7a1, kind: 'hud', use: 'ping', about: 'Reports how far the nearest dropped mineral is. Use it from the hotbar. Useful when an extract dropped ore and you flew past it.' },
-  gate: { id: 'gate', name: 'Gate marker', mark: 'Gm', color: '#d2b4ff', tint: 0xd2b4ff, kind: 'hud', use: 'gate', about: 'Reports how far the wormhole or return gate is. Use it from the hotbar. Useful when the quota is met and you are looking for the jump.' },
+  gate: { id: 'gate', name: 'Gate marker', mark: 'Gm', color: '#d2b4ff', tint: 0xd2b4ff, kind: 'ability', use: 'gate', about: 'Points to the wormhole or the return gate. Select it and left click. The belt does not draw that arrow until this marker is fabricated. It is not used up.' },
   repair: { id: 'repair', name: 'Repair patch', mark: 'Rp', color: '#8dffb0', tint: 0x8dffb0, kind: 'ability', use: 'repair', about: 'Restores 40 hull, up to the maximum. Use it from the hotbar. Useful just after a bump, before the hull reaches zero.' },
   blink: { id: 'blink', name: 'Phase blink', mark: 'Bl', color: '#e7d6ff', tint: 0xe7d6ff, kind: 'ability', use: 'blink', about: 'Slides the ship forward a short hop along its aim. Use it from the hotbar. Useful for slipping past a rock that is blocking the gate.' },
   tractor: { id: 'tractor', name: 'Tractor pulse', mark: 'Tr', color: '#ffb15a', tint: 0xffb15a, kind: 'ability', use: 'tractor', about: 'Pulls nearby drops toward the ship. Use it from the hotbar. Useful when ore is sitting on the far side of a rock you do not want to scrape.' },
@@ -291,6 +292,7 @@ export const RECIPES = [
   { id: 'teleport', category: 'abilities', result: 'teleport', station: 'bench', count: 1, costs: [{ id: 'filament', n: 2 }, { id: 'lamp', n: 1 }, { id: 'glass', n: 2 }, { id: 'prism', n: 1 }] },
   { id: 'hyper', category: 'abilities', result: 'hyper', station: 'bench', count: 1, costs: [{ id: 'drive', n: 1 }, { id: 'iron', n: 3 }, { id: 'gem', n: 1 }, { id: 'ion', n: 1 }, { id: 'filament', n: 2 }] },
   { id: 'megajump', category: 'abilities', result: 'megajump', station: 'bench', count: 1, costs: [{ id: 'jumper', n: 1 }, { id: 'iron', n: 2 }, { id: 'glass', n: 2 }, { id: 'prism', n: 1 }, { id: 'resin', n: 2 }] },
+  { id: 'halo-lens', category: 'abilities', result: 'halo-lens', station: 'bench', count: 1, costs: [{ id: 'dust-pale', n: 1 }, { id: 'glass', n: 1 }] },
   { id: 'wall', category: 'construction', result: 'wall', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }, { id: 'slate', n: 2 }] },
   { id: 'panel', category: 'construction', result: 'panel', station: 'bench', count: 1, costs: [{ id: 'pale', n: 2 }, { id: 'slate', n: 4 }] },
   { id: 'corner', category: 'construction', result: 'corner', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }, { id: 'slate', n: 2 }, { id: 'wall', n: 1 }, { id: 'panel', n: 1 }] },
@@ -413,6 +415,7 @@ export function settleHotbar(state) {
   for (let i = 0; i < state.hotbar.length; i += 1) {
     const stack = state.hotbar[i];
     if (!stack || staysOnHotbar(stack.id)) continue;
+    if (ITEMS[stack.id] && ITEMS[stack.id].kind === 'mineral') continue;
     const before = stack.count;
     const tainted = Math.min(stack.tainted || 0, before);
     const left = addInto(state.cargoSlots, stack.id, stack.count, stack.level);
@@ -520,6 +523,60 @@ export function addItem(state, id, count, level) {
     left = addInto(state.cargoSlots, id, left, level);
   }
   return left;
+}
+
+/** Collected ore stays on the hotbar. The caller moves it to cargo later. */
+export function parkCollectedMineral(state, id, count, level) {
+  ensureInventory(state);
+  if (!ITEMS[id] || ITEMS[id].kind !== 'mineral' || count <= 0) return count;
+  let left = addInto(state.hotbar, id, count, level);
+  const onBar = count - left;
+  if (onBar > 0) {
+    if (!state.mineralHold) state.mineralHold = [];
+    state.mineralHold.push({ id, count: onBar, at: state.clock || 0 });
+  }
+  if (left > 0) left = addInto(state.cargoSlots, id, left, level);
+  return left;
+}
+
+/** Move ore whose hotbar time is up. Returns the names that actually moved. */
+export function releaseHeldMinerals(state, afterSec) {
+  if (!state || !state.mineralHold || !state.mineralHold.length) return [];
+  ensureInventory(state);
+  const wait = afterSec || 600;
+  const now = state.clock || 0;
+  const due = [];
+  const keep = [];
+  for (const entry of state.mineralHold) {
+    if (now - (entry.at || 0) >= wait) due.push(entry);
+    else keep.push(entry);
+  }
+  state.mineralHold = keep;
+  const names = [];
+  for (const entry of due) {
+    let left = entry.count;
+    let sentAny = 0;
+    for (let i = 0; i < state.hotbar.length && left > 0; i += 1) {
+      const stack = state.hotbar[i];
+      if (!stack || stack.id !== entry.id) continue;
+      const take = Math.min(stack.count, left);
+      const unfit = addInto(state.cargoSlots, entry.id, take, stack.level);
+      const sent = take - Math.max(0, unfit);
+      if (sent <= 0) continue;
+      const tainted = Math.min(stack.tainted || 0, sent);
+      stack.count -= sent;
+      stack.tainted = Math.max(0, (stack.tainted || 0) - tainted);
+      if (stack.count <= 0) state.hotbar[i] = null;
+      if (tainted > 0) markTaint(state, entry.id, tainted, [state.cargoSlots]);
+      left -= sent;
+      sentAny += sent;
+    }
+    if (sentAny > 0) {
+      const item = ITEMS[entry.id];
+      names.push(item ? item.name : entry.id);
+    }
+  }
+  return names;
 }
 
 export function removeItems(state, id, count) {
