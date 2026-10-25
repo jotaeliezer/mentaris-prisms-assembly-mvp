@@ -3,7 +3,6 @@ import { ASTEROID_FILES, DEFAULT_SHIP, MINERAL_FILE } from '../assetsManifest.js
 import { createAudio } from '../audio.js';
 import {
   applyCameraPolish,
-  applySpeedStretch,
   layerTransitionFx,
   rockDisplayScale,
   recoilOffset,
@@ -859,7 +858,13 @@ export default class PlayScene extends Phaser.Scene {
       if (view.flame) {
         syncFlame(
           view.flame,
-          { x: remote.x, y: remote.y, aim: remote.aim, thrust: visible ? remote.thrust || 0 : 0 },
+          {
+            x: remote.x,
+            y: remote.y,
+            aim: remote.aim,
+            thrust: visible ? remote.thrust || 0 : 0,
+            sprite: remote.sprite,
+          },
           1,
           this.state.clock || 0
         );
@@ -1692,8 +1697,8 @@ export default class PlayScene extends Phaser.Scene {
     if (this.reverseGfx) syncReverse(this.reverseGfx, ship, flameScale, this.state.clock);
 
     applyCameraPolish(this.cameras.main, this.state);
+    if (this.game && this.game.canvas) this.game.canvas.style.transform = '';
     this.syncVeils();
-    if (this.game && this.game.canvas) applySpeedStretch(this.game.canvas, this.state);
     this.syncLayerRocks(fx);
 
     const seenDrops = new Set();

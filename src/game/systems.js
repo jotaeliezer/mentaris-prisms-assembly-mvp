@@ -3045,8 +3045,8 @@ export function updatePhysics(state, dt, input) {
   if (ship.braking) ship.reverse = Math.min(1, (ship.reverse || 0) + dt / 0.28);
   else ship.reverse = Math.max(0, (ship.reverse || 0) - dt / 0.5);
 
-  const accel = 520;
-  const reverseAccel = accel * 1.45;
+  const accel = 520 * 1.1;
+  const reverseAccel = 520 * 1.45;
   if (thrust && !brake) {
     const push = 0.42 + 0.58 * ship.thrust;
     ship.vx += Math.cos(ship.aim) * accel * push * dt;
@@ -3084,27 +3084,6 @@ export function updatePhysics(state, dt, input) {
   ship.y += ship.vy * dt;
   containShip(state);
   tickStructures(state, dt);
-  noteAccelStretch(state, dt);
-}
-
-/** Brief stretch along the acceleration, strongest while speed is still building. */
-function noteAccelStretch(state, dt) {
-  const ship = state.ship;
-  if (!ship || !(dt > 0)) return;
-  if (ship._sx == null) {
-    ship._sx = ship.vx;
-    ship._sy = ship.vy;
-    return;
-  }
-  const ax = (ship.vx - ship._sx) / dt;
-  const ay = (ship.vy - ship._sy) / dt;
-  ship._sx = ship.vx;
-  ship._sy = ship.vy;
-  const mag = Math.hypot(ax, ay);
-  const kick = Math.min(0.085, mag / 2600);
-  const prev = state.speedStretch || 0;
-  state.speedStretch = Math.max(kick, prev * Math.exp(-dt / 0.14));
-  if (mag > 80) state.speedStretchAngle = Math.atan2(ay, ax);
 }
 
 export function updateFly(state, dt, ctx) {

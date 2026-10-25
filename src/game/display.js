@@ -26,9 +26,37 @@ export function syncStars(gfx, stars, camera, w, h, fade = 1) {
   }
 }
 
+/** Hull art whose rear exhaust is a pair, not a single center plume. */
+const TWIN_THRUSTERS = new Set([
+  'Azure Lancer.png',
+  'BU2X.png',
+  'Crimson MK-7.png',
+  'Cyan Vector 7.png',
+  'D.A.T. Sawze.png',
+  'Mantas - Arc 5 (1).png',
+  'Mantas - Arc 5.png',
+  'Ruby Strike.png',
+  'Scarlet Classic.png',
+  'VER-DE-9.png',
+  'Veloz Mas.png',
+  'White Flame 8.png',
+]);
+
+function plume(gfx, x, y, wag, length, burn, flick, spread) {
+  gfx.fillStyle(0x7ee7ff, 0.22 * burn);
+  gfx.fillTriangle(x - 16 * spread, y, x + wag, y + 2 + length * 1.15, x + 16 * spread, y);
+  gfx.fillStyle(0x5fd8ff, 0.55 * flick);
+  gfx.fillTriangle(x - 9 * spread, y + 2, x + wag * 0.6, y + 2 + length, x + 9 * spread, y + 2);
+  gfx.fillStyle(0xbff6ff, 0.9);
+  gfx.fillTriangle(x - 4.5 * spread, y, x + wag * 0.3, y + length * 0.72, x + 4.5 * spread, y);
+  gfx.fillStyle(0xfff8e4, 0.95);
+  gfx.fillTriangle(x - 2 * spread, y - 2, x, y - 2 + length * 0.38, x + 2 * spread, y - 2);
+}
+
 /**
  * Thruster flame in ship-local space — matches legacy js/render.js drawFlame.
  * Sets gfx position/rotation/scale to the ship; call near ship draw.
+ * Local +Y is the tail. Twin-exhaust hulls get a flame on each nozzle.
  */
 export function syncFlame(gfx, ship, shipScale = 1, time = 0) {
   gfx.clear();
@@ -43,17 +71,19 @@ export function syncFlame(gfx, ship, shipScale = 1, time = 0) {
   gfx.setRotation(ship.aim + Math.PI / 2);
   gfx.setScale(shipScale);
 
-  const wag = Math.sin(time * 28) * 3.5 * burn;
   const flick = 0.86 + Math.sin(time * 46) * 0.08 + Math.sin(time * 17) * 0.05;
+  const twin = TWIN_THRUSTERS.has(ship.sprite);
+  if (twin) {
+    const length = (16 + burn * 40) * flick;
+    for (const side of [-1, 1]) {
+      const wag = Math.sin(time * 28 + side) * 2.2 * burn;
+      plume(gfx, side * 16, 22, wag, length, burn, flick, 0.62);
+    }
+    return;
+  }
+  const wag = Math.sin(time * 28) * 3.5 * burn;
   const length = (22 + burn * 54) * flick;
-  gfx.fillStyle(0x7ee7ff, 0.22 * burn);
-  gfx.fillTriangle(-16, 16, wag, 18 + length * 1.15, 16, 16);
-  gfx.fillStyle(0x5fd8ff, 0.55 * flick);
-  gfx.fillTriangle(-9, 18, wag * 0.6, 18 + length, 9, 18);
-  gfx.fillStyle(0xbff6ff, 0.9);
-  gfx.fillTriangle(-4.5, 16, wag * 0.3, 16 + length * 0.72, 4.5, 16);
-  gfx.fillStyle(0xfff8e4, 0.95);
-  gfx.fillTriangle(-2, 14, 0, 14 + length * 0.38, 2, 14);
+  plume(gfx, 0, 16, wag, length, burn, flick, 1);
 }
 
 /**
@@ -151,33 +181,6 @@ export function applyCameraPolish(cam, state) {
     cam.scrollX += flip * amp;
     cam.scrollY += flipY * amp * 0.7;
   }
-}
-
-/** Stretch the painted frame along the ship's acceleration. Gameplay positions stay put. */
-export function applySpeedStretch(canvas, state) {
-  if (!canvas || !canvas.style) return;
-  const amount = state && state.speedStretch ? state.speedStretch : 0;
-  if (amount < 0.004) {
-    if (canvas.style.transform) canvas.style.transform = '';
-    canvas._speedStretch = null;
-    return;
-  }
-  const angle = state.speedStretchAngle || 0;
-  const along = 1 + amount;
-  const across = 1 - amount * 0.55;
-  const deg = (angle * 180) / Math.PI;
-  canvas.style.transformOrigin = '50% 50%';
-  canvas.style.transform =
-    'rotate(' +
-    deg.toFixed(2) +
-    'deg) scale(' +
-    along.toFixed(4) +
-    ', ' +
-    across.toFixed(4) +
-    ') rotate(' +
-    (-deg).toFixed(2) +
-    'deg)';
-  canvas._speedStretch = { angle, along, across };
 }
 
 /**
