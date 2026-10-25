@@ -3,6 +3,7 @@ import { ASTEROID_FILES, DEFAULT_SHIP, MINERAL_FILE } from '../assetsManifest.js
 import { createAudio } from '../audio.js';
 import {
   applyCameraPolish,
+  applySpeedStretch,
   layerTransitionFx,
   rockDisplayScale,
   recoilOffset,
@@ -1085,6 +1086,27 @@ export default class PlayScene extends Phaser.Scene {
     this.plateSprites.clear();
   }
 
+  ensureLairTexture() {
+    if (this.textures.exists('lair-mouth')) return 'lair-mouth';
+    const gfx = this.make.graphics({ x: 0, y: 0, add: false });
+    gfx.fillStyle(0x1a0c24, 1);
+    gfx.fillCircle(128, 128, 118);
+    gfx.lineStyle(14, 0xc45cff, 1);
+    gfx.strokeCircle(128, 128, 96);
+    gfx.fillStyle(0x3a1848, 1);
+    gfx.fillCircle(128, 128, 62);
+    gfx.fillStyle(0xff7ad8, 1);
+    gfx.fillCircle(128, 140, 22);
+    gfx.fillStyle(0xfff1c9, 1);
+    for (let i = 0; i < 8; i += 1) {
+      const a = -2.4 + (i / 7) * 4.8;
+      gfx.fillCircle(128 + Math.cos(a) * 78, 128 + Math.sin(a) * 78, 8);
+    }
+    gfx.generateTexture('lair-mouth', 256, 256);
+    gfx.destroy();
+    return 'lair-mouth';
+  }
+
   syncBodies() {
     if (!this.bodySprites) this.bodySprites = new Map();
     const bodies = []
@@ -1092,12 +1114,18 @@ export default class PlayScene extends Phaser.Scene {
       .filter((body) => body.layer === this.state.layer);
     const seen = new Set();
     for (const body of bodies) {
+      if (body.kind === 'nebula') continue;
       const id = body.id || (body.kind || 'body') + ':' + body.layer + ':' + Math.round(body.x) + ':' + Math.round(body.y);
       seen.add(id);
       let sprite = this.bodySprites.get(id);
       if (!sprite || !sprite.scene) {
         if (sprite) sprite.destroy();
-        const texture = body.key && this.textures.exists(body.key) ? body.key : null;
+        const texture =
+          body.kind === 'lair'
+            ? this.ensureLairTexture()
+            : body.key && this.textures.exists(body.key)
+              ? body.key
+              : null;
         const diameter = (body.r || 80) * 2;
         sprite = texture
           ? this.add.image(body.x, body.y, texture)
@@ -1105,13 +1133,7 @@ export default class PlayScene extends Phaser.Scene {
               body.x,
               body.y,
               body.r || 80,
-              body.kind === 'lair'
-                ? 0x241433
-                : body.kind === 'relay'
-                  ? 0x7ee7ff
-                  : body.key && String(body.key).startsWith('star')
-                    ? 0xfff1c2
-                    : 0xc5d0dc,
+              body.kind === 'relay' ? 0x7ee7ff : body.key && String(body.key).startsWith('star') ? 0xfff1c2 : 0xc5d0dc,
               1
             );
         sprite.setDepth(body.key && String(body.key).startsWith('star') ? 3 : 2);
@@ -1121,6 +1143,8 @@ export default class PlayScene extends Phaser.Scene {
       }
       sprite.setPosition(body.x, body.y);
       if (sprite.setRotation && Number.isFinite(body.rot)) sprite.setRotation(body.rot);
+      if (body.kind === 'wreck' && sprite.setTint) sprite.setTint(0x9aa4b0);
+      else if (sprite.clearTint) sprite.clearTint();
       if (body.kind === 'relay' && sprite.setAlpha) {
         const resting = body.restUntil && this.state.clock < body.restUntil;
         const blink = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin((this.state.clock || 0) * 3.2));
@@ -1232,6 +1256,66 @@ export default class PlayScene extends Phaser.Scene {
       gfx.fillPath();
       gfx.strokePath();
     }
+  }
+
+  syncVeils() {
+    if (!this.veilSprites) this.veilSprites = new Map();
+    const behind = !!this.state.cloudBehind;
+    const active = this.state.cloudId || '';
+    const veils = [];
+    for (const object of this.state.spaceObjects || []) {
+      if (!object || object.layer !== this.state.layer || object.kind !== 'nebula') continue;
+      veils.push({ id: object.id, key: 'nebula-cloud.png', x: object.x, y: object.y, r: object.r || 4600 });
+    }
+    for (const star of this.state.sunBodies || []) {
+      if (!star || star.layer !== this.state.layer) continue;
+      const spin = star.dustSpin || 0;
+      veils.push({
+        id: 'dust:' + star.x + ':' + star.y,
+        key: 'star-dust-cloud.png',
+        x: star.x + Math.cos(spin) * 520,
+        y: star.y + Math.sin(spin) * 360,
+        r: 2800,
+        tint: star.kind === 'cinder' ? 0xffc48a : star.kind === 'glint' ? 0xffe7a0 : 0xffffff,
+      });
+    }
+    const seen = new Set();
+    for (const veil of veils) {
+      if (!this.textures.exists(veil.key)) continue;
+      seen.add(veil.id);
+      seen.add('front:' + veil.id);
+      const back = this.paintVeil(veil.id, veil, 3, 0.92);
+      if (back && veil.tint && back.setTint) back.setTint(veil.tint);
+      const showFront = behind && active === veil.id;
+      const front = this.paintVeil('front:' + veil.id, veil, 16, showFront ? 0.55 : 0);
+      if (front) {
+        front.setVisible(showFront);
+        if (veil.tint && front.setTint) front.setTint(veil.tint);
+      }
+    }
+    for (const [id, sprite] of this.veilSprites) {
+      if (seen.has(id)) continue;
+      sprite.destroy();
+      this.veilSprites.delete(id);
+    }
+  }
+
+  paintVeil(id, veil, depth, alpha) {
+    let sprite = this.veilSprites.get(id);
+    if (!sprite || !sprite.scene) {
+      if (sprite) sprite.destroy();
+      sprite = this.add.image(veil.x, veil.y, veil.key);
+      sprite.setDepth(depth);
+      sprite.setOrigin(0.5, 0.5);
+      this.refreshUiIgnore(sprite);
+      this.veilSprites.set(id, sprite);
+    }
+    const size = (veil.r || 2000) * 2;
+    sprite.setPosition(veil.x, veil.y);
+    sprite.setDisplaySize(size, size);
+    sprite.setAlpha(alpha);
+    sprite.setVisible(alpha > 0.02);
+    return sprite;
   }
 
   syncStation() {
@@ -1594,7 +1678,8 @@ export default class PlayScene extends Phaser.Scene {
       const draw = hullDraw(this, key, SHIP_DRAW * shipScale);
       this.shipSprite.setDisplaySize(draw.w, draw.h);
       const veil = this.state.cloak > 0 ? 0.32 : 1;
-      this.shipSprite.setAlpha(intro.ship * veil);
+      const behind = this.state.cloudBehind ? 0.42 : 1;
+      this.shipSprite.setAlpha(intro.ship * veil * behind);
       this.shipSprite.setVisible(
         intro.ship > 0.02 && this.state.mode !== 'title' && this.state.mode !== 'dead'
       );
@@ -1607,6 +1692,8 @@ export default class PlayScene extends Phaser.Scene {
     if (this.reverseGfx) syncReverse(this.reverseGfx, ship, flameScale, this.state.clock);
 
     applyCameraPolish(this.cameras.main, this.state);
+    this.syncVeils();
+    if (this.game && this.game.canvas) applySpeedStretch(this.game.canvas, this.state);
     this.syncLayerRocks(fx);
 
     const seenDrops = new Set();

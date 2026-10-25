@@ -503,7 +503,10 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
                 >
                   {slot.available ? (
                     <SlotFace icon={slot.icon} iconFilter={slot.iconFilter} mark={slot.mark} color={slot.color} />
-                  ) : null}
+                  ) : (
+                    <span className="hull-slot-label">{slot.slotLabel}</span>
+                  )}
+                  {slot.levelLabel ? <span className="hull-level">{slot.levelLabel}</span> : null}
                 </button>
               </div>
             ))}

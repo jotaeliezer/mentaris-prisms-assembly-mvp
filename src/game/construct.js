@@ -229,7 +229,7 @@ function surfacePose(state, x, y) {
   const dx = x - planet.x;
   const dy = y - planet.y;
   const dist = Math.hypot(dx, dy) || 1;
-  if (Math.abs(dist - planet.r) > 110) return null;
+  if (dist > planet.r + 180) return null;
   const nx = dx / dist;
   const ny = dy / dist;
   return {

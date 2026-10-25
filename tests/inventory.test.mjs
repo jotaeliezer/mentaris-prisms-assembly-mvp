@@ -540,8 +540,8 @@ assert(
   'a held ore stack keeps its picture'
 );
 assert(
-  HULL_FITS.map((slot) => slot.accept).join(',') === 'jumper,bench,compass,bow',
-  'bow plating is the only armor slot'
+  HULL_FITS.map((slot) => slot.accept).join(',') === 'jumper,bench,compass,bow,plating,ward,housing',
+  'the hull panel wears the instruments and the four armor slots'
 );
 const bowRecipe = RECIPES.find((recipe) => recipe.id === 'bow');
 assert(

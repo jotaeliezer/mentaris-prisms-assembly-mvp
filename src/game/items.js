@@ -41,6 +41,9 @@ const MADE_ICON = {
   hyper: 'hyperdrive.png',
   megajump: 'megajump.png',
   bow: 'bow.png',
+  plating: 'hull.png',
+  ward: 'shield.png',
+  housing: 'dash.png',
   wall: 'wall.png',
   panel: 'panel.png',
   corner: 'corner.png',
@@ -204,6 +207,9 @@ export const ITEMS = {
   /** Placeholder cost. The real jumper ingredients are still open. */
   jumper: { id: 'jumper', name: 'Layer jumper', mark: 'Jp', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'ship', about: 'A carried part that unlocks Q and E layer travel. It is not used up by a jump. If a hull breach drops it, layer travel locks until you pick it up. The 4 Pale ore cost is a stand-in.' },
   bow: { id: 'bow', name: 'Bow plating', mark: 'Bp', color: '#d5e6ff', tint: 0xd5e6ff, kind: 'ship', about: 'Worn in the hull panel. A rock hit does a little less damage. Level 1 is a modest change, and the piece can be raised to level 3. The 3 Pale ore count and the raise cost are stand-ins.' },
+  plating: { id: 'plating', name: 'Hull plating', mark: 'Hp', color: '#c5d4e4', tint: 0xc5d4e4, kind: 'ship', about: 'Worn in the hull panel. Raises maximum hull. The Pale ore count is a stand-in.' },
+  ward: { id: 'ward', name: 'Shield plate', mark: 'Wd', color: '#9be7ff', tint: 0x9be7ff, kind: 'ship', about: 'Worn in the hull panel. After a hit, the next hit in a short moment is ignored. The Pale ore count is a stand-in.' },
+  housing: { id: 'housing', name: 'Thruster housing', mark: 'Th', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'ship', about: 'Worn in the hull panel. Raises top speed. The Pale ore count is a stand-in.' },
   bench: { id: 'bench', name: 'Fabrication Tool', mark: 'Fb', color: '#d7e4ff', tint: 0xd7e4ff, kind: 'station', about: 'A carried emitter. Keep it in the hotbar or cargo and the bay opens the rest of the index. Drop it on a hull breach and those counts close until you pick it up.' },
   gland: { id: 'gland', name: 'Spark gland', mark: 'Sg', color: '#7dff9a', tint: 0x7dff9a, kind: 'alien', about: 'A green charge from a scout. Store it in the hotbar or cargo. It is the part for a strong energy weapon, and the gunship room spends one. The belt does not drop it until a lair opens.' },
   fiber: { id: 'fiber', name: 'Grip fiber', mark: 'Gf', color: '#d5d8df', tint: 0xd5d8df, kind: 'alien', about: 'A coil from a spider. Store it until a later count makes Quiet running last longer. It is not worn.' },
@@ -251,13 +257,13 @@ export const RECIPES = [
   { id: 'pulse-lance', category: 'weapons', result: 'pulse-lance', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'amber', n: 1 }] },
   { id: 'core-cannon', category: 'weapons', result: 'core-cannon', station: 'bench', reveal: 'core', count: 1, costs: [{ id: 'core', n: 1 }, { id: 'iron', n: 2 }, { id: 'glass', n: 1 }] },
   { id: 'flare', category: 'weapons', result: 'flare', station: 'bench', count: 1, costs: [{ id: 'pale', n: 1 }, { id: 'glass', n: 1 }] },
-  { id: 'ice-shot', category: 'weapons', result: 'ice-shot', station: 'bench', count: 1, costs: [{ id: 'slate', n: 2 }, { id: 'wire', n: 1 }, { id: 'shard', n: 1 }, { id: 'foil', n: 1 }, { id: 'salvage', n: 2 }] },
-  { id: 'fire-shot', category: 'weapons', result: 'fire-shot', station: 'bench', count: 1, costs: [{ id: 'amber', n: 3 }, { id: 'resin', n: 1 }, { id: 'spike', n: 1 }, { id: 'comet', n: 2 }, { id: 'glass', n: 1 }] },
-  { id: 'laser-shot', category: 'weapons', result: 'laser-shot', station: 'bench', count: 1, costs: [{ id: 'glass', n: 2 }, { id: 'wire', n: 1 }, { id: 'lamp', n: 1 }, { id: 'pale', n: 2 }] },
+  { id: 'ice-shot', category: 'weapons', result: 'ice-shot', station: 'bench', count: 1, costs: [{ id: 'slate', n: 1 }, { id: 'wire', n: 1 }, { id: 'shard', n: 1 }, { id: 'foil', n: 1 }, { id: 'salvage', n: 1 }] },
+  { id: 'fire-shot', category: 'weapons', result: 'fire-shot', station: 'bench', count: 1, costs: [{ id: 'amber', n: 2 }, { id: 'resin', n: 1 }, { id: 'spike', n: 1 }, { id: 'comet', n: 1 }, { id: 'glass', n: 1 }] },
+  { id: 'laser-shot', category: 'weapons', result: 'laser-shot', station: 'bench', count: 1, costs: [{ id: 'glass', n: 1 }, { id: 'wire', n: 1 }, { id: 'lamp', n: 1 }, { id: 'pale', n: 1 }] },
   { id: 'electric-shot', category: 'weapons', result: 'electric-shot', station: 'bench', count: 1, costs: [{ id: 'wire', n: 1 }, { id: 'gland', n: 1 }, { id: 'ion', n: 1 }] },
   { id: 'bola-shot', category: 'weapons', result: 'bola-shot', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'fiber', n: 1 }, { id: 'salvage', n: 2 }] },
   { id: 'plasma-shot', category: 'weapons', result: 'plasma-shot', station: 'bench', count: 1, costs: [{ id: 'filament', n: 1 }, { id: 'lamp', n: 1 }, { id: 'virid', n: 1 }] },
-  { id: 'rail-shot', category: 'weapons', result: 'rail-shot', station: 'bench', count: 1, costs: [{ id: 'gem', n: 1 }, { id: 'iron', n: 2 }, { id: 'wire', n: 1 }, { id: 'spike', n: 1 }, { id: 'prism', n: 2 }] },
+  { id: 'rail-shot', category: 'weapons', result: 'rail-shot', station: 'bench', count: 1, costs: [{ id: 'gem', n: 1 }, { id: 'iron', n: 1 }, { id: 'wire', n: 1 }, { id: 'spike', n: 1 }, { id: 'prism', n: 1 }] },
   { id: 'ice-ammo', category: 'weapons', result: 'ice-ammo', station: 'bench', count: 50, costs: [{ id: 'slate', n: 1 }] },
   { id: 'fire-ammo', category: 'weapons', result: 'fire-ammo', station: 'bench', count: 50, costs: [{ id: 'amber', n: 1 }] },
   { id: 'laser-ammo', category: 'weapons', result: 'laser-ammo', station: 'bench', count: 50, costs: [{ id: 'glass', n: 1 }] },
@@ -267,6 +273,9 @@ export const RECIPES = [
   { id: 'hint', category: 'ship', result: 'hint', station: 'bench', count: 1, costs: [{ id: 'glass', n: 1 }] },
   { id: 'jumper', category: 'ship', result: 'jumper', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }] },
   { id: 'bow', category: 'ship', result: 'bow', station: 'bench', count: 1, costs: [{ id: 'pale', n: 3 }], standIn: true },
+  { id: 'plating', category: 'ship', result: 'plating', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }], standIn: true },
+  { id: 'ward', category: 'ship', result: 'ward', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }], standIn: true },
+  { id: 'housing', category: 'ship', result: 'housing', station: 'bench', count: 1, costs: [{ id: 'pale', n: 4 }], standIn: true },
   { id: 'iron', category: 'alloys', result: 'iron', station: 'bench', count: 1, costs: [{ id: 'pale', n: 2 }, { id: 'amber', n: 1 }] },
   { id: 'resin', category: 'alloys', result: 'resin', station: 'bench', count: 1, costs: [{ id: 'amber', n: 2 }] },
   { id: 'filament', category: 'alloys', result: 'filament', station: 'bench', count: 1, costs: [{ id: 'resin', n: 1 }, { id: 'glass', n: 1 }] },
@@ -283,7 +292,7 @@ export const RECIPES = [
   { id: 'tractor', category: 'abilities', result: 'tractor', station: 'bench', count: 1, costs: [{ id: 'resin', n: 1 }, { id: 'pale', n: 1 }] },
   { id: 'quiet', category: 'abilities', result: 'quiet', station: 'bench', count: 1, costs: [{ id: 'amber', n: 1 }, { id: 'pale', n: 2 }] },
   { id: 'cloak', category: 'abilities', result: 'cloak', station: 'bench', count: 1, costs: [{ id: 'filament', n: 2 }, { id: 'resin', n: 1 }, { id: 'glass', n: 1 }, { id: 'amber', n: 2 }] },
-  { id: 'dash', category: 'abilities', result: 'dash', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'amber', n: 2 }, { id: 'pale', n: 2 }] },
+  { id: 'dash', category: 'abilities', result: 'dash', station: 'bench', count: 1, costs: [{ id: 'iron', n: 1 }, { id: 'amber', n: 1 }, { id: 'pale', n: 1 }] },
   { id: 'belt-drill', category: 'abilities', result: 'belt-drill', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'slate', n: 2 }, { id: 'pale', n: 4 }] },
   { id: 'excavator', category: 'abilities', result: 'excavator', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'amber', n: 2 }, { id: 'virid', n: 1 }, { id: 'glass', n: 1 }] },
   { id: 'c4', category: 'abilities', result: 'c4', station: 'bench', count: 1, costs: [{ id: 'glint', n: 2 }, { id: 'virid', n: 2 }, { id: 'amber', n: 2 }, { id: 'resin', n: 1 }, { id: 'spike', n: 1 }, { id: 'comet', n: 2 }] },
@@ -318,6 +327,9 @@ export const HULL_FITS = [
   { accept: 'bench', label: 'Fabrication Tool' },
   { accept: 'compass', label: 'Layer compass' },
   { accept: 'bow', label: 'Bow plating' },
+  { accept: 'plating', label: 'Hull plating' },
+  { accept: 'ward', label: 'Shield' },
+  { accept: 'housing', label: 'Thruster housing' },
 ];
 
 export const BOW_ID = 'bow';
@@ -325,16 +337,24 @@ export const BOW_MAX_LEVEL = 3;
 /** Stand-in until the real counts are chosen. A few Pale ore, spent from the hotbar, then the cargo. */
 export const BOW_LEVEL_COST = [{ id: 'pale', n: 3 }];
 
-export function bowLevel(stack) {
-  if (!stack || stack.id !== BOW_ID) return 0;
+const LEVELED_HULL = new Set(['bow', 'plating', 'ward', 'housing']);
+
+export function pieceLevel(stack) {
+  if (!stack || !LEVELED_HULL.has(stack.id)) return 0;
   const n = Number(stack.level);
   if (!Number.isInteger(n) || n < 1) return 1;
   return n > BOW_MAX_LEVEL ? BOW_MAX_LEVEL : n;
 }
 
+export function bowLevel(stack) {
+  return stack && stack.id === BOW_ID ? pieceLevel(stack) : 0;
+}
+
 function pieceStack(id, count, level) {
   const stack = { id, count };
-  if (id === BOW_ID) stack.level = bowLevel({ id: BOW_ID, level });
+  if (id === 'bow' || id === 'plating' || id === 'ward' || id === 'housing') {
+    stack.level = pieceLevel({ id, level: level || 1 });
+  }
   return stack;
 }
 
@@ -629,12 +649,14 @@ export function payCraftCosts(state, recipe) {
 }
 
 /** Raise worn bow plating by one level. 'short', 'max', 'empty', or the new level. */
-export function raiseBowPlating(state) {
+export function raiseBowPlating(state, id) {
   ensureInventory(state);
-  const index = HULL_FITS.findIndex((slot) => slot.accept === BOW_ID);
+  const pieceId = id || BOW_ID;
+  const index = HULL_FITS.findIndex((slot) => slot.accept === pieceId);
   const stack = index < 0 ? null : state.hullSlots[index];
-  if (!stack || stack.id !== BOW_ID) return 'empty';
-  const level = bowLevel(stack);
+  if (!stack || stack.id !== pieceId) return 'empty';
+  const level = pieceLevel(stack);
+  if (!level) return 'empty';
   if (level >= BOW_MAX_LEVEL) return 'max';
   if (!canAfford(state, BOW_LEVEL_COST)) return 'short';
   for (const cost of BOW_LEVEL_COST) {

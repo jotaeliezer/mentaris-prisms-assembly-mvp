@@ -42,6 +42,7 @@ import {
   addItem,
   RECIPES,
   bowLevel,
+  pieceLevel,
   canAfford,
   costLabel,
   countItem,
@@ -352,6 +353,7 @@ export function openExtract(state, rockId, audio) {
   state.targetId = id;
   state.buffer = '';
   state.hint = '';
+  teachOnce(state, 'extract', 'Answer on the numpad. A correct answer leaves the crystals beside the rock.');
   if (audio) {
     if (typeof audio.extractStart === 'function') audio.extractStart();
     else if (typeof audio.lock === 'function') audio.lock();
@@ -405,7 +407,7 @@ export function populateField(state) {
   ensureScenery(state);
 }
 
-const PLANET_RADIUS = { small: 520, great: 1100, vast: 2200 };
+const PLANET_RADIUS = { small: 624, great: 1320, vast: 2640 };
 
 /** One planet and a few stars on this layer. The planet stays put. A base can sit on its rim. */
 export function ensureScenery(state) {
@@ -488,6 +490,17 @@ export function ensureScenery(state) {
     if (rng() < 0.35) place('stronghold', 'stronghold.png', 160);
     if (rng() < 0.4) place('comet', 'comet.png', 70);
     if (rng() < 0.55) place('relay', '', 36, { floatSpeed: 0, spin: 0 });
+    if (rng() < 0.16) place('wreck', 'station-satellite.png', 58, { loot: 'salvage' });
+    if (rng() < 0.07) {
+      const rare = rng() < 0.45 ? 'glint' : rng() < 0.55 ? 'virid' : 'dust-glint';
+      place('crate', 'station-vault.png', 42, { loot: rare });
+    }
+    if (rng() < 0.62) {
+      place('nebula', 'nebula-cloud.png', 4600, { floatSpeed: 0, spin: 0.01 });
+    }
+    if (rng() < 0.08 && !state.spaceObjects.some((object) => object.kind === 'hole' && object.cluster === cluster)) {
+      place('hole', 'black-hole.png', 1500, { floatSpeed: 0, spin: 0.04 });
+    }
   }
   ensureLair(state);
 }
@@ -590,6 +603,17 @@ function tickSpaceObjects(state, dt) {
       const parts = ['gland', 'shard', 'lamp', 'chart', 'core'];
       spillFind(state, parts[Math.floor(state.rng() * parts.length)], object.x, object.y);
       grantMilestone(state, 'stronghold');
+    }
+    if (object.kind === 'wreck' && dist < 120 && !object.taken) {
+      object.taken = true;
+      spillFind(state, object.loot || 'salvage', object.x, object.y + 20);
+      noteStatus(state, 'An abandoned satellite let go of a plate of salvage.');
+    }
+    if (object.kind === 'crate' && dist < 100 && !object.taken) {
+      object.taken = true;
+      spillFind(state, object.loot || 'glint', object.x, object.y + 16);
+      const found = itemById(object.loot || 'glint');
+      noteStatus(state, 'A drifting crate spilled ' + (found ? found.name : 'a rare crystal') + '.');
     }
     if (object.kind === 'relay' && dist < 220) {
       const resting = object.restUntil && state.clock < object.restUntil;
@@ -1092,6 +1116,7 @@ export function setFab(state, open) {
   if (open) {
     if (state.mode !== 'fly') return;
     state.mode = 'fab';
+    teachOnce(state, 'fabricate', 'The bay lists what the hold can pay for.');
   } else {
     if (state.mode !== 'fab') return;
     state.mode = 'fly';
@@ -1681,13 +1706,13 @@ export function rockClickDistance(rock) {
 function easeCamera(state, dt) {
   let focusX = state.ship.x;
   let focusY = state.ship.y;
-  let zoom = 1;
+  let zoom = 0.86;
   if (state.mode === 'extract') {
     const rock = extractRock(state);
     if (rock) {
       focusX = state.ship.x;
       focusY = state.ship.y;
-      zoom = 1.72;
+      zoom = 1.48;
     }
   }
   const k = 1 - Math.exp(-3.2 * dt);
@@ -1901,10 +1926,16 @@ function separateFromRocks(state, audio) {
           state.shield -= 1;
           noteStatus(state, 'Shield took the hit.');
         } else if (!(state.quiet > 0)) {
-          ship.hp = Math.max(0, ship.hp - rockHitDamage(state));
-          punchCamera(state);
-          state.fxFlash = 0.22;
-          if (ship.hp <= 0) breachHull(state, audio, 'The hull broke on an asteroid.');
+          if (state.shieldGrace > 0) {
+            state.shieldGrace = 0;
+            noteStatus(state, 'The shield plate caught that hit.');
+          } else {
+            if (hullHas(state, 'ward')) state.shieldGrace = 0.85 + pieceLevel(state.hullSlots.find((entry) => entry && entry.id === 'ward')) * 0.4;
+            ship.hp = Math.max(0, ship.hp - rockHitDamage(state));
+            punchCamera(state);
+            state.fxFlash = 0.22;
+            if (ship.hp <= 0) breachHull(state, audio, 'The hull broke on an asteroid.');
+          }
         }
       }
     }
@@ -2012,7 +2043,82 @@ function separateFromBodies(state, audio) {
   shedStarDust(state);
 }
 
-/** The first pass through a star's halo shakes one mote loose. */
+function tickAtmosphere(state, dt) {
+  const ship = state.ship;
+  if (!ship || !(dt > 0)) return;
+  const clouds = [];
+  for (const object of state.spaceObjects || []) {
+    if (object.layer !== state.layer) continue;
+    if (object.kind === 'nebula') clouds.push(object);
+    if (object.kind === 'hole') pullBlackHole(state, object, dt);
+  }
+  for (const star of state.sunBodies || []) {
+    if (!star || star.layer !== state.layer) continue;
+    star.dustSpin = (star.dustSpin || 0) + dt * 0.012;
+    const cloud = {
+      id: 'dust:' + star.x + ':' + star.y,
+      x: star.x + Math.cos(star.dustSpin) * 520,
+      y: star.y + Math.sin(star.dustSpin) * 360,
+      r: 2800,
+      star,
+    };
+    clouds.push(cloud);
+    const dist = Math.hypot(ship.x - cloud.x, ship.y - cloud.y);
+    if (dist < cloud.r * 0.72 && state.clock > (star.dustNext || 0)) {
+      star.dustNext = state.clock + 36;
+      const kind = star.kind === 'cinder' || star.kind === 'glint' ? star.kind : 'pale';
+      spillFind(state, 'dust-' + kind, ship.x, ship.y + 18);
+    noteStatus(state, 'A mote of star dust shook loose.');
+    }
+  }
+  let inside = null;
+  for (const cloud of clouds) {
+    const dist = Math.hypot(ship.x - cloud.x, ship.y - cloud.y);
+    if (dist < cloud.r * 0.9 && (!inside || dist < inside.dist)) inside = { ...cloud, dist };
+  }
+  if (!inside) {
+    state.cloudBehind = false;
+    state.cloudId = '';
+    state.cloudLatched = false;
+    return;
+  }
+  if (state.cloudId !== inside.id) {
+    state.cloudId = inside.id;
+    state.cloudBehind = false;
+    state.cloudLatched = false;
+  }
+  const core = inside.r * 0.34;
+  if (inside.dist < core && !state.cloudLatched) {
+    state.cloudBehind = !state.cloudBehind;
+    state.cloudLatched = true;
+  } else if (inside.dist > core * 1.4) {
+    state.cloudLatched = false;
+  }
+}
+
+function pullBlackHole(state, hole, dt) {
+  const ship = state.ship;
+  const dx = hole.x - ship.x;
+  const dy = hole.y - ship.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  if (dist > hole.r) return;
+  const pull = 26 + (1 - dist / hole.r) * 96;
+  ship.vx += (dx / dist) * pull * dt;
+  ship.vy += (dy / dist) * pull * dt;
+  if (dist < hole.r * 0.12 && state.bumpCooldown <= 0) {
+    const ang = Math.atan2(-dy, -dx);
+    ship.x = hole.x + Math.cos(ang) * hole.r * 0.88;
+    ship.y = hole.y + Math.sin(ang) * hole.r * 0.88;
+    ship.vx = Math.cos(ang) * 180;
+    ship.vy = Math.sin(ang) * 180;
+    state.bumpCooldown = 1.4;
+    ship.hp = Math.max(0, ship.hp - 18);
+    state.fxFlash = 0.2;
+    noteStatus(state, 'The black hole threw the ship back to the rim.');
+    if (ship.hp <= 0) breachHull(state, null, 'The hull broke in a black hole.');
+  }
+}
+
 function shedStarDust(state) {
   const ship = state.ship;
   if (!ship || state.mode !== 'fly') return;
@@ -2058,6 +2164,7 @@ export function applyFlyClick(state, worldX, worldY, audio) {
   if (placePiece(state, stack.id, worldX, worldY)) {
     stack.count -= 1;
     if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;
+    teachOnce(state, 'build', 'A placed piece stays on this layer. On a planet, the first piece is the base.');
   }
   return true;
 }
@@ -2765,6 +2872,21 @@ function updateDrops(state, dt, audio) {
   state.drops = state.drops.filter((drop) => drop.life > 0);
 }
 
+function applyWornHull(state) {
+  const ship = state.ship;
+  if (!ship) return;
+  ensureHull(state);
+  const plating = pieceLevel((state.hullSlots || []).find((entry) => entry && entry.id === 'plating'));
+  const housing = pieceLevel((state.hullSlots || []).find((entry) => entry && entry.id === 'housing'));
+  const maxHp = 100 + (state.hullTier || 0) * 30 + plating * 22;
+  if (ship.maxHp !== maxHp) {
+    const gain = maxHp - (ship.maxHp || maxHp);
+    ship.maxHp = maxHp;
+    ship.hp = Math.min(maxHp, Math.max(0, ship.hp + Math.max(0, gain)));
+  }
+  ship.maxSpeed = 430 + (state.driveTier || 0) * 50 + housing * 36;
+}
+
 function updateReturnHole(state, audio) {
   const hole = state.returnHole;
   if (!hole || state.mode !== 'fly' || state.transition) return;
@@ -2846,6 +2968,18 @@ function teachFlight(state, dt) {
   if (!state.taught.hotbarFull && hotbarIsFull(state)) {
     teachOnce(state, 'hotbarFull', 'Cargo is beside the hotbar. Press C.');
   }
+  if (!state.taught.bump && state.hurt > 0) {
+    teachOnce(state, 'bump', 'A bump takes hull. The cyan rim is the rock you are aimed at.');
+  }
+  const jumper = recipeById('jumper');
+  if (
+    jumper &&
+    !hullHas(state, 'jumper') &&
+    recipeOpen(state, jumper) &&
+    canAfford(state, jumper.costs)
+  ) {
+    teachOnce(state, 'jumperReady', 'Layer jumper can be fabricated. Press F.');
+  }
 }
 
 function pushNotice(state, text, kind, time, icons) {
@@ -2862,7 +2996,10 @@ function pushNotice(state, text, kind, time, icons) {
 
 function notePickup(state, itemId, tainted) {
   const picked = itemById(itemId);
-  if (picked && picked.kind === 'mineral') return;
+  if (picked && picked.kind === 'mineral') {
+    teachOnce(state, 'collect', 'Fly over a crystal to pick it up. It stays on the hotbar for a while.');
+    return;
+  }
   const name = picked ? picked.name : 'Item';
   const mark = tainted ? ' It is marked from C4.' : '';
   pushNotice(state, name + ' added.' + mark, 'loot');
@@ -2947,10 +3084,33 @@ export function updatePhysics(state, dt, input) {
   ship.y += ship.vy * dt;
   containShip(state);
   tickStructures(state, dt);
+  noteAccelStretch(state, dt);
+}
+
+/** Brief stretch along the acceleration, strongest while speed is still building. */
+function noteAccelStretch(state, dt) {
+  const ship = state.ship;
+  if (!ship || !(dt > 0)) return;
+  if (ship._sx == null) {
+    ship._sx = ship.vx;
+    ship._sy = ship.vy;
+    return;
+  }
+  const ax = (ship.vx - ship._sx) / dt;
+  const ay = (ship.vy - ship._sy) / dt;
+  ship._sx = ship.vx;
+  ship._sy = ship.vy;
+  const mag = Math.hypot(ax, ay);
+  const kick = Math.min(0.085, mag / 2600);
+  const prev = state.speedStretch || 0;
+  state.speedStretch = Math.max(kick, prev * Math.exp(-dt / 0.14));
+  if (mag > 80) state.speedStretchAngle = Math.atan2(ay, ax);
 }
 
 export function updateFly(state, dt, ctx) {
   decayRecoil(state, dt);
+  if (state.shieldGrace > 0) state.shieldGrace = Math.max(0, state.shieldGrace - dt);
+  applyWornHull(state);
   const { input, audio, view } = ctx;
   const ship = state.ship;
   // Prefer Phaser camera world points (set by PlayScene.syncPointerWorld); fall back to CSS math.
@@ -2977,6 +3137,7 @@ export function updateFly(state, dt, ctx) {
   separateFromRocks(state, audio);
   separateFromStructure(state);
   separateFromBodies(state, audio);
+  tickAtmosphere(state, dt);
     if (state.mode === 'dead') {
     if (state.deathReveal > 0) state.deathReveal = Math.max(0, state.deathReveal - dt);
     tickShrink(state, dt);
@@ -3250,8 +3411,8 @@ export function buildHull(state) {
     slots: HULL_FITS.map((fit, index) => {
       const stack = state.hullSlots[index];
       const view = stackView(state, stack, index, false, '');
-      const level = fit.accept === BOW_ID && stack ? bowLevel(stack) : 0;
-      const canLevel = fit.accept === BOW_ID && !!stack && level < 3;
+      const level = pieceLevel(stack);
+      const canLevel = level > 0 && level < 3;
       return {
         ...view,
         slotLabel: fit.label,
@@ -3266,15 +3427,16 @@ export function buildHull(state) {
   };
 }
 
-export function raiseBow(state, audio) {
-  const result = raiseBowPlating(state);
+export function raiseBow(state, audio, id) {
+  const pieceId = typeof id === 'string' ? id : BOW_ID;
+  const result = raiseBowPlating(state, pieceId);
   if (result === 'empty' || result === 'max') return false;
   if (result === 'short') {
-    noteStatus(state, 'Bow plating needs 3 Pale ore. That cost is a stand-in.');
+    noteStatus(state, 'Raising that piece needs 3 Pale ore. That cost is a stand-in.');
     if (audio && typeof audio.wrong === 'function') audio.wrong();
     return false;
   }
-  noteStatus(state, 'Bow plating is level ' + result + '. A rock hit does a little less.');
+  noteStatus(state, 'That hull piece is level ' + result + '.');
   if (audio && typeof audio.correct === 'function') audio.correct();
   return true;
 }

@@ -311,7 +311,7 @@ export function createState() {
       maxSpeed: 430,
     },
     camera: { x: spawn.x, y: spawn.y },
-    viewZoom: 1,
+    viewZoom: 0.86,
     mission: null,
     wormhole: null,
     seed: 'belt-7',

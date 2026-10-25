@@ -35,8 +35,30 @@ export function createInput(canvas, options = {}) {
 
   function localPoint(event) {
     const rect = canvas.getBoundingClientRect();
-    mouse.x = event.clientX - rect.left;
-    mouse.y = event.clientY - rect.top;
+    const stretch = canvas._speedStretch;
+    if (!stretch) {
+      mouse.x = event.clientX - rect.left;
+      mouse.y = event.clientY - rect.top;
+    } else {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = event.clientX - cx;
+      let dy = event.clientY - cy;
+      const c = Math.cos(stretch.angle);
+      const s = Math.sin(stretch.angle);
+      let rx = dx * c + dy * s;
+      let ry = -dx * s + dy * c;
+      rx /= stretch.along;
+      ry /= stretch.across;
+      dx = rx * c - ry * s;
+      dy = rx * s + ry * c;
+      const layoutW = canvas.clientWidth || rect.width;
+      const layoutH = canvas.clientHeight || rect.height;
+      const scaleX = canvas.width && layoutW ? canvas.width / layoutW : 1;
+      const scaleY = canvas.height && layoutH ? canvas.height / layoutH : 1;
+      mouse.x = (layoutW / 2 + dx) * scaleX;
+      mouse.y = (layoutH / 2 + dy) * scaleY;
+    }
     mouse.inside = true;
     mouse.touch = event.pointerType === 'touch';
   }

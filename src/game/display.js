@@ -153,6 +153,33 @@ export function applyCameraPolish(cam, state) {
   }
 }
 
+/** Stretch the painted frame along the ship's acceleration. Gameplay positions stay put. */
+export function applySpeedStretch(canvas, state) {
+  if (!canvas || !canvas.style) return;
+  const amount = state && state.speedStretch ? state.speedStretch : 0;
+  if (amount < 0.004) {
+    if (canvas.style.transform) canvas.style.transform = '';
+    canvas._speedStretch = null;
+    return;
+  }
+  const angle = state.speedStretchAngle || 0;
+  const along = 1 + amount;
+  const across = 1 - amount * 0.55;
+  const deg = (angle * 180) / Math.PI;
+  canvas.style.transformOrigin = '50% 50%';
+  canvas.style.transform =
+    'rotate(' +
+    deg.toFixed(2) +
+    'deg) scale(' +
+    along.toFixed(4) +
+    ', ' +
+    across.toFixed(4) +
+    ') rotate(' +
+    (-deg).toFixed(2) +
+    'deg)';
+  canvas._speedStretch = { angle, along, across };
+}
+
 /**
  * Pin a world sprite to a whole screen pixel after the camera scroll is final.
  * Phaser draws at (world - scroll) * zoom, so a fractional phase makes scaled art crawl.

@@ -293,6 +293,9 @@ export function listPhaserImages() {
     ['ion-stream.png', 'images/space'],
     ['wormhole.png', 'images/space'],
     ['return-wormhole.png', 'images/space'],
+    ['nebula-cloud.png', 'images/space'],
+    ['black-hole.png', 'images/space'],
+    ['star-dust-cloud.png', 'images/space'],
   ];
   for (const [name, folder] of plates) {
     entries.push({ key: name, url: assetUrl(folder, name) });
