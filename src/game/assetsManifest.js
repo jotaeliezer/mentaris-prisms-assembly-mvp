@@ -246,7 +246,58 @@ function audioKey(filename) {
   return base.replace(/\.mp3$/i, "");
 }
 
-/** List of { key, url } for Phaser `this.load.image(key, url)`. */
+/** Space, planet, and star plates, which have no FILES array of their own. */
+const PLATE_FILES = [
+  ['wall-plate.svg', 'images/items'],
+  ['panel-plate.svg', 'images/items'],
+  ['planet-small.png', 'images/planets'],
+  ['planet-great.png', 'images/planets'],
+  ['planet-vast.png', 'images/planets'],
+  ['star-pale.png', 'images/stars'],
+  ['star-cinder.png', 'images/stars'],
+  ['star-glint.png', 'images/stars'],
+  ['debris-field.png', 'images/space'],
+  ['comet.png', 'images/space'],
+  ['prism-ring.png', 'images/space'],
+  ['stronghold.png', 'images/space'],
+  ['ion-stream.png', 'images/space'],
+  ['wormhole.png', 'images/space'],
+  ['return-wormhole.png', 'images/space'],
+  ['nebula-cloud.png', 'images/space'],
+  ['black-hole.png', 'images/space'],
+  ['star-dust-cloud.png', 'images/space'],
+];
+
+/**
+ * The pictures the first seconds of a flight cannot do without: the hull you
+ * launch in, the five rock faces, the crystal every ore drop falls back to,
+ * and the bullet face a missile uses when its own picture is missing.
+ *
+ * Everything else loads in the background once PlayScene is running. Those
+ * sprites all have a fallback (a circle, or the crystal for a drop), and the
+ * scene drops its sprite caches when the background load lands so the real
+ * picture takes over.
+ */
+export const BOOT_IMAGE_FILES = [
+  [DEFAULT_SHIP, "assets/ships"],
+  ...ASTEROID_FILES.map((name) => [name, "assets/asteroids"]),
+  [MINERAL_FILE, "assets/asteroids"],
+  ["bullet_single.png", "images/bullets"],
+];
+
+/**
+ * Sounds that can fire before the background load finishes: the answer and
+ * impact cues, the menu beeps, the two thruster loops, and the launch sting.
+ */
+export const BOOT_AUDIO_FILES = [
+  ...SFX_FILES.gameplay.map((name) => [name, "sfx/gameplay"]),
+  ...SFX_FILES.ui.map((name) => [name, "sfx/ui"]),
+  ["ship_idle.mp3", "sfx/ship"],
+  ["ship_advance.mp3", "sfx/ship"],
+  ["session_start.mp3", "sfx/progress"],
+];
+
+/** List of { key, url } for every picture the game uses. */
 export function listPhaserImages() {
   const entries = [];
   for (const name of SHIP_FILES) {
@@ -277,33 +328,13 @@ export function listPhaserImages() {
   for (const name of SHOT_IMAGE_FILES) {
     entries.push({ key: name, url: assetUrl("images/shots", name) });
   }
-  const plates = [
-    ['wall-plate.svg', 'images/items'],
-    ['panel-plate.svg', 'images/items'],
-    ['planet-small.png', 'images/planets'],
-    ['planet-great.png', 'images/planets'],
-    ['planet-vast.png', 'images/planets'],
-    ['star-pale.png', 'images/stars'],
-    ['star-cinder.png', 'images/stars'],
-    ['star-glint.png', 'images/stars'],
-    ['debris-field.png', 'images/space'],
-    ['comet.png', 'images/space'],
-    ['prism-ring.png', 'images/space'],
-    ['stronghold.png', 'images/space'],
-    ['ion-stream.png', 'images/space'],
-    ['wormhole.png', 'images/space'],
-    ['return-wormhole.png', 'images/space'],
-    ['nebula-cloud.png', 'images/space'],
-    ['black-hole.png', 'images/space'],
-    ['star-dust-cloud.png', 'images/space'],
-  ];
-  for (const [name, folder] of plates) {
+  for (const [name, folder] of PLATE_FILES) {
     entries.push({ key: name, url: assetUrl(folder, name) });
   }
   return entries;
 }
 
-/** List of { key, url } for Phaser `this.load.audio(key, url)`. */
+/** List of { key, url } for every sound the game uses. */
 export function listPhaserAudio() {
   const entries = [];
   for (const [folder, files] of Object.entries(SFX_FILES)) {
@@ -315,4 +346,33 @@ export function listPhaserAudio() {
     }
   }
   return entries;
+}
+
+function pairEntries(pairs, keyOf) {
+  return pairs.map(([name, folder]) => ({
+    key: keyOf ? keyOf(name) : name,
+    url: assetUrl(folder, name),
+  }));
+}
+
+/** Pictures BootScene blocks on. */
+export function listBootImages() {
+  return pairEntries(BOOT_IMAGE_FILES);
+}
+
+/** Sounds BootScene blocks on. */
+export function listBootAudio() {
+  return pairEntries(BOOT_AUDIO_FILES, audioKey);
+}
+
+/** Everything else, loaded in the background once the flight is running. */
+export function listBackgroundImages() {
+  const boot = new Set(listBootImages().map((entry) => entry.key));
+  return listPhaserImages().filter((entry) => !boot.has(entry.key));
+}
+
+/** Everything else, loaded in the background once the flight is running. */
+export function listBackgroundAudio() {
+  const boot = new Set(listBootAudio().map((entry) => entry.key));
+  return listPhaserAudio().filter((entry) => !boot.has(entry.key));
 }

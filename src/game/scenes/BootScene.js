@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { listPhaserAudio, listPhaserImages, SHIP_FILES } from '../assetsManifest.js';
+import { DEFAULT_SHIP, listBootAudio, listBootImages } from '../assetsManifest.js';
+import { smoothHulls } from '../hulls.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -7,20 +8,20 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    for (const { key, url } of listPhaserImages()) {
+    // Only the hull, the rock faces, the crystal, and the first cues. The rest
+    // streams in from PlayScene so the belt opens without a long wait.
+    for (const { key, url } of listBootImages()) {
       this.load.image(key, url);
     }
-    for (const { key, url } of listPhaserAudio()) {
+    for (const { key, url } of listBootAudio()) {
       this.load.audio(key, url);
     }
   }
 
   create() {
     // Painted hulls stay smooth while they turn. Nearest sampling made the pixels crawl.
-    for (const name of SHIP_FILES) {
-      if (!this.textures.exists(name)) continue;
-      this.textures.get(name).setFilter(Phaser.Textures.FilterMode.LINEAR);
-    }
+    // The other hulls get the same treatment as the background load lands them.
+    smoothHulls(this, [DEFAULT_SHIP]);
     const bridge = this.registry.get('bridge');
     this.scene.start('PlayScene', { bridge });
   }

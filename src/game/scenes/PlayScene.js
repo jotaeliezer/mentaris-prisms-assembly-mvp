@@ -1,5 +1,12 @@
 import Phaser from 'phaser';
-import { ASTEROID_FILES, DEFAULT_SHIP, MINERAL_FILE } from '../assetsManifest.js';
+import {
+  ASTEROID_FILES,
+  DEFAULT_SHIP,
+  MINERAL_FILE,
+  listBackgroundAudio,
+  listBackgroundImages,
+} from '../assetsManifest.js';
+import { smoothHulls } from '../hulls.js';
 import { createAudio } from '../audio.js';
 import {
   applyCameraPolish,
@@ -211,7 +218,7 @@ export default class PlayScene extends Phaser.Scene {
   }
 
   create() {
-    // Scene is ready; BootScene already preloaded SFX into the cache.
+    // Scene is ready; BootScene preloaded the first-second cues into the cache.
     this.audio = createAudio(this);
 
     this.cameras.main.setBounds(0, 0, WORLD.w, WORLD.h);
@@ -274,6 +281,7 @@ export default class PlayScene extends Phaser.Scene {
 
     this.ready = true;
     this.publishSnapshot(true);
+    this.loadRemainingArt();
   }
 
   writeLocalFlight() {
@@ -1441,6 +1449,53 @@ export default class PlayScene extends Phaser.Scene {
     this.leaveRockSprites.clear();
     for (const sprite of this.dropSprites.values()) sprite.destroy();
     this.dropSprites.clear();
+  }
+
+  /**
+   * Start loading everything BootScene left out, without blocking the flight.
+   * Anything on screen before this lands drew its fallback (a circle, or the
+   * crystal for a drop), so the caches are dropped on completion and the real
+   * picture takes over on the next frame.
+   */
+  loadRemainingArt() {
+    const images = listBackgroundImages();
+    const audio = listBackgroundAudio();
+    if (!images.length && !audio.length) return;
+    for (const { key, url } of images) {
+      if (this.textures.exists(key)) continue;
+      this.load.image(key, url);
+    }
+    for (const { key, url } of audio) {
+      if (this.cache.audio.exists(key)) continue;
+      this.load.audio(key, url);
+    }
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      smoothHulls(this);
+      this.dropFallbackSprites();
+    });
+    this.load.start();
+  }
+
+  /**
+   * Throw away sprites that may have been built from a fallback while the
+   * background load was still running. Each sync rebuilds them next frame.
+   */
+  dropFallbackSprites() {
+    this.resyncSprites();
+    const maps = [
+      this.shotSprites,
+      this.bodySprites,
+      this.plateSprites,
+      this.pieceSprites,
+      this.veilSprites,
+      this.alienSprites,
+      this.gatherSprites,
+    ];
+    for (const map of maps) {
+      if (!map) continue;
+      for (const sprite of map.values()) sprite.destroy();
+      map.clear();
+    }
   }
 
   ensureRockSprite(map, rock, depth) {
