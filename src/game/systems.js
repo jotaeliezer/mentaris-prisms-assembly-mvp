@@ -66,6 +66,7 @@ import {
   removeItems,
   returnHeld,
   takeAllStacks,
+  weaponBullet,
 } from './items.js';
 import { backfillStation, placePiece, tickStructures, visiblePieces } from './construct.js';
 
@@ -3773,7 +3774,9 @@ function applyUse(state, use, audio, world) {
       noteStatus(state, 'Nothing in range for that weapon.');
       return false;
     }
-    launchAt(state, found, audio, heavy, heavy ? '' : 'bullet_missile.png', heavy ? 'gun1' : 'shot_missile', { arc: !heavy, speed: heavy ? 900 : 620 });
+    const barrel = selectedStack(state);
+    const face = heavy ? '' : weaponBullet(barrel && barrel.id) || 'bullet_missile.png';
+    launchAt(state, found, audio, heavy, face, heavy ? 'gun1' : 'shot_missile', { arc: !heavy, speed: heavy ? 900 : 620 });
     if (heavy) grantMilestone(state, 'core-cannon');
     return true;
   }

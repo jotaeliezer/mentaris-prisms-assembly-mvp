@@ -129,6 +129,15 @@ export function slotIcon(id) {
   return alien ? '/images/items/' + alien : '';
 }
 
+/**
+ * The bullet a weapon puts in the air. Weapons in SHOT_STYLE carry their own
+ * face there; this covers the missile-class ones, so a Pulse lance fires the
+ * green lance its slot shows rather than the Arc missile's flame.
+ */
+export function weaponBullet(id) {
+  return WEAPON_BULLET[id] || '';
+}
+
 /** Phaser texture key for a drop that has its own picture. Ores stay on the mineral sprite. */
 export function dropSpriteKey(id) {
   const icon = slotIcon(id);
