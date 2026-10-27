@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createState } from '../src/game/state.js';
 import {
+  BASE_AMMO,
   ITEMS,
   addItem,
   countItem,
@@ -310,7 +311,8 @@ assert(!gun.station, 'a weapon click does not add a station piece');
 assert(gun.hotbar[0].count === 3 && gun.missiles.length === 0, 'applyFlyClick does not fire or spend the missile');
 assert(useSelectedHotbar(gun, null) === true, 'an arc missile fires at a rock in weapon range');
 assert(gun.missiles.length === 1 && gun.missiles[0].targetId === 77, 'the missile uses the existing shot path');
-assert(gun.hotbar[0].count === 2, 'the fired missile leaves the hotbar');
+assert(gun.hotbar[0].count === 3, 'the launcher stays on the hotbar');
+assert(gun.hotbar[0].rounds === BASE_AMMO * 3 - 1, 'a stack built before magazines counts as full, less the shot');
 assert(!gun.station, 'firing does not place a station piece');
 
 const linked = flyState();

@@ -77,6 +77,10 @@ export function iconFilter(id) {
 const WEAPON_BULLET = {
   'arc-missile': 'bullet_missile.png',
   'pulse-lance': 'bullet_laser.png',
+  // These two have no picture of their own, so the rounds wear the bullet
+  // their weapon fires. The alien rounds have their own art in MADE_ICON.
+  'missile-ammo': 'bullet_missile.png',
+  'lance-ammo': 'bullet_laser.png',
   flare: 'bullet_fire1.png',
   'ice-shot': 'bullet_ice.png',
   'fire-shot': 'bullet_fire1.png',
@@ -141,7 +145,8 @@ export function weaponBullet(id) {
 /** Phaser texture key for a drop that has its own picture. Ores stay on the mineral sprite. */
 export function dropSpriteKey(id) {
   const icon = slotIcon(id);
-  if (!icon.startsWith('/images/items/') && !icon.startsWith('/images/stars/')) return '';
+  const folders = ['/images/items/', '/images/stars/', '/images/bullets/'];
+  if (!folders.some((folder) => icon.startsWith(folder))) return '';
   return icon.slice(icon.lastIndexOf('/') + 1);
 }
 
@@ -154,6 +159,8 @@ export const AMMO_OF = {
   'fire-shot': 'fire-ammo',
   'laser-shot': 'laser-ammo',
   'rail-shot': 'rail-ammo',
+  'arc-missile': 'missile-ammo',
+  'pulse-lance': 'lance-ammo',
 };
 const AMMO_IDS = new Set(Object.values(AMMO_OF));
 
@@ -184,8 +191,8 @@ export const ITEMS = {
   wire: { id: 'wire', name: 'Slate wire', mark: 'Sw', color: '#9eb4c6', tint: 0x9eb4c6, kind: 'alloy', about: 'A blue-grey strand drawn from slate ore. It can be stored in the hotbar or the cargo. It has no use.' },
   foil: { id: 'foil', name: 'Virid foil', mark: 'Fo', color: '#b6f7a0', tint: 0xb6f7a0, kind: 'alloy', about: 'A thin green sheet pressed from virid ore. It can be stored in the hotbar or the cargo. It has no use.' },
   gem: { id: 'gem', name: 'Glint gem', mark: 'Ge', color: '#ffe9a3', tint: 0xffe9a3, kind: 'alloy', about: 'A bright face cut from one glint crystal. It can be stored in the hotbar or the cargo. It has no use.' },
-  'arc-missile': { id: 'arc-missile', name: 'Arc missile', mark: 'Ar', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'weapon', use: 'missile', about: 'A homing shot for aliens and asteroids. It curves around other rocks to reach the target, and it locks from much farther away. Select it and left click.' },
-  'pulse-lance': { id: 'pulse-lance', name: 'Pulse lance', mark: 'Pu', color: '#8dffb0', tint: 0x8dffb0, kind: 'weapon', use: 'missile', about: 'A green lance that fires like the arc missile. Select it and left click. Useful as a second weapon once you have amber as well as iron.' },
+  'arc-missile': { id: 'arc-missile', name: 'Arc missile', mark: 'Ar', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'weapon', use: 'missile', about: 'A homing shot for aliens and asteroids. It curves around other rocks to reach the target, and it locks from much farther away. The weapon stays on the hotbar. Select it and left click to spend one Missile round. It comes with 150 rounds.' },
+  'pulse-lance': { id: 'pulse-lance', name: 'Pulse lance', mark: 'Pu', color: '#8dffb0', tint: 0x8dffb0, kind: 'weapon', use: 'missile', about: 'A green lance that arcs home like the arc missile, and fires its own green bolt. The weapon stays on the hotbar. One click spends one Lance round. It comes with 150 rounds, and costs only amber and iron.' },
   flare: { id: 'flare', name: 'Survey flare', mark: 'Sf', color: '#fff1a8', tint: 0xfff1a8, kind: 'weapon', use: 'flare', about: 'A survey count of the rocks still on this layer. Use it from the hotbar. Useful when you want to know if the belt around you is spent before you jump.' },
   drive: { id: 'drive', name: 'Drive coil', mark: 'Dr', color: '#7ad7ff', tint: 0x7ad7ff, kind: 'ship', use: 'drive', about: 'A coil that raises the ship’s top speed. Use it from the hotbar. Each coil is one tier, up to three. Useful when the belt feels slow.' },
   hull: { id: 'hull', name: 'Hull plate', mark: 'Hu', color: '#b7d4ff', tint: 0xb7d4ff, kind: 'ship', use: 'hull', about: 'A plate that raises maximum hull and repairs a little. Use it from the hotbar, up to three times. Useful after a few rock bumps.' },
@@ -240,6 +247,8 @@ export const ITEMS = {
   'fire-ammo': { id: 'fire-ammo', name: 'Fire rounds', mark: 'Fr', color: '#ffb15a', tint: 0xffb15a, kind: 'ammo', about: 'Rounds for the Fire shot. They sit in the cargo. One click of the weapon spends one round.' },
   'laser-ammo': { id: 'laser-ammo', name: 'Laser rounds', mark: 'Lr', color: '#8dffb0', tint: 0x8dffb0, kind: 'ammo', about: 'Rounds for the Laser shot. They sit in the cargo. One click of the weapon spends one round.' },
   'rail-ammo': { id: 'rail-ammo', name: 'Rail rounds', mark: 'Rr', color: '#ffe27a', tint: 0xffe27a, kind: 'ammo', about: 'Rounds for the Rail shot. They sit in the cargo. One click of the weapon spends one round.' },
+  'missile-ammo': { id: 'missile-ammo', name: 'Missile rounds', mark: 'Mr', color: '#7ee7ff', tint: 0x7ee7ff, kind: 'ammo', about: 'Rounds for the Arc missile. They sit in the cargo. One click of the weapon spends one round.' },
+  'lance-ammo': { id: 'lance-ammo', name: 'Lance rounds', mark: 'Lc', color: '#8dffb0', tint: 0x8dffb0, kind: 'ammo', about: 'Rounds for the Pulse lance. They sit in the cargo. One click of the weapon spends one round.' },
   'electric-shot': { id: 'electric-shot', name: 'Electric shot', mark: 'El', color: '#7ad7ff', tint: 0x7ad7ff, kind: 'weapon', use: 'shot', about: 'A crackling bolt. Select it and left click. It breaks one rock in range. The count spends slate wire, a spark gland, and an ion mote.' },
   'bola-shot': { id: 'bola-shot', name: 'Bola shot', mark: 'Bo', color: '#d5d8df', tint: 0xd5d8df, kind: 'weapon', use: 'shot', about: 'Select it and left click an asteroid. The rock becomes four stars and the shot keeps flying. Finish that rock’s questions and the bola breaks the closest asteroid ahead for extra ore.' },
   'plasma-shot': { id: 'plasma-shot', name: 'Plasma shot', mark: 'Pl', color: '#c9b6ff', tint: 0xc9b6ff, kind: 'weapon', use: 'shot', about: 'Hits aliens and asteroids. A three-star rock or higher can still be answered. Shooting it drops the rock to two stars and gives it an easier question. The shot does not break the rock by itself.' },
@@ -277,6 +286,8 @@ export const RECIPES = [
   { id: 'fire-ammo', category: 'weapons', result: 'fire-ammo', station: 'bench', count: 50, costs: [{ id: 'amber', n: 1 }] },
   { id: 'laser-ammo', category: 'weapons', result: 'laser-ammo', station: 'bench', count: 50, costs: [{ id: 'glass', n: 1 }] },
   { id: 'rail-ammo', category: 'weapons', result: 'rail-ammo', station: 'bench', count: 50, costs: [{ id: 'iron', n: 1 }] },
+  { id: 'missile-ammo', category: 'weapons', result: 'missile-ammo', station: 'bench', count: 50, costs: [{ id: 'resin', n: 1 }] },
+  { id: 'lance-ammo', category: 'weapons', result: 'lance-ammo', station: 'bench', count: 50, costs: [{ id: 'amber', n: 1 }] },
   { id: 'drive', category: 'ship', result: 'drive', station: 'bench', count: 1, costs: [{ id: 'iron', n: 3 }, { id: 'pale', n: 1 }] },
   { id: 'hull', category: 'ship', result: 'hull', station: 'bench', count: 1, costs: [{ id: 'iron', n: 2 }, { id: 'pale', n: 2 }] },
   { id: 'hint', category: 'ship', result: 'hint', station: 'bench', count: 1, costs: [{ id: 'glass', n: 1 }] },

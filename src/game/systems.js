@@ -3311,7 +3311,7 @@ export function hotbarIndex(state) {
 function stackBadge(state, stack) {
   if (!stack) return '';
   const ammoId = AMMO_OF[stack.id];
-  if (ammoId) return String((stack.rounds || 0) + countItem(state, ammoId));
+  if (ammoId) return String(gunRounds(stack) + countItem(state, ammoId));
   return stack.count > 1 ? String(stack.count) : '';
 }
 
@@ -3608,11 +3608,22 @@ function weaponForAmmo(ammoId) {
   return '';
 }
 
+/**
+ * Rounds left in a magazine weapon. A gun saved before it had a magazine, or
+ * built straight into a slot, counts as full rather than as empty, so nobody's
+ * older flight opens with a dead weapon.
+ */
+function gunRounds(stack) {
+  if (!stack || !AMMO_OF[stack.id]) return 0;
+  if (stack.rounds == null) stack.rounds = BASE_AMMO * (stack.count || 1);
+  return stack.rounds;
+}
+
 function trySpendAmmo(state, weaponId) {
   const ammoId = AMMO_OF[weaponId];
   if (!ammoId) return 'free';
   const gun = findHeld(state, weaponId);
-  if (gun && gun.rounds > 0) {
+  if (gun && gunRounds(gun) > 0) {
     gun.rounds -= 1;
     return 'spent';
   }
@@ -3775,6 +3786,8 @@ function applyUse(state, use, audio, world) {
       return false;
     }
     const barrel = selectedStack(state);
+    // The round is spent once there is something to hit, so a miss costs nothing.
+    if (barrel && trySpendAmmo(state, barrel.id) === 'empty') return true;
     const face = heavy ? '' : weaponBullet(barrel && barrel.id) || 'bullet_missile.png';
     launchAt(state, found, audio, heavy, face, heavy ? 'gun1' : 'shot_missile', { arc: !heavy, speed: heavy ? 900 : 620 });
     if (heavy) grantMilestone(state, 'core-cannon');
@@ -4011,7 +4024,8 @@ export function useSelectedHotbar(state, audio, world) {
   const item = itemById(stack.id);
   if (!item || !item.use) return false;
   if (!applyUse(state, item.use, audio, world)) return false;
-  const magazine = item.use === 'shot' && (AMMO_OF[stack.id] || SHOT_STYLE[stack.id]);
+  // A weapon that feeds from a magazine stays on the hotbar; only its rounds run down.
+  const magazine = AMMO_OF[stack.id] || (item.use === 'shot' && SHOT_STYLE[stack.id]);
   if (!magazine && item.use !== 'halo' && item.use !== 'gate') {
     stack.count -= 1;
     if (stack.count <= 0) state.hotbar[hotbarIndex(state)] = null;

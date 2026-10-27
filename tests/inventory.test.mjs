@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { createState, mineralYield, rollAsteroidType } from '../src/game/state.js';
 import { makeRng } from '../src/game/util.js';
 import {
+  BASE_AMMO,
   CARGO_COLS,
   CARGO_ROWS,
   CARGO_SIZE,
@@ -722,14 +723,37 @@ for (const other of arc.asteroids) {
 }
 assert(useSelectedHotbar(arc, null), 'an arc missile reaches a rock 900 away');
 assert(arc.missiles.length === 1 && arc.missiles[0].arc, 'the arc missile curves toward that rock');
-assert(countItem(arc, 'arc-missile') === 0, 'a shot in range is spent');
+assert(arc.missiles[0].face === 'bullet_missile.png', 'the arc missile flies as its own bullet');
+const arcGun = arc.hotbar.find((stack) => stack && stack.id === 'arc-missile');
+assert(countItem(arc, 'arc-missile') === 1, 'the launcher stays on the hotbar');
+assert(arcGun.rounds === BASE_AMMO - 1, 'a shot in range spends one round, not the weapon');
 arc.ship.x = 4000;
 arc.ship.y = 4000;
 arcRock.x = 7000;
 arcRock.y = 4000;
-addItem(arc, 'arc-missile', 1);
-selectHotbar(arc, arc.hotbar.findIndex((stack) => stack && stack.id === 'arc-missile'));
 assert(!useSelectedHotbar(arc, null), 'an arc missile cannot reach a rock 3000 away');
+assert(arcGun.rounds === BASE_AMMO - 1, 'a shot out of range spends nothing');
+
+// The Pulse lance shares the arc flight but keeps its own green bolt and magazine.
+const lance = createState();
+startMission(lance, 'add', 'lance-far', null);
+assert(addItem(lance, 'pulse-lance', 1) === 0, 'a pulse lance for the bullet check');
+const lanceGun = lance.hotbar.find((stack) => stack && stack.id === 'pulse-lance');
+assert(lanceGun.rounds === BASE_AMMO, 'the lance arrives with a full magazine');
+selectHotbar(lance, lance.hotbar.findIndex((stack) => stack && stack.id === 'pulse-lance'));
+const lanceRock = lance.asteroids.find((rock) => rock.alive);
+lance.ship.x = 4000;
+lance.ship.y = 4000;
+lanceRock.x = 4900;
+lanceRock.y = 4000;
+for (const other of lance.asteroids) {
+  if (other === lanceRock) continue;
+  other.x = -4000;
+  other.y = -4000;
+}
+assert(useSelectedHotbar(lance, null), 'the pulse lance fires at a rock 900 away');
+assert(lance.missiles[0].face === 'bullet_laser.png', 'the lance flies as a lance, not a missile');
+assert(lanceGun.rounds === BASE_AMMO - 1, 'the lance spends one of its own rounds');
 
 const pour = createState();
 startMission(pour, 'roam', 'pour-ore', null);
