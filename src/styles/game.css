@@ -308,11 +308,6 @@ button:disabled,
     inset 0 0 14px rgba(57, 255, 20, 0.08);
 }
 
-.hint-beside-map {
-  align-self: flex-start;
-  max-width: min(1040px, calc(100vw - 340px));
-}
-
 .hint-full {
   position: absolute;
   width: 1px;
@@ -1814,7 +1809,6 @@ button:disabled {
     padding: 12px 16px;
     max-width: calc(100vw - 220px);
   }
-  .hint-beside-map { max-width: calc(100vw - 300px); }
   .panel { padding: 22px 18px; }
   h1 { font-size: 34px; }
   .hull-meter { width: 220px; }

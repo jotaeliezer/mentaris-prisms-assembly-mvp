@@ -307,13 +307,25 @@ export function syncTransitionWash(gfx, state, w, h) {
  * Minimap in screen space. Hidden until state.mapUnlocked is true.
  * T7 wires fab unlock; default false gates product intent early.
  */
+/**
+ * The closed hotbar is a quarter ring pinned to the bottom-right corner. Its
+ * slots reach 358px in from the right edge (closedCenter 194 + closedRadius 172
+ * + half a slot at its selected scale), and that reach does not change with the
+ * viewport. The map sits clear of it, and high enough to clear the hint line
+ * that runs along the bottom middle.
+ */
+const HOTBAR_REACH = 358;
+const MAP_GAP = 24;
+const HINT_BAND = 120;
+
 export function syncMinimap(gfx, state, w, h) {
   gfx.clear();
   if (!state.mapUnlocked) return;
   const mw = 176;
   const mh = 120;
-  const x = w - mw - 16;
-  const y = h - mh - 58;
+  // On a screen too narrow to seat both, the map keeps its place on screen.
+  const x = Math.max(16, w - mw - HOTBAR_REACH - MAP_GAP);
+  const y = Math.max(16, h - mh - HINT_BAND);
   gfx.fillStyle(0x050e18, 0.78);
   gfx.fillRect(x, y, mw, mh);
   gfx.lineStyle(1, 0x7ee7ff, 0.4);

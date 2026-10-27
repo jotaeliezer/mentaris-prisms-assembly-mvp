@@ -197,7 +197,7 @@ function SlotFace({ icon, mark, color, iconFilter }) {
   );
 }
 
-function HintBar({ text, besideMap }) {
+function HintBar({ text }) {
   const full = text || '';
   const [count, setCount] = useState(0);
 
@@ -240,10 +240,7 @@ function HintBar({ text, besideMap }) {
 
   const typing = count < full.length;
   return (
-    <p
-      id="hint"
-      className={`hint${besideMap ? ' hint-beside-map' : ''}${typing ? ' hint-typing' : ''}`}
-    >
+    <p id="hint" className={`hint${typing ? ' hint-typing' : ''}`}>
       <span className="hint-full" role="status">
         {full}
       </span>
@@ -476,7 +473,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
           />
         </div>
       </div>
-      <HintBar text={hud.hint || ''} besideMap={!!snapshot.mapUnlocked} />
+      <HintBar text={hud.hint || ''} />
       {showHull && (
         <div id="hull" className="hull-drawer" aria-label="Hull">
           <div className="hull-grid">
@@ -515,7 +512,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       )}
       {slots.length > 0 && (
         <div
-          className={`hotbar-dock${snapshot.mapUnlocked ? ' hotbar-clear-map' : ''}`}
+          className="hotbar-dock"
         >
           {(snapshot.notices || []).some((note) => note.kind === 'loot') ? (
             <div className="loot-toasts" aria-live="polite">
