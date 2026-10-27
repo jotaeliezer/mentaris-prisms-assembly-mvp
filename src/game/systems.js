@@ -3438,11 +3438,8 @@ export function craftItem(state, recipeId, audio, times) {
   const reloadGun = reload ? findHeld(state, reload) : null;
   const left = reloadGun ? 0 : addItem(state, recipe.result, made);
   if (reloadGun) reloadGun.rounds = (reloadGun.rounds || 0) + made;
+  // addItem loads the magazine, so a fabricated weapon needs nothing more here.
   const ammoId = AMMO_OF[recipe.result];
-  if (ammoId) {
-    const gun = findHeld(state, recipe.result);
-    if (gun) gun.rounds = (gun.rounds || 0) + BASE_AMMO * n;
-  }
   if (left > 0) {
     state.drops.push({
       id: state.nextId++,

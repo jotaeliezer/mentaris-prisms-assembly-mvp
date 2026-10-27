@@ -511,10 +511,14 @@ function addInto(list, id, count, level) {
     }
     return left;
   }
+  // A weapon that takes rounds arrives loaded, however it got here: fabricated,
+  // picked up off the ground after a breach, or pulled out of a wreck.
+  const magazine = AMMO_OF[id] ? BASE_AMMO : 0;
   for (const stack of list) {
     if (!stack || stack.id !== id || stack.count >= limit) continue;
     const take = Math.min(limit - stack.count, left);
     stack.count += take;
+    if (magazine) stack.rounds = (stack.rounds || 0) + magazine * take;
     left -= take;
     if (left <= 0) return 0;
   }
@@ -522,6 +526,7 @@ function addInto(list, id, count, level) {
     if (list[i]) continue;
     const take = Math.min(limit, left);
     list[i] = { id, count: take };
+    if (magazine) list[i].rounds = magazine * take;
     left -= take;
     if (left <= 0) return 0;
   }
