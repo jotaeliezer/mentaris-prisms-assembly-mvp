@@ -288,7 +288,9 @@ button:disabled,
   position: relative;
   z-index: 2;
   max-width: min(1040px, calc(100vw - 240px));
-  margin: 0 0 8px;
+  /* Hud.jsx measures the hull panel into --hint-lift so the panel, which paints
+     over this line, never covers the first words. */
+  margin: 0 0 var(--hint-lift, 8px);
   padding: 16px 28px;
   border-radius: 16px;
   background: rgba(3, 14, 6, 0.84);

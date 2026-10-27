@@ -31,9 +31,6 @@ A short coil of violet thread, glowing, wrapped once. Dark outline so it does no
 ### Arc missile
 A small cyan dart with a white nose and a short cyan exhaust. Top-down, nose up. One object, not a trail of many missiles.
 
-### Pulse lance
-A green lance head on a short silver shaft, with a green glow at the tip. Nose up.
-
 ### Survey flare
 A gold flare cartridge, faceted, with a small yellow flame at one end. It counts rocks when used. The icon is the cartridge, not a number.
 

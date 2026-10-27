@@ -19,7 +19,7 @@ These are the intended binds. They are not in the game yet.
 
 | Action | Control | What it does |
 | --- | --- | --- |
-| Shoot | Left click with a weapon selected | Fires that weapon. The Arc missile and Pulse lance already work this way against rocks. Against an alien, the same shot can hit the alien. |
+| Shoot | Left click with a weapon selected | Fires that weapon. The Arc missile already works this way against rocks. Against an alien, the same shot can hit the alien. |
 | Dash | Shift | A short burst along the ship's aim. It spends a brief moment where an alien shot can miss. It does not open a question. |
 | Block | Hold Space | The ship holds a guard in front of the nose. An alien shot that arrives while the guard is up is stopped. The guard drops when Space is released. It does not stop an asteroid bump. |
 

@@ -316,16 +316,20 @@ export function syncTransitionWash(gfx, state, w, h) {
  */
 const HOTBAR_REACH = 358;
 const MAP_GAP = 24;
-const HINT_BAND = 120;
+/** The bottom strip the hull panel keeps, plus the hint line riding above it. */
+const HINT_BAND = 200;
 
 export function syncMinimap(gfx, state, w, h) {
   gfx.clear();
   if (!state.mapUnlocked) return;
   const mw = 176;
   const mh = 120;
-  // On a screen too narrow to seat both, the map keeps its place on screen.
-  const x = Math.max(16, w - mw - HOTBAR_REACH - MAP_GAP);
-  const y = Math.max(16, h - mh - HINT_BAND);
+  const beside = w - mw - HOTBAR_REACH - MAP_GAP;
+  // A phone has no room along the bottom for the ring, the hint and the map at
+  // once, so there the map goes to the top left, under the hull readout.
+  const roomBeside = beside >= 16;
+  const x = roomBeside ? beside : 16;
+  const y = roomBeside ? Math.max(16, h - mh - HINT_BAND) : 56;
   gfx.fillStyle(0x050e18, 0.78);
   gfx.fillRect(x, y, mw, mh);
   gfx.lineStyle(1, 0x7ee7ff, 0.4);

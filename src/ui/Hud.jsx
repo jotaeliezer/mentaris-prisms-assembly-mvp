@@ -298,6 +298,34 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
   const hull = snapshot.hullRack;
   const hullSlots = hull && Array.isArray(hull.slots) ? hull.slots : [];
   const showHull = !!(hull && hull.visible);
+  const hullRef = useRef(null);
+
+  // The hull panel sits in the bottom-left corner and paints over the hint,
+  // which is centred along the bottom. Measuring the panel rather than guessing
+  // keeps the hint just clear of it however many slots the panel grows to hold.
+  useLayoutEffect(() => {
+    const hud = document.getElementById('hud');
+    if (!hud) return undefined;
+    const panel = hullRef.current;
+    if (!showHull || !panel) {
+      hud.style.removeProperty('--hint-lift');
+      return undefined;
+    }
+    const measure = () => {
+      const box = panel.getBoundingClientRect();
+      const bottom = window.innerHeight - box.bottom;
+      hud.style.setProperty('--hint-lift', Math.round(box.height + bottom + 12) + 'px');
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      hud.style.removeProperty('--hint-lift');
+    };
+  }, [showHull, hullSlots.length]);
   const [pointer, setPointer] = useState(null);
   const view = useViewport();
   const layout = arcLayout(view.w, view.h);
@@ -475,7 +503,7 @@ export default function Hud({ bridge, snapshot, showFlightGear, flightSettingsOp
       </div>
       <HintBar text={hud.hint || ''} />
       {showHull && (
-        <div id="hull" className="hull-drawer" aria-label="Hull">
+        <div id="hull" className="hull-drawer" aria-label="Hull" ref={hullRef}>
           <div className="hull-grid">
             {hullSlots.map((slot) => (
               <div

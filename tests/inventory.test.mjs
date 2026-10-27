@@ -492,7 +492,6 @@ const slotPictures = [
   ['virid', crystalIcon, 'Vi'],
   ['glint', crystalIcon, 'Gn'],
   ['arc-missile', '/images/bullets/bullet_missile.png', 'Ar'],
-  ['pulse-lance', '/images/bullets/bullet_laser.png', 'Pu'],
   ['flare', '/images/bullets/bullet_fire1.png', 'Sf'],
   ['glass', '/images/items/glass.png', 'Gl'],
   ['repair', '/images/items/repair.png', 'Rp'],
@@ -734,26 +733,22 @@ arcRock.y = 4000;
 assert(!useSelectedHotbar(arc, null), 'an arc missile cannot reach a rock 3000 away');
 assert(arcGun.rounds === BASE_AMMO - 1, 'a shot out of range spends nothing');
 
-// The Pulse lance shares the arc flight but keeps its own green bolt and magazine.
-const lance = createState();
-startMission(lance, 'add', 'lance-far', null);
-assert(addItem(lance, 'pulse-lance', 1) === 0, 'a pulse lance for the bullet check');
-const lanceGun = lance.hotbar.find((stack) => stack && stack.id === 'pulse-lance');
-assert(lanceGun.rounds === BASE_AMMO, 'the lance arrives with a full magazine');
-selectHotbar(lance, lance.hotbar.findIndex((stack) => stack && stack.id === 'pulse-lance'));
-const lanceRock = lance.asteroids.find((rock) => rock.alive);
-lance.ship.x = 4000;
-lance.ship.y = 4000;
-lanceRock.x = 4900;
-lanceRock.y = 4000;
-for (const other of lance.asteroids) {
-  if (other === lanceRock) continue;
-  other.x = -4000;
-  other.y = -4000;
-}
-assert(useSelectedHotbar(lance, null), 'the pulse lance fires at a rock 900 away');
-assert(lance.missiles[0].face === 'bullet_laser.png', 'the lance flies as a lance, not a missile');
-assert(lanceGun.rounds === BASE_AMMO - 1, 'the lance spends one of its own rounds');
+// The green laser is one weapon and one round, and it flies as its own bolt.
+const laser = createState();
+startMission(laser, 'add', 'laser-far', null);
+assert(addItem(laser, 'laser-shot', 1) === 0, 'a laser shot for the bullet check');
+const laserGun = laser.hotbar.find((stack) => stack && stack.id === 'laser-shot');
+assert(laserGun.rounds === BASE_AMMO, 'the laser arrives with a full magazine');
+selectHotbar(laser, laser.hotbar.findIndex((stack) => stack && stack.id === 'laser-shot'));
+assert(useSelectedHotbar(laser, null, { x: laser.ship.x + 400, y: laser.ship.y }), 'the laser fires where it is aimed');
+assert(laser.missiles.length === 3, 'the laser fires its three-bolt burst');
+assert(laser.missiles[0].face === 'shot_laser.png', 'the laser flies as its own bolt');
+assert(laserGun.rounds === BASE_AMMO - 1, 'one click spends one laser round');
+assert(countItem(laser, 'laser-shot') === 1, 'the laser stays on the hotbar');
+
+// The lance that duplicated the laser is gone, and so are its rounds.
+assert(!ITEMS['pulse-lance'] && !ITEMS['lance-ammo'], 'no pulse lance or lance rounds remain');
+assert(!RECIPES.some((recipe) => recipe.result === 'pulse-lance' || recipe.result === 'lance-ammo'), 'and nothing fabricates them');
 
 const pour = createState();
 startMission(pour, 'roam', 'pour-ore', null);
