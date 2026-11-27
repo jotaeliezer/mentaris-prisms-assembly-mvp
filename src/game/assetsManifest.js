@@ -17,6 +17,11 @@ export const SHIP_FILES = [
   "Veloz Mas.png",
   "Verdant Spire.png",
   "White Flame 8.png",
+  "generated/Prism Scout.png",
+  "generated/Verdant Manta.png",
+  "generated/Crimson Pod.png",
+  "generated/Aurora Lancer.png",
+  "generated/Tiburon Flame.png",
 ];
 
 export const ASTEROID_FILES = [
